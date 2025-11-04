@@ -8,18 +8,24 @@ import {
   Post,
   Req,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { memoryStorage } from 'multer';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SelectAccountTypeDto } from './dto/select-account-type.dto';
+import { RegisterEmailDto } from './dto/register-email.dto';
+import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
+import { CompleteStaffProfileDto } from './dto/complete-staff-profile.dto';
+import { CompleteServiceProviderProfileDto } from './dto/complete-service-provider-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import appConfig from '../../config/app.config';
 import { AuthGuard } from '@nestjs/passport';
@@ -27,80 +33,80 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
-  @ApiOperation({ summary: 'Get user details' })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  async me(@Req() req: Request) {
-    try {
-      const user_id = req.user.userId;
+  // @ApiOperation({ summary: 'Get user details' })
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard)
+  // @Get('me')
+  // async me(@Req() req: Request) {
+  //   try {
+  //     const user_id = req.user.userId;
 
-      const response = await this.authService.me(user_id);
+  //     const response = await this.authService.me(user_id);
 
-      return response;
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to fetch user details',
-      };
-    }
-  }
+  //     return response;
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       message: 'Failed to fetch user details',
+  //     };
+  //   }
+  // }
 
-  @ApiOperation({ summary: 'Register a user' })
-  @Post('register')
-  async create(@Body() data: CreateUserDto) {
-    try {
-      const name = data.name;
-      const first_name = data.first_name;
-      const last_name = data.last_name;
-      const email = data.email;
-      const password = data.password;
-      const type = data.type;
+  //@ApiOperation({ summary: 'Register a user' })
+  //@Post('register')
+  // async create(@Body() data: CreateUserDto) {
+  //   try {
+  //     const name = data.name;
+  //     const first_name = data.first_name;
+  //     const last_name = data.last_name;
+  //     const email = data.email;
+  //     const password = data.password;
+  //     const type = data.type;
 
-      if (!name) {
-        throw new HttpException('Name not provided', HttpStatus.UNAUTHORIZED);
-      }
-      if (!first_name) {
-        throw new HttpException(
-          'First name not provided',
-          HttpStatus.UNAUTHORIZED,
-        );
-      }
-      if (!last_name) {
-        throw new HttpException(
-          'Last name not provided',
-          HttpStatus.UNAUTHORIZED,
-        );
-      }
-      if (!email) {
-        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
-      }
-      if (!password) {
-        throw new HttpException(
-          'Password not provided',
-          HttpStatus.UNAUTHORIZED,
-        );
-      }
+  //     if (!name) {
+  //       throw new HttpException('Name not provided', HttpStatus.UNAUTHORIZED);
+  //     }
+  //     if (!first_name) {
+  //       throw new HttpException(
+  //         'First name not provided',
+  //         HttpStatus.UNAUTHORIZED,
+  //       );
+  //     }
+  //     if (!last_name) {
+  //       throw new HttpException(
+  //         'Last name not provided',
+  //         HttpStatus.UNAUTHORIZED,
+  //       );
+  //     }
+  //     if (!email) {
+  //       throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+  //     }
+  //     if (!password) {
+  //       throw new HttpException(
+  //         'Password not provided',
+  //         HttpStatus.UNAUTHORIZED,
+  //       );
+  //     }
 
-      const response = await this.authService.register({
-        name: name,
-        first_name: first_name,
-        last_name: last_name,
-        email: email,
-        password: password,
-        type: type,
-      });
+  //     const response = await this.authService.register({
+  //       name: name,
+  //       first_name: first_name,
+  //       last_name: last_name,
+  //       email: email,
+  //       password: password,
+  //       type: type,
+  //     });
 
-      return response;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
+  //     return response;
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       message: error.message,
+  //     };
+  //   }
+  // }
 
   // login user
   @ApiOperation({ summary: 'Login user' })
@@ -162,22 +168,22 @@ export class AuthController {
       storage: memoryStorage(),
     }),
   )
-  async updateUser(
-    @Req() req: Request,
-    @Body() data: UpdateUserDto,
-    @UploadedFile() image: Express.Multer.File,
-  ) {
-    try {
-      const user_id = req.user.userId;
-      const response = await this.authService.updateUser(user_id, data, image);
-      return response;
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to update user',
-      };
-    }
-  }
+  // async updateUser(
+  //   @Req() req: Request,
+  //   @Body() data: UpdateUserDto,
+  //   @UploadedFile() image: Express.Multer.File,
+  // ) {
+  //   try {
+  //     const user_id = req.user.userId;
+  //     const response = await this.authService.updateUser(user_id, data, image);
+  //     return response;
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       message: 'Failed to update user',
+  //     };
+  //   }
+  // }
 
   // --------------change password---------
 
@@ -445,4 +451,156 @@ export class AuthController {
     }
   }
   // --------- end 2FA ---------
+
+  // --------- Registration Flow ---------
+  @ApiOperation({ summary: 'Step 1: Select account type' })
+  @Post('select-account-type')
+  async selectAccountType(@Body() data: SelectAccountTypeDto) {
+    try {
+      const type = data.type;
+      if (!type) {
+        throw new HttpException('Account type not provided', HttpStatus.BAD_REQUEST);
+      }
+      return await this.authService.selectAccountType(type);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Step 2: Register email' })
+  @Post('register-email')
+  async registerEmail(@Body() data: RegisterEmailDto & { user_id: string }) {
+    try {
+      const email = data.email;
+      const userId = data.user_id;
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.BAD_REQUEST);
+      }
+      if (!userId) {
+        throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
+      }
+      return await this.authService.registerEmail(userId, email);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Step 3: Verify email code' })
+  @Post('verify-email-code')
+  async verifyEmailCode(@Body() data: VerifyEmailCodeDto) {
+    try {
+      const email = data.email;
+      const code = data.code;
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.BAD_REQUEST);
+      }
+      if (!code) {
+        throw new HttpException('Verification code not provided', HttpStatus.BAD_REQUEST);
+      }
+      return await this.authService.verifyEmailCode(email, code);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Step 4A: Complete staff profile' })
+  @Post('complete-staff-profile')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'photo', maxCount: 1 },
+    { name: 'cv', maxCount: 1 },
+  ]))
+  async completeStaffProfile(
+    @Body() data: CompleteStaffProfileDto & { user_id: string },
+    @UploadedFiles() files?: { photo?: Express.Multer.File[]; cv?: Express.Multer.File[] },
+  ) {
+    try {
+      const userId = data.user_id;
+      if (!userId) {
+        throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
+      }
+      const profileData = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        mobile_code: data.mobile_code,
+        mobile_number: data.mobile_number,
+        date_of_birth: data.date_of_birth,
+        roles: data.roles,
+        right_to_work_status: data.right_to_work_status,
+        password: data.password,
+        agreed_to_terms: data.agreed_to_terms,
+      };
+      const photo = files?.photo?.[0];
+      const cv = files?.cv?.[0];
+      return await this.authService.completeStaffProfile(userId, profileData, photo, cv);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Step 4B: Complete service provider profile' })
+  @Post('complete-service-provider-profile')
+  @UseInterceptors(FileInterceptor('brand_logo'))
+  async completeServiceProviderProfile(
+    @Body() data: CompleteServiceProviderProfileDto & { user_id: string },
+    @UploadedFile() brand_logo?: Express.Multer.File,
+  ) {
+    try {
+      const userId = data.user_id;
+      if (!userId) {
+        throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
+      }
+
+      const profileData = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        mobile_code: data.mobile_code,
+        mobile_number: data.mobile_number,
+        organization_name: data.organization_name,
+        website: data.website,
+        cqc_provider_number: data.cqc_provider_number,
+        vat_tax_id: data.vat_tax_id,
+        primary_address: data.primary_address,
+        main_service_type: data.main_service_type,
+        max_client_capacity: data.max_client_capacity,
+        password: data.password,
+        agreed_to_terms: data.agreed_to_terms,
+      };
+      return await this.authService.completeServiceProviderProfile(userId, profileData, brand_logo);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Get registration status' })
+  @Post('registration-status')
+  async getRegistrationStatus(@Body() data: { user_id: string }) {
+    try {
+      const userId = data.user_id;
+      if (!userId) {
+        throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
+      }
+      return await this.authService.getRegistrationStatus(userId);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+  // --------- end Registration Flow ---------
 }

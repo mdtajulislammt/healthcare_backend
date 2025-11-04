@@ -8,6 +8,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// -------------------- ENUMS --------------------
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+}
+
+enum ServiceType {
+  residential_care
+  domiciliary_care
+  nursing_care
+  supported_living
+  other
+}
+
+enum StaffRole {
+  nurse
+  senior_hca
+  hca_carer
+  support_worker
+}
+
+enum ComplianceStatus {
+  pending
+  approved
+  rejected
+}
+
+enum CertificateType {
+  care_certificate
+  moving_handling
+  first_aid
+  basic_life_support
+  infection_control
+  safeguarding
+  health_safety
+  equality_diversity
+  coshh
+  medication_training
+  nvq_iii
+  additional_training
+}
+
+enum CertificateVerificationStatus {
+  pending
+  verified
+  rejected
+}
+
+enum EmployeeRole {
+  manager
+  scheduler
+  hr_manager
+  finance_officer
+  compliance_officer
+  general_staff
+}
+
+enum EmployeePermissionType {
+  post_new_shifts // create and publish shift requests
+  assign_shift_applicants // review and assign applicants
+  add_emergency_bonus // give bonus incentives
+  favorite_block_workers // favorite or block staff
+  approve_timesheets // approve submitted timesheets
+  dispute_timesheets // handle shift/time disputes
+  view_invoices // view and download billing data
+  manage_team_permissions // add/remove team members or edit permissions
+}
+
+enum ShiftStatus {
+  draft
+  published
+  assigned
+  completed
+  cancelled
+}
+
+enum ShiftType {
+  long_day
+  day
+  night
+  live_in
+  sleep_in
+  part_time
+  other
+}
+
+enum ProfessionRole {
+  nurse
+  senior_hca
+  hca_carer
+  support_worker
+  other
+}
+
+enum ShiftApplicationStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+}
+
+enum ShiftAttendanceStatus {
+  not_checked_in
+  checked_in
+  checked_out
+}
+
+enum TimesheetStatus {
+  pending_submission
+  submitted
+  under_review
+  approved
+  rejected
+  paid
+}
+
+enum StaffPreferenceType {
+  favorite
+  blocked
+}
+
+// -------------------- MODELS --------------------
+
+// --------- Core Models ---------
 model Account {
   id         String   @id @default(cuid())
   created_at DateTime @default(now())
@@ -41,27 +167,17 @@ model User {
   approved_at  DateTime?
   availability String?
 
-  email      String? @unique
-  username   String? @unique
-  name       String? @db.VarChar(255)
-  first_name String? @db.VarChar(255)
-  last_name  String? @db.VarChar(255)
-  password   String? @db.VarChar(255)
-  domain     String? @unique
-  avatar     String?
+  email    String? @unique
+  password String? // Hashed password for authentication
 
-  phone_number  String?
-  country       String?
-  state         String?
-  city          String?
-  address       String?
-  zip_code      String?
-  gender        String?
-  date_of_birth DateTime? @db.Date
+  // Registration flow fields
+  onboarding_step String? @default("account_type") // account_type → email → email_verify → profile_setup → completed
 
   // billing id. e.g. stripe customer id
   billing_id String?
 
+  // User type: "staff" | "service_provider" | "admin" | "user" (default)
+  // Used for registration flow and user type identification
   type              String?   @default("user")
   email_verified_at DateTime?
 
@@ -83,6 +199,10 @@ model User {
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
 
+  // Care Home Staffing App Relations
+  service_provider_info ServiceProviderInfo?
+  staff_profile         StaffProfile?
+
   @@map("users")
 }
 
@@ -102,6 +222,7 @@ model Ucode {
   @@map("ucodes")
 }
 
+// --------- Auth & Role Models ---------
 model Role {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -169,7 +290,7 @@ model RoleUser {
   @@map("role_users")
 }
 
-// this table stores notification event
+// --------- Notification Models ---------
 model NotificationEvent {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -209,6 +330,7 @@ model Notification {
   @@map("notifications")
 }
 
+// --------- Payment Models ---------
 model UserPaymentMethod {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -250,16 +372,7 @@ model PaymentTransaction {
   @@map("payment_transactions")
 }
 
-// ---------Start Chat schema---------
-
-enum MessageStatus {
-  PENDING
-  SENT
-  DELIVERED
-  READ
-}
-
-// message is used for conversation
+// --------- Chat Models ---------
 model Message {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -285,7 +398,6 @@ model Message {
   @@map("messages")
 }
 
-// this table stores attachment of message
 model Attachment {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -303,7 +415,6 @@ model Attachment {
   @@map("attachments")
 }
 
-// this table stores conversation
 model Conversation {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -321,8 +432,302 @@ model Conversation {
   @@map("conversations")
 }
 
-// ---------End Chat schema---------
+// --------- Care Home Staffing App Models ---------
+// Service Provider Models
+model ServiceProviderInfo {
+  id                  String      @id @default(cuid())
+  user_id             String      @unique
+  first_name          String
+  last_name           String
+  mobile_code         String?
+  mobile_number       String?
+  brand_logo_url      String?
+  agreed_to_terms     Boolean     @default(false)
+  organization_name   String
+  website             String?
+  cqc_provider_number String
+  vat_tax_id          String?
+  primary_address     String
+  main_service_type   ServiceType
+  max_client_capacity Int
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
 
+  user              User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  employees         Employee[]
+  shifts            Shift[]
+  staff_preferences ProviderStaffPreference[]
+  staff_reviews     StaffPerformanceReview[]
+
+  @@map("service_provider_infos")
+}
+
+model Employee {
+  id                  String       @id @default(cuid())
+  user_id             String? // optional: if employee has User account, link here
+  service_provider_id String
+  first_name          String
+  last_name           String
+  email               String       @unique
+  phone_number        String?
+  employee_role       EmployeeRole // Organization-level role (manager, scheduler, etc.)
+  is_active           Boolean      @default(true)
+  created_at          DateTime     @default(now())
+  updated_at          DateTime     @updatedAt
+
+  service_provider_info ServiceProviderInfo       @relation(fields: [service_provider_id], references: [id], onDelete: Cascade)
+  permissions           EmployeePermission[] // Organization-specific permissions
+  shifts_created        Shift[]                   @relation("EmployeeCreatedShifts")
+  preferences           ProviderStaffPreference[]
+
+  @@map("employees")
+}
+
+model EmployeePermission {
+  id          String                 @id @default(cuid())
+  employee_id String
+  permission  EmployeePermissionType // Specific permission from enum
+  is_granted  Boolean                @default(true) // Can be revoked without deleting record
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @updatedAt
+
+  employee Employee @relation(fields: [employee_id], references: [id], onDelete: Cascade)
+
+  @@unique([employee_id, permission]) // One permission record per employee per permission type
+  @@map("employee_permissions")
+}
+
+// Staff Models
+model StaffProfile {
+  id              String   @id @default(cuid())
+  user_id         String   @unique
+  first_name      String
+  last_name       String
+  mobile_code     String?
+  mobile_number   String?
+  date_of_birth   DateTime
+  photo_url       String?
+  agreed_to_terms Boolean  @default(false)
+
+  // Step 2: Role & Work Status
+  roles                StaffRole[] // additional roles (multi-select)
+  right_to_work_status String
+  cv_url               String?
+
+  // Step 2B: Certificates
+  certificates StaffCertificate[]
+
+  // Step 3: DBS & Compliance
+  dbs_info                StaffDbsInfo?
+  compliance_declaration  String?
+  compliance_status       ComplianceStatus @default(pending)
+  compliance_document_url String?
+  start_date              DateTime?
+  end_date                DateTime?
+
+  profile_completion  Int     @default(0) // percentage (0–100)
+  is_profile_complete Boolean @default(false) // quick flag for checks
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user            User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  shifts_assigned Shift[]                   @relation("AssignedShiftStaff")
+  applications    ShiftApplication[]
+  attendances     ShiftAttendance[]
+  timesheets      ShiftTimesheet[]
+  preferences     ProviderStaffPreference[]
+  reviews         StaffPerformanceReview[]
+
+  @@map("staff_profiles")
+}
+
+model StaffCertificate {
+  id               String                        @id @default(cuid())
+  staff_id         String
+  certificate_type CertificateType
+  file_url         String?
+  uploaded_at      DateTime                      @default(now())
+  verified_status  CertificateVerificationStatus @default(pending)
+
+  // Expiry tracking for notifications
+  expiry_date        DateTime?
+  expiry_notified_at DateTime? // Track when notification was sent
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@map("staff_certificates")
+}
+
+model StaffDbsInfo {
+  id                      String   @id @default(cuid())
+  staff_id                String   @unique
+  certificate_number      String
+  surname_as_certificate  String
+  date_of_birth_on_cert   DateTime
+  certificate_print_date  DateTime
+  is_registered_on_update Boolean  @default(false)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@map("staff_dbs_infos")
+}
+
+// Shift Models
+model Shift {
+  id                     String  @id @default(cuid())
+  service_provider_id    String
+  created_by_employee_id String? // Manager or Scheduler who created it
+  assigned_staff_id      String? // Assigned staff (optional)
+
+  // Shift Details
+  posting_title   String
+  shift_type      ShiftType
+  profession_role ProfessionRole
+  is_urgent       Boolean        @default(false)
+
+  // Schedule
+  start_date DateTime
+  end_date   DateTime?
+  start_time DateTime
+  end_time   DateTime
+
+  // Location
+  facility_name String
+  full_address  String
+
+  // Pay
+  pay_rate_hourly    Float
+  signing_bonus      Float?  @default(0)
+  internal_po_number String?
+  emergency_bonus    Float?  @default(0)
+
+  // Notes
+  notes String?
+
+  // Status
+  status ShiftStatus @default(draft)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  service_provider_info ServiceProviderInfo      @relation(fields: [service_provider_id], references: [id], onDelete: Cascade)
+  created_by_employee   Employee?                @relation("EmployeeCreatedShifts", fields: [created_by_employee_id], references: [id])
+  assigned_staff        StaffProfile?            @relation("AssignedShiftStaff", fields: [assigned_staff_id], references: [id])
+  applications          ShiftApplication[]
+  attendance            ShiftAttendance?
+  timesheet             ShiftTimesheet?
+  reviews               StaffPerformanceReview[]
+
+  @@map("shifts")
+}
+
+model ShiftApplication {
+  id          String                 @id @default(cuid())
+  shift_id    String
+  staff_id    String
+  status      ShiftApplicationStatus @default(pending)
+  applied_at  DateTime               @default(now())
+  reviewed_at DateTime?
+  notes       String? // optional reason or message
+
+  shift Shift        @relation(fields: [shift_id], references: [id], onDelete: Cascade)
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@unique([shift_id, staff_id])
+  @@map("shift_applications")
+}
+
+model ShiftAttendance {
+  id             String                @id @default(cuid())
+  shift_id       String                @unique
+  staff_id       String
+  status         ShiftAttendanceStatus @default(not_checked_in)
+  check_in_time  DateTime?
+  check_out_time DateTime?
+  location_check String? // optional GPS or facility confirmation
+  created_at     DateTime              @default(now())
+  updated_at     DateTime              @updatedAt
+
+  shift Shift        @relation(fields: [shift_id], references: [id], onDelete: Cascade)
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@map("shift_attendances")
+}
+
+model ShiftTimesheet {
+  id       String @id @default(cuid())
+  shift_id String @unique
+  staff_id String
+
+  total_hours Float?
+  hourly_rate Float?
+  total_pay   Float?
+  notes       String?
+
+  status              TimesheetStatus @default(pending_submission)
+  verification_method String? // e.g. "Geofence Verified", "Manual Verification"
+  clock_in_verified   Boolean?        @default(false)
+  clock_out_verified  Boolean?        @default(false)
+
+  submitted_at DateTime?
+  reviewed_at  DateTime?
+  approved_by  String? // admin or manager ID
+  paid_at      DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  shift Shift        @relation(fields: [shift_id], references: [id], onDelete: Cascade)
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@map("shift_timesheets")
+}
+
+// Preference & Review Models
+model ProviderStaffPreference {
+  id                 String              @id @default(cuid())
+  provider_id        String // from service_provider_info
+  staff_id           String // from staff_profile
+  set_by_employee_id String? // optional: who marked them
+  preference_type    StaffPreferenceType // favorite / blocked
+  reason             String? // optional note or reason
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+
+  // Relations
+  provider        ServiceProviderInfo @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+  staff           StaffProfile        @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+  set_by_employee Employee?           @relation(fields: [set_by_employee_id], references: [id])
+
+  @@unique([provider_id, staff_id, preference_type]) // prevent duplicates
+  @@map("provider_staff_preferences")
+}
+
+model StaffPerformanceReview {
+  id          String   @id @default(cuid())
+  provider_id String
+  staff_id    String
+  shift_id    String
+  rating      Int // 1–5 stars
+  feedback    String?
+  created_by  String? // employee_id of reviewer (optional)
+  admin_alert Boolean  @default(false) // trigger if rating < 3
+  created_at  DateTime @default(now())
+
+  // Relations
+  provider ServiceProviderInfo @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+  staff    StaffProfile        @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+  shift    Shift               @relation(fields: [shift_id], references: [id], onDelete: Cascade)
+
+  @@unique([shift_id, staff_id]) // one review per staff per shift
+  @@map("staff_performance_reviews")
+}
+
+// --------- Admin & Config Models ---------
 model Faq {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
@@ -426,10 +831,10 @@ model UserSetting {
 //   updated_at DateTime  @default(now())
 //   deleted_at DateTime?
 //   status     Int?      @default(1) @db.SmallInt
-
+//
 //   title String?
 //   body  String? @db.Text
-
+//
 //   tenant_id Int?
 //   tenant    Organization? @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 //   @@map("posts")

@@ -163,4 +163,41 @@ export class UcodeRepository {
       return null;
     }
   }
+
+  /**
+   * Create OTP code for email verification during registration
+   * @param userId - User ID (can be null if user not created yet)
+   * @param email - Email address
+   * @returns OTP code
+   */
+  static async createRegistrationOtp({
+    userId,
+    email,
+  }: {
+    userId?: string;
+    email: string;
+  }): Promise<string | null> {
+    try {
+      // OTP valid for 15 minutes
+      const otpExpiryTime = 15 * 60 * 1000;
+      const expired_at = new Date(Date.now() + otpExpiryTime);
+
+      // Create 6 digit OTP code
+      const token = String(randomInt(100000, 1000000));
+
+      const data = await prisma.ucode.create({
+        data: {
+          user_id: userId,
+          token: token,
+          email: email,
+          expired_at: expired_at,
+          status: 1,
+        },
+      });
+
+      return data.token;
+    } catch (error) {
+      return null;
+    }
+  }
 }

@@ -1,0 +1,416 @@
+// -------------------- ENUMS --------------------
+enum role {
+    care_provider
+    staff
+    admin
+}
+
+enum service_type {
+    residential_care
+    domiciliary_care
+    nursing_care
+    supported_living
+    other
+}
+
+enum staff_role {
+    nurse
+    senior_hca
+    hca_carer
+    support_worker
+}
+
+enum compliance_status {
+    pending
+    approved
+    rejected
+}
+
+enum certificate_type {
+    care_certificate
+    moving_handling
+    first_aid
+    basic_life_support
+    infection_control
+    safeguarding
+    health_safety
+    equality_diversity
+    coshh
+    medication_training
+    nvq_iii
+    additional_training
+}
+
+enum certificate_verification_status {
+    pending
+    verified
+    rejected
+}
+
+enum employee_role {
+    manager
+    scheduler
+    hr_manager
+    finance_officer
+    compliance_officer
+    general_staff
+}
+
+enum employee_permission_type {
+    post_new_shifts // create and publish shift requests
+    assign_shift_applicants // review and assign applicants
+    add_emergency_bonus // give bonus incentives
+    favorite_block_workers // favorite or block staff
+    approve_timesheets // approve submitted timesheets
+    dispute_timesheets // handle shift/time disputes
+    view_invoices // view and download billing data
+    manage_team_permissions // add/remove team members or edit permissions
+}
+
+enum shift_status {
+    draft
+    published
+    assigned
+    completed
+    cancelled
+}
+
+enum shift_type {
+    long_day
+    day
+    night
+    live_in
+    sleep_in
+    part_time
+    other
+}
+
+enum profession_role {
+    nurse
+    senior_hca
+    hca_carer
+    support_worker
+    other
+}
+
+enum shift_application_status {
+    pending
+    accepted
+    rejected
+    cancelled
+}
+
+enum shift_attendance_status {
+    not_checked_in
+    checked_in
+    checked_out
+}
+
+enum timesheet_status {
+    pending_submission
+    submitted
+    under_review
+    approved
+    rejected
+    paid
+}
+
+enum staff_preference_type {
+    favorite
+    blocked
+}
+
+// -------------------- MODELS --------------------
+model user {
+    id                   String   @id @default(cuid())
+    email                String   @unique
+    password             String?
+    role                 role
+    is_verified          Boolean  @default(false)
+    onboarding_completed Boolean  @default(false)
+    created_at           DateTime @default(now())
+    updated_at           DateTime @updatedAt
+
+    // Relations
+    service_provider_info service_provider_info? // updated name
+    staff_profile         staff_profile?
+}
+
+// -------------------------------------------------
+model service_provider_info {
+    id                  String       @id @default(cuid())
+    user_id             String       @unique
+    first_name          String
+    last_name           String
+    mobile_code         String?
+    mobile_number       String?
+    brand_logo_url      String?
+    agreed_to_terms     Boolean      @default(false)
+    organization_name   String
+    website             String?
+    cqc_provider_number String
+    vat_tax_id          String?
+    primary_address     String
+    main_service_type   service_type
+    max_client_capacity Int
+    created_at          DateTime     @default(now())
+    updated_at          DateTime     @updatedAt
+
+    user              user                        @relation(fields: [user_id], references: [id])
+    employees         employee[]
+    shifts            shift[]
+    staff_preferences provider_staff_preference[]
+    staff_reviews     staff_performance_review[]
+}
+
+// -------------------------------------------------
+model staff_profile {
+    id              String   @id @default(cuid())
+    user_id         String   @unique
+    first_name      String
+    last_name       String
+    mobile_code     String?
+    mobile_number   String?
+    date_of_birth   DateTime
+    photo_url       String?
+    agreed_to_terms Boolean  @default(false)
+
+    // Step 2: Role & Work Status
+    primary_role         staff_role
+    right_to_work_status String
+    cv_url               String?
+
+    // Step 2B: Certificates
+    certificates staff_certificate[]
+
+    // Step 3: DBS & Compliance
+    dbs_info                staff_dbs_info?
+    compliance_declaration  String?
+    compliance_status       compliance_status @default(pending)
+    compliance_document_url String?
+    start_date              DateTime?
+    end_date                DateTime?
+
+    profile_completion  Int     @default(0) // percentage (0–100)
+    is_profile_complete Boolean @default(false) // quick flag for checks
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    user            user                        @relation(fields: [user_id], references: [id])
+    shifts_assigned shift[]                     @relation("AssignedShiftStaff")
+    applications    shift_application[]
+    attendances     shift_attendance[]
+    timesheets      shift_timesheet[]
+    preferences     provider_staff_preference[]
+    reviews         staff_performance_review[]
+}
+
+// -------------------------------------------------
+model staff_certificate {
+    id               String                          @id @default(cuid())
+    staff_id         String
+    certificate_type certificate_type
+    file_url         String?
+    uploaded_at      DateTime                        @default(now())
+    verified_status  certificate_verification_status @default(pending)
+
+    // Expiry tracking for notifications
+    expiry_date        DateTime?
+    expiry_notified_at DateTime? // Track when notification was sent
+
+    staff staff_profile @relation(fields: [staff_id], references: [id])
+}
+
+// -------------------------------------------------
+model staff_dbs_info {
+    id                      String   @id @default(cuid())
+    staff_id                String   @unique
+    certificate_number      String
+    surname_as_certificate  String
+    date_of_birth_on_cert   DateTime
+    certificate_print_date  DateTime
+    is_registered_on_update Boolean  @default(false)
+    created_at              DateTime @default(now())
+    updated_at              DateTime @updatedAt
+
+    staff staff_profile @relation(fields: [staff_id], references: [id])
+}
+
+// -------------------------------------------------
+model employee {
+    id                  String        @id @default(cuid())
+    user_id             String? // optional if employee uses shared login
+    service_provider_id String
+    first_name          String
+    last_name           String
+    email               String        @unique
+    phone_number        String?
+    employee_role       employee_role
+    is_active           Boolean       @default(true)
+    created_at          DateTime      @default(now())
+    updated_at          DateTime      @updatedAt
+
+    service_provider_info service_provider_info       @relation(fields: [service_provider_id], references: [id])
+    permissions           employee_permission[]
+    shifts_created        shift[]                     @relation("EmployeeCreatedShifts")
+    preferences           provider_staff_preference[]
+}
+
+// -------------------------------------------------
+model employee_permission {
+    id          String                   @id @default(cuid())
+    employee_id String
+    permission  employee_permission_type
+    is_granted  Boolean                  @default(true)
+    created_at  DateTime                 @default(now())
+    updated_at  DateTime                 @updatedAt
+
+    employee employee @relation(fields: [employee_id], references: [id])
+}
+
+// -------------------- MODELS --------------------
+model shift {
+    id                     String  @id @default(cuid())
+    service_provider_id    String
+    created_by_employee_id String? // Manager or Scheduler who created it
+    assigned_staff_id      String? // Assigned staff (optional)
+
+    // Shift Details
+    posting_title   String
+    shift_type      shift_type
+    profession_role profession_role
+    is_urgent       Boolean         @default(false)
+
+    // Schedule
+    start_date DateTime
+    end_date   DateTime?
+    start_time DateTime
+    end_time   DateTime
+
+    // Location
+    facility_name String
+    full_address  String
+
+    // Pay
+    pay_rate_hourly    Float
+    signing_bonus      Float?  @default(0)
+    internal_po_number String?
+    emergency_bonus    Float?  @default(0)
+
+    // Notes
+    notes String?
+
+    // Status
+    status shift_status @default(draft)
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    // Relations
+    service_provider_info service_provider_info      @relation(fields: [service_provider_id], references: [id])
+    created_by_employee   employee?                  @relation("EmployeeCreatedShifts", fields: [created_by_employee_id], references: [id])
+    assigned_staff        staff_profile?             @relation("AssignedShiftStaff", fields: [assigned_staff_id], references: [id])
+    applications          shift_application[]
+    attendance            shift_attendance?
+    timesheet             shift_timesheet?
+    reviews               staff_performance_review[]
+}
+
+// -------------------------------------------------
+model shift_application {
+    id          String                   @id @default(cuid())
+    shift_id    String
+    staff_id    String
+    status      shift_application_status @default(pending)
+    applied_at  DateTime                 @default(now())
+    reviewed_at DateTime?
+    notes       String? // optional reason or message
+
+    shift shift         @relation(fields: [shift_id], references: [id])
+    staff staff_profile @relation(fields: [staff_id], references: [id])
+
+    @@unique([shift_id, staff_id])
+}
+
+// -------------------------------------------------
+model shift_attendance {
+    id             String                  @id @default(cuid())
+    shift_id       String                  @unique
+    staff_id       String
+    status         shift_attendance_status @default(not_checked_in)
+    check_in_time  DateTime?
+    check_out_time DateTime?
+    location_check String? // optional GPS or facility confirmation
+    created_at     DateTime                @default(now())
+    updated_at     DateTime                @updatedAt
+
+    shift shift         @relation(fields: [shift_id], references: [id])
+    staff staff_profile @relation(fields: [staff_id], references: [id])
+}
+
+// -------------------------------------------------
+model shift_timesheet {
+    id       String @id @default(cuid())
+    shift_id String @unique
+    staff_id String
+
+    total_hours Float?
+    hourly_rate Float?
+    total_pay   Float?
+    notes       String?
+
+    status              timesheet_status @default(pending_submission)
+    verification_method String? // e.g. "Geofence Verified", "Manual Verification"
+    clock_in_verified   Boolean?         @default(false)
+    clock_out_verified  Boolean?         @default(false)
+
+    submitted_at DateTime?
+    reviewed_at  DateTime?
+    approved_by  String? // admin or manager ID
+    paid_at      DateTime?
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    shift shift         @relation(fields: [shift_id], references: [id])
+    staff staff_profile @relation(fields: [staff_id], references: [id])
+}
+
+// -------------------- MODELS --------------------
+model provider_staff_preference {
+    id                 String                @id @default(cuid())
+    provider_id        String // from service_provider_info
+    staff_id           String // from staff_profile
+    set_by_employee_id String? // optional: who marked them
+    preference_type    staff_preference_type // favorite / blocked
+    reason             String? // optional note or reason
+    created_at         DateTime              @default(now())
+    updated_at         DateTime              @updatedAt
+
+    // Relations
+    provider        service_provider_info @relation(fields: [provider_id], references: [id])
+    staff           staff_profile         @relation(fields: [staff_id], references: [id])
+    set_by_employee employee?             @relation(fields: [set_by_employee_id], references: [id])
+
+    @@unique([provider_id, staff_id, preference_type]) // prevent duplicates
+}
+
+model staff_performance_review {
+    id          String   @id @default(cuid())
+    provider_id String
+    staff_id    String
+    shift_id    String
+    rating      Int // 1–5 stars
+    feedback    String?
+    created_by  String? // employee_id of reviewer (optional)
+    admin_alert Boolean  @default(false) // trigger if rating < 3
+    created_at  DateTime @default(now())
+
+    // Relations
+    provider service_provider_info @relation(fields: [provider_id], references: [id])
+    staff    staff_profile         @relation(fields: [staff_id], references: [id])
+    shift    shift                 @relation(fields: [shift_id], references: [id])
+
+    @@unique([shift_id, staff_id]) // one review per staff per shift
+}
