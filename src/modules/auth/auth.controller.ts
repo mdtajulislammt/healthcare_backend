@@ -134,61 +134,6 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Add a staff certificate (single)' })
-  @ApiBearerAuth()
-  @Post('staff/certificates')
-  @UseInterceptors(FileInterceptor('file'))
-  async addStaffCertificate(
-    @Body() data: CreateStaffCertificateDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
-    try {
-      return await this.authService.addStaffCertificate(data, file);
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
-
-  @ApiOperation({ summary: 'Add staff certificates (bulk)' })
-  @ApiBearerAuth()
-  @Post('staff/certificates/bulk')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'care_certificate', maxCount: 1 },
-    { name: 'moving_handling', maxCount: 1 },
-    { name: 'first_aid', maxCount: 1 },
-    { name: 'basic_life_support', maxCount: 1 },
-    { name: 'infection_control', maxCount: 1 },
-    { name: 'safeguarding', maxCount: 1 },
-    { name: 'health_safety', maxCount: 1 },
-    { name: 'equality_diversity', maxCount: 1 },
-    { name: 'coshh', maxCount: 1 },
-    { name: 'medication_training', maxCount: 1 },
-    { name: 'nvq_iii', maxCount: 1 },
-    { name: 'additional_training', maxCount: 1 },
-  ]))
-  async addStaffCertificatesBulk(
-    @Body() data: CreateStaffCertificatesBulkDto,
-    @UploadedFiles() files?: { care_certificate?: Express.Multer.File[]; moving_handling?: Express.Multer.File[]; first_aid?: Express.Multer.File[]; basic_life_support?: Express.Multer.File[]; infection_control?: Express.Multer.File[]; safeguarding?: Express.Multer.File[]; health_safety?: Express.Multer.File[]; equality_diversity?: Express.Multer.File[]; coshh?: Express.Multer.File[]; medication_training?: Express.Multer.File[]; nvq_iii?: Express.Multer.File[]; additional_training?: Express.Multer.File[] },
-  ) {
-    try {
-      return await this.authService.addStaffCertificatesBulk(data, files);
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
-  @ApiOperation({ summary: 'Create or update staff DBS info' })
-  @ApiBearerAuth()
-  @Post('staff/dbs-info')
-  async createOrUpdateStaffDbsInfo(@Body() data: CreateStaffDbsInfoDto) {
-    try {
-      return await this.authService.createOrUpdateStaffDbsInfo(data);
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleLogin(): Promise<any> {
@@ -569,15 +514,42 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Step 4A: Complete staff profile' })
+  @ApiOperation({ summary: 'Step 4A: Complete staff profile (with certificates and DBS info)' })
   @Post('complete-staff-profile')
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'photo', maxCount: 1 },
     { name: 'cv', maxCount: 1 },
+    { name: 'care_certificate', maxCount: 1 },
+    { name: 'moving_handling', maxCount: 1 },
+    { name: 'first_aid', maxCount: 1 },
+    { name: 'basic_life_support', maxCount: 1 },
+    { name: 'infection_control', maxCount: 1 },
+    { name: 'safeguarding', maxCount: 1 },
+    { name: 'health_safety', maxCount: 1 },
+    { name: 'equality_diversity', maxCount: 1 },
+    { name: 'coshh', maxCount: 1 },
+    { name: 'medication_training', maxCount: 1 },
+    { name: 'nvq_iii', maxCount: 1 },
+    { name: 'additional_training', maxCount: 1 },
   ]))
   async completeStaffProfile(
     @Body() data: CompleteStaffProfileDto & { user_id: string },
-    @UploadedFiles() files?: { photo?: Express.Multer.File[]; cv?: Express.Multer.File[] },
+    @UploadedFiles() files?: {
+      photo?: Express.Multer.File[];
+      cv?: Express.Multer.File[];
+      care_certificate?: Express.Multer.File[];
+      moving_handling?: Express.Multer.File[];
+      first_aid?: Express.Multer.File[];
+      basic_life_support?: Express.Multer.File[];
+      infection_control?: Express.Multer.File[];
+      safeguarding?: Express.Multer.File[];
+      health_safety?: Express.Multer.File[];
+      equality_diversity?: Express.Multer.File[];
+      coshh?: Express.Multer.File[];
+      medication_training?: Express.Multer.File[];
+      nvq_iii?: Express.Multer.File[];
+      additional_training?: Express.Multer.File[];
+    },
   ) {
     try {
       const userId = data.user_id;
@@ -594,15 +566,93 @@ export class AuthController {
         right_to_work_status: data.right_to_work_status,
         password: data.password,
         agreed_to_terms: data.agreed_to_terms,
+        dbs_certificate_number: data.dbs_certificate_number,
+        dbs_surname_as_certificate: data.dbs_surname_as_certificate,
+        dbs_date_of_birth_on_cert: data.dbs_date_of_birth_on_cert,
+        dbs_certificate_print_date: data.dbs_certificate_print_date,
+        dbs_is_registered_on_update: data.dbs_is_registered_on_update,
       };
       const photo = files?.photo?.[0];
       const cv = files?.cv?.[0];
-      return await this.authService.completeStaffProfile(userId, profileData, photo, cv);
+
+      // Extract certificate files
+      const certificateFiles: { [key: string]: Express.Multer.File[] } = {};
+      if (files) {
+        const certFields = ['care_certificate', 'moving_handling', 'first_aid', 'basic_life_support', 'infection_control', 'safeguarding', 'health_safety', 'equality_diversity', 'coshh', 'medication_training', 'nvq_iii', 'additional_training'];
+        for (const field of certFields) {
+          if (files[field]) {
+            certificateFiles[field] = files[field];
+          }
+        }
+      }
+
+      return await this.authService.completeStaffProfile(
+        userId,
+        profileData,
+        photo,
+        cv,
+        Object.keys(certificateFiles).length > 0 ? certificateFiles : undefined
+      );
     } catch (error) {
       return {
         success: false,
         message: error.message,
       };
+    }
+  }
+
+  @ApiOperation({ summary: 'Add a staff certificate (single)' })
+  @ApiBearerAuth()
+  @Post('staff/certificates')
+  @UseInterceptors(FileInterceptor('file'))
+  async addStaffCertificate(
+    @Body() data: CreateStaffCertificateDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    try {
+      return await this.authService.addStaffCertificate(data, file);
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+
+  @ApiOperation({ summary: 'Add staff certificates (bulk)' })
+  @ApiBearerAuth()
+  @Post('staff/certificates/bulk')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'care_certificate', maxCount: 1 },
+    { name: 'moving_handling', maxCount: 1 },
+    { name: 'first_aid', maxCount: 1 },
+    { name: 'basic_life_support', maxCount: 1 },
+    { name: 'infection_control', maxCount: 1 },
+    { name: 'safeguarding', maxCount: 1 },
+    { name: 'health_safety', maxCount: 1 },
+    { name: 'equality_diversity', maxCount: 1 },
+    { name: 'coshh', maxCount: 1 },
+    { name: 'medication_training', maxCount: 1 },
+    { name: 'nvq_iii', maxCount: 1 },
+    { name: 'additional_training', maxCount: 1 },
+  ]))
+  async addStaffCertificatesBulk(
+    @Body() data: CreateStaffCertificatesBulkDto,
+    @UploadedFiles() files?: { care_certificate?: Express.Multer.File[]; moving_handling?: Express.Multer.File[]; first_aid?: Express.Multer.File[]; basic_life_support?: Express.Multer.File[]; infection_control?: Express.Multer.File[]; safeguarding?: Express.Multer.File[]; health_safety?: Express.Multer.File[]; equality_diversity?: Express.Multer.File[]; coshh?: Express.Multer.File[]; medication_training?: Express.Multer.File[]; nvq_iii?: Express.Multer.File[]; additional_training?: Express.Multer.File[] },
+  ) {
+    try {
+      return await this.authService.addStaffCertificatesBulk(data, files);
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  @ApiOperation({ summary: 'Create or update staff DBS info' })
+  @ApiBearerAuth()
+  @Post('staff/dbs-info')
+  async createOrUpdateStaffDbsInfo(@Body() data: CreateStaffDbsInfoDto) {
+    try {
+      return await this.authService.createOrUpdateStaffDbsInfo(data);
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   }
 
