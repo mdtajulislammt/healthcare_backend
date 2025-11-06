@@ -162,7 +162,7 @@ model User {
   created_at DateTime  @default(now())
   updated_at DateTime  @default(now())
   deleted_at DateTime?
-  status     Int?      @default(1) @db.SmallInt
+  status     Int?      @default(0) @db.SmallInt
 
   approved_at  DateTime?
   availability String?

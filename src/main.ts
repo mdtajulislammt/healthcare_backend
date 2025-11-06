@@ -11,6 +11,7 @@ import { AppModule } from './app.module';
 import appConfig from './config/app.config';
 import { CustomExceptionFilter } from './common/exception/custom-exception.filter';
 import { SojebStorage } from './common/lib/Disk/SojebStorage';
+import { AdminHelper } from './common/helper/admin.helper';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -74,6 +75,10 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
   // end swagger
 
+  // Initialize admin user if not exists
+  await AdminHelper.initializeAdminUser();
+
   await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
 }
+
 bootstrap();
