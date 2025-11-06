@@ -56,59 +56,44 @@ export class AuthController {
   //   }
   // }
 
-  //@ApiOperation({ summary: 'Register a user' })
-  //@Post('register')
-  // async create(@Body() data: CreateUserDto) {
-  //   try {
-  //     const name = data.name;
-  //     const first_name = data.first_name;
-  //     const last_name = data.last_name;
-  //     const email = data.email;
-  //     const password = data.password;
-  //     const type = data.type;
+  @ApiOperation({ summary: 'Register a user' })
+  @Post('register')
+  async create(@Body() data: CreateUserDto) {
+    try {
+      const name = data.name;
+      const first_name = data.first_name;
+      const last_name = data.last_name;
+      const email = data.email;
+      const password = data.password;
+      const type = data.type;
 
-  //     if (!name) {
-  //       throw new HttpException('Name not provided', HttpStatus.UNAUTHORIZED);
-  //     }
-  //     if (!first_name) {
-  //       throw new HttpException(
-  //         'First name not provided',
-  //         HttpStatus.UNAUTHORIZED,
-  //       );
-  //     }
-  //     if (!last_name) {
-  //       throw new HttpException(
-  //         'Last name not provided',
-  //         HttpStatus.UNAUTHORIZED,
-  //       );
-  //     }
-  //     if (!email) {
-  //       throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
-  //     }
-  //     if (!password) {
-  //       throw new HttpException(
-  //         'Password not provided',
-  //         HttpStatus.UNAUTHORIZED,
-  //       );
-  //     }
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+      }
+      if (!password) {
+        throw new HttpException(
+          'Password not provided',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
-  //     const response = await this.authService.register({
-  //       name: name,
-  //       first_name: first_name,
-  //       last_name: last_name,
-  //       email: email,
-  //       password: password,
-  //       type: type,
-  //     });
+      const response = await this.authService.register({
+        name: name,
+        first_name: first_name,
+        last_name: last_name,
+        email: email,
+        password: password,
+        type: type,
+      });
 
-  //     return response;
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       message: error.message,
-  //     };
-  //   }
-  // }
+      return response;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
 
   // login user
   @ApiOperation({ summary: 'Login user' })
@@ -133,59 +118,6 @@ export class AuthController {
       };
     }
   }
-
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  async googleLogin(): Promise<any> {
-    return HttpStatus.OK;
-  }
-
-  @Get('google/redirect')
-  @UseGuards(AuthGuard('google'))
-  async googleLoginRedirect(@Req() req: Request): Promise<any> {
-    return {
-      statusCode: HttpStatus.OK,
-      data: req.user,
-    };
-  }
-
-  // update user
-  @ApiOperation({ summary: 'Update user' })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Patch('update')
-  @UseInterceptors(
-    FileInterceptor('image', {
-      // storage: diskStorage({
-      //   destination:
-      //     appConfig().storageUrl.rootUrl + appConfig().storageUrl.avatar,
-      //   filename: (req, file, cb) => {
-      //     const randomName = Array(32)
-      //       .fill(null)
-      //       .map(() => Math.round(Math.random() * 16).toString(16))
-      //       .join('');
-      //     return cb(null, `${randomName}${file.originalname}`);
-      //   },
-      // }),
-      storage: memoryStorage(),
-    }),
-  )
-  // async updateUser(
-  //   @Req() req: Request,
-  //   @Body() data: UpdateUserDto,
-  //   @UploadedFile() image: Express.Multer.File,
-  // ) {
-  //   try {
-  //     const user_id = req.user.userId;
-  //     const response = await this.authService.updateUser(user_id, data, image);
-  //     return response;
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       message: 'Failed to update user',
-  //     };
-  //   }
-  // }
 
   // --------------change password---------
 
@@ -329,6 +261,60 @@ export class AuthController {
   }
 
   // --------------end change password---------
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleLogin(): Promise<any> {
+    return HttpStatus.OK;
+  }
+
+  @Get('google/redirect')
+  @UseGuards(AuthGuard('google'))
+  async googleLoginRedirect(@Req() req: Request): Promise<any> {
+    return {
+      statusCode: HttpStatus.OK,
+      data: req.user,
+    };
+  }
+
+  // update user
+  @ApiOperation({ summary: 'Update user' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('update')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      // storage: diskStorage({
+      //   destination:
+      //     appConfig().storageUrl.rootUrl + appConfig().storageUrl.avatar,
+      //   filename: (req, file, cb) => {
+      //     const randomName = Array(32)
+      //       .fill(null)
+      //       .map(() => Math.round(Math.random() * 16).toString(16))
+      //       .join('');
+      //     return cb(null, `${randomName}${file.originalname}`);
+      //   },
+      // }),
+      storage: memoryStorage(),
+    }),
+  )
+  // async updateUser(
+  //   @Req() req: Request,
+  //   @Body() data: UpdateUserDto,
+  //   @UploadedFile() image: Express.Multer.File,
+  // ) {
+  //   try {
+  //     const user_id = req.user.userId;
+  //     const response = await this.authService.updateUser(user_id, data, image);
+  //     return response;
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       message: 'Failed to update user',
+  //     };
+  //   }
+  // }
+
 
   // -------change email address------
   @ApiOperation({ summary: 'request email change' })
