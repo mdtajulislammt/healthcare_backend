@@ -518,12 +518,7 @@ model StaffProfile {
   certificates StaffCertificate[]
 
   // Step 3: DBS & Compliance
-  dbs_info                StaffDbsInfo?
-  compliance_declaration  String?
-  compliance_status       ComplianceStatus @default(pending)
-  compliance_document_url String?
-  start_date              DateTime?
-  end_date                DateTime?
+  dbs_info StaffDbsInfo?
 
   profile_completion  Int     @default(0) // percentage (0–100)
   is_profile_complete Boolean @default(false) // quick flag for checks

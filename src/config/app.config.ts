@@ -76,6 +76,7 @@ export default () => ({
     staff: '/staff/',
     brand: '/brand/',
     cv: '/cv/',
+    certificate: '/certificate/',
     websiteInfo: '/website-info/',
     // chat
     attachment: '/attachment/',

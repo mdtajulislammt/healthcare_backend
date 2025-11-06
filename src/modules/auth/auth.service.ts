@@ -1131,6 +1131,169 @@ export class AuthService {
     }
   }
 
+  // --------- Staff Certificates ---------
+  async addStaffCertificate(payload: { user_id: string; certificate_type: string; expiry_date?: string }, file?: Express.Multer.File) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      let fileName: string | undefined;
+      if (file) {
+        fileName = `${StringHelper.randomString()}${file.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.certificate + fileName,
+          file.buffer,
+        );
+      }
+
+      const expiry = payload.expiry_date ? new Date(payload.expiry_date) : null;
+
+      const created = await this.prisma.staffCertificate.create({
+        data: {
+          staff_id: staff.id,
+          certificate_type: payload.certificate_type as any,
+          file_url: fileName,
+          ...(expiry ? { expiry_date: expiry } : {}),
+          // verified_status defaults to pending
+        },
+      });
+
+      return { success: true, data: created };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  async addStaffCertificatesBulk(
+    payload: { user_id: string; expiries?: string | Record<string, string> },
+    files?: { [key: string]: Express.Multer.File[] }
+  ) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'Unrecognized user' };
+      }
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      // Parse expiry dates from payload
+      let expiryMap: Record<string, string> = {};
+      if (typeof payload.expiries === 'string') {
+        try {
+          expiryMap = JSON.parse(payload.expiries);
+        } catch {
+          // Ignore parse errors
+        }
+      } else if (payload.expiries && typeof payload.expiries === 'object') {
+        expiryMap = payload.expiries as Record<string, string>;
+      }
+
+      // Allowed certificate types (from enum)
+      const allowedTypes = [
+        'care_certificate',
+        'moving_handling',
+        'first_aid',
+        'basic_life_support',
+        'infection_control',
+        'safeguarding',
+        'health_safety',
+        'equality_diversity',
+        'coshh',
+        'medication_training',
+        'nvq_iii',
+        'additional_training',
+      ];
+      const allowedTypesSet = new Set(allowedTypes);
+
+      // Map files by field name (certificate type)
+      const typeToFile: Record<string, Express.Multer.File> = {};
+      if (files) {
+        for (const [fieldName, fileArray] of Object.entries(files)) {
+          const type = fieldName.trim().toLowerCase();
+          if (!allowedTypesSet.has(type)) continue; // Skip unknown types
+          if (!fileArray || fileArray.length === 0) continue;
+          if (typeToFile[type]) continue; // Avoid duplicates (keep first)
+          typeToFile[type] = fileArray[0]; // Take first file if multiple
+        }
+      }
+
+      const types = Object.keys(typeToFile);
+      if (types.length === 0) {
+        return { success: false, message: 'No valid certificate files provided. Use field name as certificate_type.' };
+      }
+
+      // Prevent duplicates: check existing certificates for this staff
+      const existingCertificates = await this.prisma.staffCertificate.findMany({
+        where: {
+          staff_id: staff.id,
+          certificate_type: { in: types as any[] },
+        },
+        select: { certificate_type: true },
+      });
+      const existingTypesSet = new Set(
+        existingCertificates.map((c) => (c.certificate_type as string).toLowerCase())
+      );
+
+      // Build create operations
+      const createOps: ReturnType<typeof this.prisma.staffCertificate.create>[] = [];
+      for (const type of types) {
+        if (existingTypesSet.has(type)) {
+          continue; // Skip existing types
+        }
+
+        const file = typeToFile[type];
+        let fileName: string | undefined;
+
+        // Upload file if provided
+        if (file) {
+          fileName = `${StringHelper.randomString()}${file.originalname}`;
+          await SojebStorage.put(
+            appConfig().storageUrl.certificate + fileName,
+            file.buffer,
+          );
+        }
+
+        // Get expiry date for this type
+        const expiryStr = expiryMap[type];
+        const expiryDate = expiryStr ? new Date(expiryStr) : undefined;
+
+        createOps.push(
+          this.prisma.staffCertificate.create({
+            data: {
+              staff_id: staff.id,
+              certificate_type: type as any,
+              file_url: fileName,
+              ...(expiryDate ? { expiry_date: expiryDate } : {}),
+            },
+          })
+        );
+      }
+
+      if (createOps.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'No new certificates to create (all provided types already exist or invalid).',
+        };
+      }
+
+      const results = await this.prisma.$transaction(createOps);
+      return { success: true, data: results };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
   /**
    * Step 4B: Complete Service Provider Profile
    * Creates ServiceProviderInfo and assigns role

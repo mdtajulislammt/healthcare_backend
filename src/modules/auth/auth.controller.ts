@@ -26,6 +26,7 @@ import { RegisterEmailDto } from './dto/register-email.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { CompleteStaffProfileDto } from './dto/complete-staff-profile.dto';
 import { CompleteServiceProviderProfileDto } from './dto/complete-service-provider-profile.dto';
+import { CreateStaffCertificateDto, CreateStaffCertificatesBulkDto } from './dto/create-staff-certificate.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import appConfig from '../../config/app.config';
 import { AuthGuard } from '@nestjs/passport';
@@ -129,6 +130,50 @@ export class AuthController {
         success: false,
         message: error.message,
       };
+    }
+  }
+
+  @ApiOperation({ summary: 'Add a staff certificate (single)' })
+  @ApiBearerAuth()
+  @Post('staff/certificates')
+  @UseInterceptors(FileInterceptor('file'))
+  async addStaffCertificate(
+    @Body() data: CreateStaffCertificateDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    try {
+      return await this.authService.addStaffCertificate(data, file);
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+
+  @ApiOperation({ summary: 'Add staff certificates (bulk)' })
+  @ApiBearerAuth()
+  @Post('staff/certificates/bulk')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'care_certificate', maxCount: 1 },
+    { name: 'moving_handling', maxCount: 1 },
+    { name: 'first_aid', maxCount: 1 },
+    { name: 'basic_life_support', maxCount: 1 },
+    { name: 'infection_control', maxCount: 1 },
+    { name: 'safeguarding', maxCount: 1 },
+    { name: 'health_safety', maxCount: 1 },
+    { name: 'equality_diversity', maxCount: 1 },
+    { name: 'coshh', maxCount: 1 },
+    { name: 'medication_training', maxCount: 1 },
+    { name: 'nvq_iii', maxCount: 1 },
+    { name: 'additional_training', maxCount: 1 },
+  ]))
+  async addStaffCertificatesBulk(
+    @Body() data: CreateStaffCertificatesBulkDto,
+    @UploadedFiles() files?: { care_certificate?: Express.Multer.File[]; moving_handling?: Express.Multer.File[]; first_aid?: Express.Multer.File[]; basic_life_support?: Express.Multer.File[]; infection_control?: Express.Multer.File[]; safeguarding?: Express.Multer.File[]; health_safety?: Express.Multer.File[]; equality_diversity?: Express.Multer.File[]; coshh?: Express.Multer.File[]; medication_training?: Express.Multer.File[]; nvq_iii?: Express.Multer.File[]; additional_training?: Express.Multer.File[] },
+  ) {
+    try {
+      return await this.authService.addStaffCertificatesBulk(data, files);
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   }
 
