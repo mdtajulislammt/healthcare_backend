@@ -986,6 +986,7 @@ export class AuthService {
     profileData: any,
     photoFile?: Express.Multer.File,
     cvFile?: Express.Multer.File,
+    certificateFiles?: { [key: string]: Express.Multer.File[] },
   ) {
     try {
       // Get user to verify
@@ -1024,13 +1025,13 @@ export class AuthService {
         };
       }
 
-      // Hash password
+      // Hash password (external operation - can't be in transaction)
       await UserRepository.changePassword({
         email: user.email,
         password: profileData.password,
       });
 
-      // If a staff photo file is provided, store it first
+      // Upload files first (external operations - can't rollback)
       let staffPhotoFileName: string = null;
       if (photoFile) {
         staffPhotoFileName = `${StringHelper.randomString()}${photoFile.originalname}`;
@@ -1049,6 +1050,46 @@ export class AuthService {
         );
       }
 
+      // Upload certificate files and prepare data
+      const typeToFile: Record<string, Express.Multer.File> = {};
+      const certificateFileNames: Record<string, string> = {};
+
+      if (certificateFiles && Object.keys(certificateFiles).length > 0) {
+        const allowedTypes = [
+          'care_certificate',
+          'moving_handling',
+          'first_aid',
+          'basic_life_support',
+          'infection_control',
+          'safeguarding',
+          'health_safety',
+          'equality_diversity',
+          'coshh',
+          'medication_training',
+          'nvq_iii',
+          'additional_training',
+        ];
+        const allowedTypesSet = new Set(allowedTypes);
+
+        for (const [fieldName, fileArray] of Object.entries(certificateFiles)) {
+          const type = fieldName.trim().toLowerCase();
+          if (!allowedTypesSet.has(type)) continue;
+          if (!fileArray || fileArray.length === 0) continue;
+          if (typeToFile[type]) continue; // Avoid duplicates
+          typeToFile[type] = fileArray[0];
+        }
+
+        // Upload certificate files
+        for (const [type, file] of Object.entries(typeToFile)) {
+          const fileName = `${StringHelper.randomString()}${file.originalname}`;
+          await SojebStorage.put(
+            appConfig().storageUrl.certificate + fileName,
+            file.buffer,
+          );
+          certificateFileNames[type] = fileName;
+        }
+      }
+
       // Normalize roles & agreed_to_terms from multipart
       const rolesNormalized = Array.isArray(profileData.roles)
         ? profileData.roles
@@ -1059,45 +1100,149 @@ export class AuthService {
         ? ['true', '1', 'yes'].includes(String(profileData.agreed_to_terms).trim().toLowerCase())
         : !!profileData.agreed_to_terms;
 
-      // Create StaffProfile (with optional additional roles)
-      const staffProfile = await this.prisma.staffProfile.create({
-        data: {
-          user_id: userId,
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          mobile_code: profileData.mobile_code,
-          mobile_number: profileData.mobile_number,
-          date_of_birth: new Date(profileData.date_of_birth),
-          roles: (rolesNormalized && rolesNormalized.length > 0) ? rolesNormalized as any : undefined,
-          right_to_work_status: profileData.right_to_work_status,
-          cv_url: staffCvFileName ?? undefined,
-          photo_url: staffPhotoFileName ?? undefined,
-          agreed_to_terms: agreedStaff,
-          compliance_status: 'pending',
-        },
-      });
+      // Prepare DBS info data if provided
+      let dbsData = null;
+      if (
+        profileData.dbs_certificate_number &&
+        profileData.dbs_surname_as_certificate &&
+        profileData.dbs_date_of_birth_on_cert &&
+        profileData.dbs_certificate_print_date
+      ) {
+        // Normalize is_registered_on_update
+        let isRegistered = false;
+        const registeredValue = profileData.dbs_is_registered_on_update;
+        if (typeof registeredValue === 'boolean') {
+          isRegistered = registeredValue;
+        } else if (typeof registeredValue === 'number') {
+          isRegistered = registeredValue === 1;
+        } else if (typeof registeredValue === 'string') {
+          const value = registeredValue.trim().toLowerCase();
+          isRegistered = ['true', '1', 'yes'].includes(value);
+        }
 
-      // Assign staff role
+        // Validate and parse dates
+        const dobString = String(profileData.dbs_date_of_birth_on_cert).trim();
+        const printString = String(profileData.dbs_certificate_print_date).trim();
+
+        // Check if strings are not empty
+        if (!dobString || dobString === 'undefined' || dobString === 'null') {
+          return {
+            success: false,
+            message: 'dbs_date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
+          };
+        }
+
+        if (!printString || printString === 'undefined' || printString === 'null') {
+          return {
+            success: false,
+            message: 'dbs_certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
+          };
+        }
+
+        const dobDate = new Date(dobString);
+        const printDate = new Date(printString);
+
+        // Check if dates are valid
+        if (isNaN(dobDate.getTime())) {
+          return {
+            success: false,
+            message: `Invalid date format for dbs_date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format (e.g., 1990-01-01).`,
+          };
+        }
+
+        if (isNaN(printDate.getTime())) {
+          return {
+            success: false,
+            message: `Invalid date format for dbs_certificate_print_date: "${printString}". Please use YYYY-MM-DD format (e.g., 2024-01-15).`,
+          };
+        }
+
+        dbsData = {
+          certificate_number: profileData.dbs_certificate_number,
+          surname_as_certificate: profileData.dbs_surname_as_certificate,
+          date_of_birth_on_cert: dobDate,
+          certificate_print_date: printDate,
+          is_registered_on_update: isRegistered,
+        };
+      }
+
+      // Get staff role
       const role = await this.prisma.role.findFirst({
         where: { name: 'staff' },
       });
 
-      if (role) {
-        await UserRepository.attachRole({
-          user_id: userId,
-          role_id: role.id,
+      // Execute all Prisma operations in a single transaction
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Create StaffProfile
+        const staffProfile = await tx.staffProfile.create({
+          data: {
+            user_id: userId,
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            mobile_code: profileData.mobile_code,
+            mobile_number: profileData.mobile_number,
+            date_of_birth: new Date(profileData.date_of_birth),
+            roles: (rolesNormalized && rolesNormalized.length > 0) ? rolesNormalized as any : undefined,
+            right_to_work_status: profileData.right_to_work_status,
+            cv_url: staffCvFileName ?? undefined,
+            photo_url: staffPhotoFileName ?? undefined,
+            agreed_to_terms: agreedStaff,
+            compliance_status: 'pending',
+          },
         });
-      }
 
-      // Update onboarding step (password already updated by changePassword)
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          onboarding_step: 'completed',
-        },
+        // Assign staff role
+        let roleUser = null;
+        if (role) {
+          roleUser = await tx.roleUser.create({
+            data: {
+              user_id: userId,
+              role_id: role.id,
+            },
+          });
+        }
+
+        // Update onboarding step
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            onboarding_step: 'completed',
+          },
+        });
+
+        // Create certificates
+        const certificatesCreated = [];
+        for (const [type, fileName] of Object.entries(certificateFileNames)) {
+          const cert = await tx.staffCertificate.create({
+            data: {
+              staff_id: staffProfile.id,
+              certificate_type: type as any,
+              file_url: fileName,
+            },
+          });
+          certificatesCreated.push(cert);
+        }
+
+        // Create DBS info if provided
+        let dbsInfo = null;
+        if (dbsData) {
+          dbsInfo = await tx.staffDbsInfo.create({
+            data: {
+              staff_id: staffProfile.id,
+              ...dbsData,
+            },
+          });
+        }
+
+        return {
+          staffProfile,
+          roleUser,
+          certificatesCreated,
+          dbsInfo,
+        };
       });
 
-      // create stripe customer account
+      // Create Stripe customer after transaction succeeds (external API)
       const stripeCustomer = await StripePayment.createCustomer({
         user_id: userId,
         email: user.email,
@@ -1119,8 +1264,10 @@ export class AuthService {
         success: true,
         message: 'Staff profile created successfully',
         data: {
-          staff_profile_id: staffProfile.id,
+          staff_profile_id: result.staffProfile.id,
           onboarding_step: 'completed',
+          certificates_created: result.certificatesCreated.length,
+          dbs_info_created: !!result.dbsInfo,
         },
       };
     } catch (error) {
@@ -1128,6 +1275,238 @@ export class AuthService {
         success: false,
         message: error.message,
       };
+    }
+  }
+
+  // --------- Staff Certificates ---------
+  async addStaffCertificate(payload: { user_id: string; certificate_type: string; expiry_date?: string }, file?: Express.Multer.File) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      let fileName: string | undefined;
+      if (file) {
+        fileName = `${StringHelper.randomString()}${file.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.certificate + fileName,
+          file.buffer,
+        );
+      }
+
+      const expiry = payload.expiry_date ? new Date(payload.expiry_date) : null;
+
+      const created = await this.prisma.staffCertificate.create({
+        data: {
+          staff_id: staff.id,
+          certificate_type: payload.certificate_type as any,
+          file_url: fileName,
+          ...(expiry ? { expiry_date: expiry } : {}),
+          // verified_status defaults to pending
+        },
+      });
+
+      return { success: true, data: created };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  async addStaffCertificatesBulk(
+    payload: { user_id: string; expiries?: string | Record<string, string> },
+    files?: { [key: string]: Express.Multer.File[] }
+  ) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'Unrecognized user' };
+      }
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      // Parse expiry dates from payload
+      let expiryMap: Record<string, string> = {};
+      if (typeof payload.expiries === 'string') {
+        try {
+          expiryMap = JSON.parse(payload.expiries);
+        } catch {
+          // Ignore parse errors
+        }
+      } else if (payload.expiries && typeof payload.expiries === 'object') {
+        expiryMap = payload.expiries as Record<string, string>;
+      }
+
+      // Allowed certificate types (from enum)
+      const allowedTypes = [
+        'care_certificate',
+        'moving_handling',
+        'first_aid',
+        'basic_life_support',
+        'infection_control',
+        'safeguarding',
+        'health_safety',
+        'equality_diversity',
+        'coshh',
+        'medication_training',
+        'nvq_iii',
+        'additional_training',
+      ];
+      const allowedTypesSet = new Set(allowedTypes);
+
+      // Map files by field name (certificate type)
+      const typeToFile: Record<string, Express.Multer.File> = {};
+      if (files) {
+        for (const [fieldName, fileArray] of Object.entries(files)) {
+          const type = fieldName.trim().toLowerCase();
+          if (!allowedTypesSet.has(type)) continue; // Skip unknown types
+          if (!fileArray || fileArray.length === 0) continue;
+          if (typeToFile[type]) continue; // Avoid duplicates (keep first)
+          typeToFile[type] = fileArray[0]; // Take first file if multiple
+        }
+      }
+
+      const types = Object.keys(typeToFile);
+      if (types.length === 0) {
+        return { success: false, message: 'No valid certificate files provided. Use field name as certificate_type.' };
+      }
+
+      // Prevent duplicates: check existing certificates for this staff
+      const existingCertificates = await this.prisma.staffCertificate.findMany({
+        where: {
+          staff_id: staff.id,
+          certificate_type: { in: types as any[] },
+        },
+        select: { certificate_type: true },
+      });
+      const existingTypesSet = new Set(
+        existingCertificates.map((c) => (c.certificate_type as string).toLowerCase())
+      );
+
+      // Build create operations
+      const createOps: ReturnType<typeof this.prisma.staffCertificate.create>[] = [];
+      for (const type of types) {
+        if (existingTypesSet.has(type)) {
+          continue; // Skip existing types
+        }
+
+        const file = typeToFile[type];
+        let fileName: string | undefined;
+
+        // Upload file if provided
+        if (file) {
+          fileName = `${StringHelper.randomString()}${file.originalname}`;
+          await SojebStorage.put(
+            appConfig().storageUrl.certificate + fileName,
+            file.buffer,
+          );
+        }
+
+        // Get expiry date for this type
+        const expiryStr = expiryMap[type];
+        const expiryDate = expiryStr ? new Date(expiryStr) : undefined;
+
+        createOps.push(
+          this.prisma.staffCertificate.create({
+            data: {
+              staff_id: staff.id,
+              certificate_type: type as any,
+              file_url: fileName,
+              ...(expiryDate ? { expiry_date: expiryDate } : {}),
+            },
+          })
+        );
+      }
+
+      if (createOps.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'No new certificates to create (all provided types already exist or invalid).',
+        };
+      }
+
+      const results = await this.prisma.$transaction(createOps);
+      return { success: true, data: results };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Create or update staff DBS info
+   */
+  async createOrUpdateStaffDbsInfo(payload: {
+    user_id: string;
+    certificate_number: string;
+    surname_as_certificate: string;
+    date_of_birth_on_cert: string;
+    certificate_print_date: string;
+    is_registered_on_update?: boolean | string | number;
+  }) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'Unrecognized user' };
+      }
+
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      // Check if DBS info already exists
+      const existingDbsInfo = await this.prisma.staffDbsInfo.findUnique({
+        where: { staff_id: staff.id },
+      });
+
+      // Normalize is_registered_on_update
+      let isRegistered = false;
+      const registeredValue = payload.is_registered_on_update;
+      if (typeof registeredValue === 'boolean') {
+        isRegistered = registeredValue;
+      } else if (typeof registeredValue === 'number') {
+        isRegistered = registeredValue === 1;
+      } else if (typeof registeredValue === 'string') {
+        const value = registeredValue.trim().toLowerCase();
+        isRegistered = ['true', '1', 'yes'].includes(value);
+      }
+
+      const dbsData = {
+        staff_id: staff.id,
+        certificate_number: payload.certificate_number,
+        surname_as_certificate: payload.surname_as_certificate,
+        date_of_birth_on_cert: new Date(payload.date_of_birth_on_cert),
+        certificate_print_date: new Date(payload.certificate_print_date),
+        is_registered_on_update: isRegistered,
+      };
+
+      let dbsInfo;
+      if (existingDbsInfo) {
+        // Update existing DBS info
+        dbsInfo = await this.prisma.staffDbsInfo.update({
+          where: { id: existingDbsInfo.id },
+          data: dbsData,
+        });
+      } else {
+        // Create new DBS info
+        dbsInfo = await this.prisma.staffDbsInfo.create({
+          data: dbsData,
+        });
+      }
+
+      return { success: true, data: dbsInfo };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   }
 
