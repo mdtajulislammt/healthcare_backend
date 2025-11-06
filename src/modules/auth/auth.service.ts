@@ -1295,6 +1295,75 @@ export class AuthService {
   }
 
   /**
+   * Create or update staff DBS info
+   */
+  async createOrUpdateStaffDbsInfo(payload: {
+    user_id: string;
+    certificate_number: string;
+    surname_as_certificate: string;
+    date_of_birth_on_cert: string;
+    certificate_print_date: string;
+    is_registered_on_update?: boolean | string | number;
+  }) {
+    try {
+      const userId = payload.user_id;
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return { success: false, message: 'Unrecognized user' };
+      }
+
+      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      if (!staff) {
+        return { success: false, message: 'Staff profile not found' };
+      }
+
+      // Check if DBS info already exists
+      const existingDbsInfo = await this.prisma.staffDbsInfo.findUnique({
+        where: { staff_id: staff.id },
+      });
+
+      // Normalize is_registered_on_update
+      let isRegistered = false;
+      const registeredValue = payload.is_registered_on_update;
+      if (typeof registeredValue === 'boolean') {
+        isRegistered = registeredValue;
+      } else if (typeof registeredValue === 'number') {
+        isRegistered = registeredValue === 1;
+      } else if (typeof registeredValue === 'string') {
+        const value = registeredValue.trim().toLowerCase();
+        isRegistered = ['true', '1', 'yes'].includes(value);
+      }
+
+      const dbsData = {
+        staff_id: staff.id,
+        certificate_number: payload.certificate_number,
+        surname_as_certificate: payload.surname_as_certificate,
+        date_of_birth_on_cert: new Date(payload.date_of_birth_on_cert),
+        certificate_print_date: new Date(payload.certificate_print_date),
+        is_registered_on_update: isRegistered,
+      };
+
+      let dbsInfo;
+      if (existingDbsInfo) {
+        // Update existing DBS info
+        dbsInfo = await this.prisma.staffDbsInfo.update({
+          where: { id: existingDbsInfo.id },
+          data: dbsData,
+        });
+      } else {
+        // Create new DBS info
+        dbsInfo = await this.prisma.staffDbsInfo.create({
+          data: dbsData,
+        });
+      }
+
+      return { success: true, data: dbsInfo };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
    * Step 4B: Complete Service Provider Profile
    * Creates ServiceProviderInfo and assigns role
    */

@@ -27,6 +27,7 @@ import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { CompleteStaffProfileDto } from './dto/complete-staff-profile.dto';
 import { CompleteServiceProviderProfileDto } from './dto/complete-service-provider-profile.dto';
 import { CreateStaffCertificateDto, CreateStaffCertificatesBulkDto } from './dto/create-staff-certificate.dto';
+import { CreateStaffDbsInfoDto } from './dto/create-staff-dbs-info.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import appConfig from '../../config/app.config';
 import { AuthGuard } from '@nestjs/passport';
@@ -172,6 +173,17 @@ export class AuthController {
   ) {
     try {
       return await this.authService.addStaffCertificatesBulk(data, files);
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  @ApiOperation({ summary: 'Create or update staff DBS info' })
+  @ApiBearerAuth()
+  @Post('staff/dbs-info')
+  async createOrUpdateStaffDbsInfo(@Body() data: CreateStaffDbsInfoDto) {
+    try {
+      return await this.authService.createOrUpdateStaffDbsInfo(data);
     } catch (error) {
       return { success: false, message: error.message };
     }
