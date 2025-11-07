@@ -603,7 +603,7 @@ model Shift {
   notes String?
 
   // Status
-  status ShiftStatus @default(draft)
+  status ShiftStatus @default(published)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
