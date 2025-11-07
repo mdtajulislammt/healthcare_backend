@@ -4,12 +4,12 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateShiftDto } from './dto/create-shift.dto';
 import { Prisma } from '@prisma/client';
 import { UpdateShiftDto } from './dto/update-shift.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ShiftService {

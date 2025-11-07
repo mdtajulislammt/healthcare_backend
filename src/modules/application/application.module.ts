@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { NotificationModule } from './notification/notification.module';
 import { ContactModule } from './contact/contact.module';
 import { FaqModule } from './faq/faq.module';
-import { ShiftModule } from './shift/shift.module';
+import { ServiceProviderModule } from './service-provider/service-provider.module';
+import { StaffModule } from './staff/staff.module';
 
 @Module({
-  imports: [NotificationModule, ContactModule, FaqModule, ShiftModule],
+  imports: [NotificationModule, ContactModule, FaqModule, ServiceProviderModule, StaffModule],
 })
-export class ApplicationModule {}
+export class ApplicationModule { }
