@@ -62,6 +62,10 @@ export default () => ({
     },
   },
 
+  googleMaps: {
+    api_key: process.env.GOOGLE_MAPS_API_KEY,
+  },
+
   /**
    * Storage directory
    */

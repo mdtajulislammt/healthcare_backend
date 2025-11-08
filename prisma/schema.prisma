@@ -592,6 +592,8 @@ model Shift {
   // Location
   facility_name String
   full_address  String
+  latitude      Float?
+  longitude     Float?
 
   // Pay
   pay_rate_hourly    Float

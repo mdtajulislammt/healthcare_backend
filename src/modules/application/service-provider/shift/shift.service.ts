@@ -10,6 +10,7 @@ import { UpdateShiftDto } from './dto/update-shift.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
 
 @Injectable()
 export class ShiftService {
@@ -67,6 +68,27 @@ export class ShiftService {
         }
       }
 
+      // Geocode address to get coordinates
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+
+      if (full_address) {
+        try {
+          const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
+          console.log('geocodeResult', geocodeResult);
+          if (geocodeResult) {
+            latitude = geocodeResult.latitude;
+            longitude = geocodeResult.longitude;
+          }
+        } catch (error) {
+          // Log error but continue without coordinates
+          console.error('Failed to geocode address for shift:', error.message);
+        }
+      }
+
+      console.log('latitude', latitude);
+      console.log('longitude', longitude);
+
       const shift = await this.prisma.shift.create({
         data: {
           service_provider_id,
@@ -82,6 +104,8 @@ export class ShiftService {
           end_time: new Date(end_time),
           facility_name,
           full_address,
+          latitude,
+          longitude,
           pay_rate_hourly,
           signing_bonus,
           internal_po_number,
