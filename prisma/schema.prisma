@@ -592,6 +592,8 @@ model Shift {
   // Location
   facility_name String
   full_address  String
+  latitude      Float?
+  longitude     Float?
 
   // Pay
   pay_rate_hourly    Float
@@ -603,7 +605,7 @@ model Shift {
   notes String?
 
   // Status
-  status ShiftStatus @default(draft)
+  status ShiftStatus @default(published)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
