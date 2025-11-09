@@ -194,24 +194,53 @@ export class ApplyShiftService {
       }
       const skip = (currentPage - 1) * pageSize;
 
-      // Build status filter
-      const validStatuses: ShiftStatus[] = ['draft', 'published', 'assigned', 'completed', 'cancelled'];
-      const statusFilter = status
-        ? validStatuses.includes(status as ShiftStatus)
-          ? { equals: status as ShiftStatus }
-          : { in: ['published', 'assigned'] as ShiftStatus[] }
-        : { in: ['published', 'assigned'] as ShiftStatus[] };
+      // Build filter: Show published shifts OR shifts assigned to this staff member
+      const shiftFilterConditions: Prisma.ShiftWhereInput[] = [
+        { status: 'published' }, // All published shifts
+      ];
 
-      const where: Prisma.ShiftWhereInput = {
-        status: statusFilter,
-        ...(search && {
+      // Add condition for shifts assigned to this staff member
+      if (staff_id) {
+        shiftFilterConditions.push({
+          assigned_staff_id: staff_id, // Shifts assigned to this user
+        });
+      }
+
+      // Build AND conditions array
+      const andConditions: Prisma.ShiftWhereInput[] = [
+        {
+          OR: shiftFilterConditions, // Main filter: published OR assigned to this user
+        },
+      ];
+
+      // Add search filter if provided
+      if (search) {
+        andConditions.push({
           OR: [
             { posting_title: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { facility_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { full_address: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
           ],
-        }),
-      };
+        });
+      }
+
+      // Add status filter if provided (further filter the results)
+      if (status) {
+        const validStatuses: ShiftStatus[] = ['draft', 'published', 'assigned', 'completed', 'cancelled'];
+        if (validStatuses.includes(status as ShiftStatus)) {
+          andConditions.push({
+            status: status as ShiftStatus,
+          });
+        }
+      }
+
+      // Combine all filters with AND
+      const where: Prisma.ShiftWhereInput =
+        andConditions.length === 1
+          ? andConditions[0] // If only one condition, no need for AND wrapper
+          : {
+            AND: andConditions,
+          };
 
       const [total, itemsRaw] = await this.prisma.$transaction([
         this.prisma.shift.count({ where }),
@@ -235,6 +264,7 @@ export class ApplyShiftService {
             signing_bonus: true,
             emergency_bonus: true,
             status: true,
+            assigned_staff_id: true,
             created_at: true,
             service_provider_info: {
               select: {

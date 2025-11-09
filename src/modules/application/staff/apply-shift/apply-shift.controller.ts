@@ -7,12 +7,16 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { Request } from 'express';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Controller('application/staff/shifts')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.STAFF)
 export class ApplyShiftController {
-  constructor(private readonly applyShiftService: ApplyShiftService) { }
+  constructor(
+    private readonly applyShiftService: ApplyShiftService,
+    private readonly prisma: PrismaService,
+  ) { }
 
   @Post()
   create(@Body() createApplyShiftDto: CreateApplyShiftDto, @Req() req: Request) {
@@ -24,17 +28,35 @@ export class ApplyShiftController {
   }
 
   @Get()
-  findAll(
+  async findAll(
+    @Req() req: Request,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('staff_id') staff_id?: string,
     @Query('staff_latitude') staff_latitude?: string,
     @Query('staff_longitude') staff_longitude?: string,
     @Query('status') status?: string,
     @Query('max_distance_miles') max_distance_miles?: string,
     @Query('max_distance_km') max_distance_km?: string,
   ) {
+    // Get user_id from authenticated user
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    // Get staff_id from user_id
+    const staffProfile = await this.prisma.staffProfile.findUnique({
+      where: { user_id },
+      select: { id: true },
+    });
+
+    if (!staffProfile) {
+      throw new BadRequestException('Staff profile not found. Please complete your profile first.');
+    }
+
+    const staff_id = staffProfile.id;
+
     // Validate coordinates if provided
     let staffLat: number | undefined;
     let staffLng: number | undefined;
@@ -99,12 +121,30 @@ export class ApplyShiftController {
   }
 
   @Get(':id')
-  findOne(
+  async findOne(
     @Param('id') id: string,
-    @Query('staff_id') staff_id?: string,
+    @Req() req: Request,
     @Query('staff_latitude') staff_latitude?: string,
     @Query('staff_longitude') staff_longitude?: string,
   ) {
+    // Get user_id from authenticated user
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    // Get staff_id from user_id
+    const staffProfile = await this.prisma.staffProfile.findUnique({
+      where: { user_id },
+      select: { id: true },
+    });
+
+    if (!staffProfile) {
+      throw new BadRequestException('Staff profile not found. Please complete your profile first.');
+    }
+
+    const staff_id = staffProfile.id;
+
     // Validate coordinates if provided
     let staffLat: number | undefined;
     let staffLng: number | undefined;
