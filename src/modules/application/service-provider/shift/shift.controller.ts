@@ -32,8 +32,15 @@ export class ShiftController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.shiftService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @Query('status') status?: string,
+    @Query('dateOrder') dateOrder?: 'asc' | 'desc',
+  ) {
+    return this.shiftService.findOne(id, {
+      applicationStatus: status,
+      dateOrder,
+    });
   }
 
   @Patch(':id')

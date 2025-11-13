@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ShiftApplicationService } from './shift-application.service';
@@ -35,13 +36,41 @@ export class ShiftApplicationController {
   }
 
   @Get()
-  findAll() {
-    return this.shiftApplicationService.findAll();
+  findAll(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('dateOrder') dateOrder?: 'asc' | 'desc',
+    @Query('shiftId') shiftId?: string,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftApplicationService.findAll(user_id, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      status,
+      dateOrder,
+      shiftId,
+    });
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.shiftApplicationService.findOne(+id);
+  }
+
+  @Get(':id/profile')
+  viewApplicantProfile(@Param('id') id: string, @Req() req: Request) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftApplicationService.viewApplicantProfile(id, user_id);
   }
 
   @Patch(':id')

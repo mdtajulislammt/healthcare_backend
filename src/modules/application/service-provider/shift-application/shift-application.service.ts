@@ -9,7 +9,9 @@ import { CreateShiftApplicationDto } from './dto/create-shift-application.dto';
 import { UpdateShiftApplicationDto } from './dto/update-shift-application.dto';
 import { AcceptApplicationDto } from './dto/accept-application.dto';
 import { PrismaService } from '../../../../prisma/prisma.service';
-import { ShiftApplicationStatus, ShiftStatus } from '@prisma/client';
+import { Prisma, ShiftApplicationStatus, ShiftStatus } from '@prisma/client';
+import appConfig from 'src/config/app.config';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class ShiftApplicationService {
@@ -19,8 +21,183 @@ export class ShiftApplicationService {
     return 'This action adds a new shiftApplication';
   }
 
-  findAll() {
-    return `This action returns all shiftApplication`;
+  async findAll(
+    user_id: string,
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+      dateOrder?: 'asc' | 'desc';
+      shiftId?: string;
+    } = {},
+  ) {
+    try {
+      const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
+        where: { user_id },
+        select: { id: true },
+      });
+
+      if (!serviceProvider) {
+        throw new ForbiddenException(
+          'Service provider profile not found. Only service providers can view applications.',
+        );
+      }
+
+      const currentPage = Math.max(Number(params.page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(params.limit) || 10, 1), 100);
+      if (Number.isNaN(currentPage) || Number.isNaN(pageSize)) {
+        throw new BadRequestException('Invalid pagination parameters');
+      }
+      const skip = (currentPage - 1) * pageSize;
+
+      let statusFilter: ShiftApplicationStatus | undefined;
+      if (params.status) {
+        const statusKey = params.status.toLowerCase();
+        if (statusKey !== 'all') {
+          const statusMap: Record<string, ShiftApplicationStatus> = {
+            new: ShiftApplicationStatus.pending,
+            pending: ShiftApplicationStatus.pending,
+            accepted: ShiftApplicationStatus.accepted,
+            rejected: ShiftApplicationStatus.rejected,
+            cancelled: ShiftApplicationStatus.cancelled,
+          };
+          statusFilter = statusMap[statusKey];
+          if (!statusFilter) {
+            throw new BadRequestException('Invalid application status filter');
+          }
+        }
+      }
+
+      const filters: Prisma.ShiftApplicationWhereInput[] = [
+        { shift: { service_provider_id: serviceProvider.id } },
+      ];
+
+      if (statusFilter) {
+        filters.push({ status: statusFilter });
+      }
+
+      if (params.shiftId) {
+        filters.push({ shift_id: params.shiftId });
+      }
+
+      const searchTerm = params.search?.trim();
+      if (searchTerm) {
+        filters.push({
+          OR: [
+            {
+              shift: {
+                posting_title: {
+                  contains: searchTerm,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            },
+            {
+              shift: {
+                facility_name: {
+                  contains: searchTerm,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            },
+            {
+              staff: {
+                first_name: {
+                  contains: searchTerm,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            },
+            {
+              staff: {
+                last_name: {
+                  contains: searchTerm,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            },
+          ],
+        });
+      }
+
+      const where: Prisma.ShiftApplicationWhereInput =
+        filters.length > 1 ? { AND: filters } : filters[0];
+
+      const requestedOrder = params.dateOrder?.toLowerCase();
+      const orderBy: Prisma.ShiftApplicationOrderByWithRelationInput = {
+        applied_at: requestedOrder === 'asc' ? 'asc' : 'desc',
+      };
+
+      const [total, applications] = await this.prisma.$transaction([
+        this.prisma.shiftApplication.count({ where }),
+        this.prisma.shiftApplication.findMany({
+          where,
+          include: {
+            shift: {
+              select: {
+                id: true,
+                posting_title: true,
+                facility_name: true,
+                start_date: true,
+                end_date: true,
+                start_time: true,
+                end_time: true,
+                status: true,
+              },
+            },
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+                roles: true,
+              },
+            },
+          },
+          orderBy,
+          skip,
+          take: pageSize,
+        }),
+      ]);
+
+      const storage = appConfig().storageUrl.staff;
+      const formatted = applications.map((application) => {
+        const staff = application.staff
+          ? {
+            ...application.staff,
+            photo_url: application.staff.photo_url
+              ? SojebStorage.url(storage + application.staff.photo_url)
+              : null,
+          }
+          : null;
+        return {
+          ...application,
+          staff,
+        };
+      });
+
+      return {
+        success: true,
+        message: 'Shift applications fetched successfully',
+        data: formatted,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch applications');
+    }
   }
 
   findOne(id: number) {
@@ -247,6 +424,144 @@ export class ShiftApplicationService {
         throw error;
       }
       throw new InternalServerErrorException('Failed to process application');
+    }
+  }
+
+  async viewApplicantProfile(applicationId: string, user_id: string) {
+    try {
+      const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
+        where: { user_id },
+        select: { id: true },
+      });
+
+      if (!serviceProvider) {
+        throw new ForbiddenException(
+          'Service provider profile not found. Only service providers can view applicant profiles.',
+        );
+      }
+
+      const application = await this.prisma.shiftApplication.findUnique({
+        where: { id: applicationId },
+        include: {
+          shift: {
+            select: {
+              id: true,
+              service_provider_id: true,
+              posting_title: true,
+              facility_name: true,
+              start_date: true,
+              end_date: true,
+              start_time: true,
+              end_time: true,
+              status: true,
+              profession_role: true,
+              shift_type: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              mobile_code: true,
+              mobile_number: true,
+              date_of_birth: true,
+              photo_url: true,
+              cv_url: true,
+              roles: true,
+              right_to_work_status: true,
+              agreed_to_terms: true,
+              profile_completion: true,
+              is_profile_complete: true,
+              created_at: true,
+              updated_at: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  status: true,
+                  email_verified_at: true,
+                  approved_at: true,
+                  created_at: true,
+                },
+              },
+              certificates: {
+                select: {
+                  id: true,
+                  certificate_type: true,
+                  file_url: true,
+                  uploaded_at: true,
+                  verified_status: true,
+                  expiry_date: true,
+                  expiry_notified_at: true,
+                },
+                orderBy: { uploaded_at: 'desc' },
+              },
+              dbs_info: true,
+            },
+          },
+        },
+      });
+
+      if (!application) {
+        throw new NotFoundException('Application not found');
+      }
+
+      if (application.shift.service_provider_id !== serviceProvider.id) {
+        throw new ForbiddenException(
+          'You do not have permission to view this applicant. This shift does not belong to your service provider.',
+        );
+      }
+
+      const staffProfile = application.staff;
+
+      if (!staffProfile) {
+        throw new NotFoundException('Staff profile not found for this application');
+      }
+
+      const storageConfig = appConfig().storageUrl;
+      const staff = {
+        ...staffProfile,
+        photo_url: staffProfile.photo_url
+          ? SojebStorage.url(storageConfig.staff + staffProfile.photo_url)
+          : null,
+        cv_url: staffProfile.cv_url
+          ? SojebStorage.url(storageConfig.cv + staffProfile.cv_url)
+          : null,
+        certificates: staffProfile.certificates?.map((certificate) => ({
+          ...certificate,
+          file_url: certificate.file_url
+            ? SojebStorage.url(storageConfig.certificate + certificate.file_url)
+            : null,
+        })) ?? [],
+      };
+
+      const applicationData = {
+        id: application.id,
+        status: application.status,
+        applied_at: application.applied_at,
+        reviewed_at: application.reviewed_at,
+        notes: application.notes,
+        shift: application.shift,
+      };
+
+      return {
+        success: true,
+        message: 'Applicant profile fetched successfully',
+        data: {
+          application: applicationData,
+          staff,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch applicant profile');
     }
   }
 }
