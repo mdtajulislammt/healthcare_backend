@@ -499,15 +499,18 @@ model EmployeePermission {
 
 // Staff Models
 model StaffProfile {
-  id              String   @id @default(cuid())
-  user_id         String   @unique
-  first_name      String
-  last_name       String
-  mobile_code     String?
-  mobile_number   String?
-  date_of_birth   DateTime
-  photo_url       String?
-  agreed_to_terms Boolean  @default(false)
+  id            String   @id @default(cuid())
+  user_id       String   @unique
+  first_name    String
+  last_name     String
+  mobile_code   String?
+  mobile_number String?
+  date_of_birth DateTime
+  photo_url     String?
+  bio           String?
+  experience    String?
+
+  agreed_to_terms Boolean @default(false)
 
   // Step 2: Role & Work Status
   roles                StaffRole[] // additional roles (multi-select)
@@ -518,7 +521,11 @@ model StaffProfile {
   certificates StaffCertificate[]
 
   // Step 3: DBS & Compliance
-  dbs_info StaffDbsInfo?
+  dbs_info           StaffDbsInfo?
+  emergency_contacts StaffEmergencyContact?
+  current_address    StaffCurrentAddress?
+  previous_address   StaffPreviousAddress?
+  educations         StaffEducation[]
 
   profile_completion  Int     @default(0) // percentage (0–100)
   is_profile_complete Boolean @default(false) // quick flag for checks
@@ -568,6 +575,68 @@ model StaffDbsInfo {
   staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
 
   @@map("staff_dbs_infos")
+}
+
+model StaffEmergencyContact {
+  id            String   @id @default(cuid())
+  staff_id      String   @unique
+  name          String?
+  mobile_code   String
+  mobile_number String
+  relationship  String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+}
+
+model StaffEducation {
+  id               String    @id @default(cuid())
+  staff_id         String
+  institution_name String
+  degree           String
+  field_of_study   String?
+  start_date       DateTime?
+  end_date         DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+}
+
+model StaffCurrentAddress {
+  id        String    @id @default(cuid())
+  staff_id  String    @unique
+  address   String
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+  from_date DateTime?
+  to_date   DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+}
+
+model StaffPreviousAddress {
+  id        String    @id @default(cuid())
+  staff_id  String    @unique
+  address   String
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+  from_date DateTime?
+  to_date   DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
 }
 
 // Shift Models

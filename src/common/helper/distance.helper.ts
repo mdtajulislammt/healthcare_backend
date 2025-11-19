@@ -18,6 +18,8 @@ interface CalculateDistanceParams {
  * Provides utilities for calculating distances between locations
  */
 export class DistanceHelper {
+    private static readonly EARTH_RADIUS_KM = 6371;
+
     /**
      * Calculate driving distance between staff location and shift location
      * @param params Object containing staff and shift coordinates
@@ -53,7 +55,45 @@ export class DistanceHelper {
             console.error('Failed to calculate distance:', error.message);
         }
 
-        return {};
+        // Fall back to manual Haversine distance calculation if Google API fails / disabled
+        return this.calculateApproximateDistance({
+            staff_latitude,
+            staff_longitude,
+            shift_latitude,
+            shift_longitude,
+        });
+    }
+    // todo reminder
+    //!!!!! remove this calculateApproximateDistance method after testing
+    /**
+     * Fallback approximate distance using Haversine formula (straight-line distance)
+     */
+    private static calculateApproximateDistance(params: Required<CalculateDistanceParams>): DistanceResult {
+        const { staff_latitude, staff_longitude, shift_latitude, shift_longitude } = params;
+
+        const toRad = (value: number) => (value * Math.PI) / 180;
+
+        const latDiff = toRad(shift_latitude - staff_latitude);
+        const lonDiff = toRad(shift_longitude - staff_longitude);
+
+        const a =
+            Math.sin(latDiff / 2) * Math.sin(latDiff / 2) +
+            Math.cos(toRad(staff_latitude)) *
+            Math.cos(toRad(shift_latitude)) *
+            Math.sin(lonDiff / 2) *
+            Math.sin(lonDiff / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceKm = this.EARTH_RADIUS_KM * c;
+
+        const distanceMeters = distanceKm * 1000;
+        const distanceMiles = distanceKm * 0.621371;
+
+        return {
+            distance_meters: Math.round(distanceMeters),
+            distance_km: Math.round(distanceKm * 10) / 10,
+            distance_miles: Math.round(distanceMiles * 10) / 10,
+        };
     }
 }
 

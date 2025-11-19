@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateShiftDto } from './dto/create-shift.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, ShiftApplicationStatus } from '@prisma/client';
 import { UpdateShiftDto } from './dto/update-shift.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -211,8 +211,34 @@ export class ShiftService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+    filters: { applicationStatus?: string; dateOrder?: 'asc' | 'desc' } = {},
+  ) {
     try {
+      let applicationStatusFilter: ShiftApplicationStatus | undefined;
+      if (filters.applicationStatus) {
+        const statusKey = filters.applicationStatus.toLowerCase();
+        if (statusKey !== 'all') {
+          const statusMap: Record<string, ShiftApplicationStatus> = {
+            new: ShiftApplicationStatus.pending,
+            pending: ShiftApplicationStatus.pending,
+            accepted: ShiftApplicationStatus.accepted,
+            rejected: ShiftApplicationStatus.rejected,
+            cancelled: ShiftApplicationStatus.cancelled,
+          };
+          applicationStatusFilter = statusMap[statusKey];
+          if (!applicationStatusFilter) {
+            throw new BadRequestException('Invalid application status filter');
+          }
+        }
+      }
+      const applicationsWhere: Prisma.ShiftApplicationWhereInput | undefined =
+        applicationStatusFilter ? { status: applicationStatusFilter } : undefined;
+      const requestedOrder = filters.dateOrder?.toString().toLowerCase();
+      const applicationsOrder: Prisma.SortOrder =
+        requestedOrder === 'asc' ? 'asc' : 'desc';
+
       const shift = await this.prisma.shift.findUnique({
         where: { id },
         include: {
@@ -226,6 +252,7 @@ export class ShiftService {
             select: { id: true, first_name: true, last_name: true, roles: true },
           },
           applications: {
+            where: applicationsWhere,
             select: {
               id: true,
               status: true,
@@ -234,7 +261,7 @@ export class ShiftService {
                 select: { id: true, first_name: true, last_name: true, photo_url: true },
               },
             },
-            orderBy: { applied_at: 'desc' },
+            orderBy: { applied_at: applicationsOrder },
           },
           attendance: true,
           timesheet: true,

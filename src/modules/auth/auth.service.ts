@@ -1187,6 +1187,7 @@ export class AuthService {
             cv_url: staffCvFileName ?? undefined,
             photo_url: staffPhotoFileName ?? undefined,
             agreed_to_terms: agreedStaff,
+            experience: profileData.experience,
           },
         });
 
