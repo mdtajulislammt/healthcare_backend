@@ -427,7 +427,7 @@ export class GeofenceService {
                     staff_id: staff_id,
                     verification_method: 'Geofence Verified',
                     clock_out_verified: true,
-                    status: TimesheetStatus.pending_submission,
+                    status: TimesheetStatus.submitted,
                 },
                 update: {
                     clock_out_verified: true,
