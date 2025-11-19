@@ -485,7 +485,7 @@ export class ShiftApplicationService {
                   verified_status: true,
                 },
               },
-              education: {
+              educations: {
                 select: {
                   id: true,
                   institution_name: true,

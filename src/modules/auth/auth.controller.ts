@@ -552,6 +552,7 @@ export class AuthController {
         right_to_work_status: data.right_to_work_status,
         password: data.password,
         agreed_to_terms: data.agreed_to_terms,
+        experience: data.experience,
         dbs_certificate_number: data.dbs_certificate_number,
         dbs_surname_as_certificate: data.dbs_surname_as_certificate,
         dbs_date_of_birth_on_cert: data.dbs_date_of_birth_on_cert,

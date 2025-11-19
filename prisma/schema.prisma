@@ -523,9 +523,9 @@ model StaffProfile {
   // Step 3: DBS & Compliance
   dbs_info           StaffDbsInfo?
   emergency_contacts StaffEmergencyContact?
-  education          StaffEducation?
   current_address    StaffCurrentAddress?
   previous_address   StaffPreviousAddress?
+  educations         StaffEducation[]
 
   profile_completion  Int     @default(0) // percentage (0–100)
   is_profile_complete Boolean @default(false) // quick flag for checks
@@ -592,7 +592,7 @@ model StaffEmergencyContact {
 
 model StaffEducation {
   id               String    @id @default(cuid())
-  staff_id         String    @unique
+  staff_id         String
   institution_name String
   degree           String
   field_of_study   String?

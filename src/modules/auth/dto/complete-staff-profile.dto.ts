@@ -36,6 +36,9 @@ export class CompleteStaffProfileDto {
     @IsNotEmpty()
     agreed_to_terms: boolean;
 
+    @IsOptional()
+    experience?: string;
+
     // Optional: DBS Info
     @IsOptional()
     @IsString()
