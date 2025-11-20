@@ -43,6 +43,21 @@ export class ProfileController {
     return this.profileService.findAll();
   }
 
+  @ApiOperation({ summary: 'Get service provider profile' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SERVICE_PROVIDER)
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  async getServiceProviderProfile(@Req() req: Request) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.profileService.getServiceProviderProfile(user_id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.profileService.findOne(+id);

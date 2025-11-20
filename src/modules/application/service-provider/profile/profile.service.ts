@@ -286,4 +286,89 @@ export class ProfileService {
       throw new BadRequestException(`Failed to update business info: ${error.message}`);
     }
   }
+
+  /**
+   * Get service provider profile with all related data
+   * @param userId - The user ID from the authenticated request
+   */
+  async getServiceProviderProfile(userId: string) {
+    try {
+      // Verify user exists and get service provider profile
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          service_provider_info: {
+            include: {
+              employees: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email: true,
+                  phone_number: true,
+                  employee_role: true,
+                  is_active: true,
+                  created_at: true,
+                  updated_at: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.type !== 'service_provider') {
+        throw new BadRequestException('User is not a service provider');
+      }
+
+      if (!user.service_provider_info) {
+        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+      }
+
+      const profile = user.service_provider_info;
+
+      // Format brand logo URL if exists
+      if (profile.brand_logo_url) {
+        profile.brand_logo_url = SojebStorage.url(
+          appConfig().storageUrl.brand + profile.brand_logo_url,
+        );
+      }
+
+      // Format support documents URL if exists
+      if ((profile as any).support_documents_url) {
+        (profile as any).support_documents_url = SojebStorage.url(
+          appConfig().storageUrl.certificate + (profile as any).support_documents_url,
+        );
+      }
+
+      // Include user info (without sensitive data)
+      const userInfo = {
+        id: user.id,
+        email: user.email,
+        status: user.status,
+        approved_at: user.approved_at,
+        email_verified_at: user.email_verified_at,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      };
+
+      return {
+        success: true,
+        message: 'Service provider profile fetched successfully',
+        data: {
+          ...profile,
+          user: userInfo,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to fetch service provider profile: ${error.message}`);
+    }
+  }
 }
