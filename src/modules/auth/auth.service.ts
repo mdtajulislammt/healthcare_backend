@@ -12,6 +12,7 @@ import { SojebStorage } from '../../common/lib/Disk/SojebStorage';
 import { DateHelper } from '../../common/helper/date.helper';
 import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
+import { calculateStaffProfileCompletion } from '../../common/helper/profile-completion.helper';
 
 @Injectable()
 export class AuthService {
@@ -233,7 +234,7 @@ export class AuthService {
 
       // check user approved
       const userApproved = await UserRepository.getUserDetails(userId);
-      if (userApproved.status !== 1 ) {
+      if (userApproved.status !== 1) {
         return {
           success: false,
           message: 'User not approved',
@@ -325,28 +326,28 @@ export class AuthService {
         });
       }
 
-  //     // ----------------------------------------------------
-  //     // // create otp code
-  //     // const token = await UcodeRepository.createToken({
-  //     //   userId: user.data.id,
-  //     //   isOtp: true,
-  //     // });
+      //     // ----------------------------------------------------
+      //     // // create otp code
+      //     // const token = await UcodeRepository.createToken({
+      //     //   userId: user.data.id,
+      //     //   isOtp: true,
+      //     // });
 
-  //     // // send otp code to email
-  //     // await this.mailService.sendOtpCodeToEmail({
-  //     //   email: email,
-  //     //   name: name,
-  //     //   otp: token,
-  //     // });
+      //     // // send otp code to email
+      //     // await this.mailService.sendOtpCodeToEmail({
+      //     //   email: email,
+      //     //   name: name,
+      //     //   otp: token,
+      //     // });
 
-  //     // return {
-  //     //   success: true,
-  //     //   message: 'We have sent an OTP code to your email',
-  //     // };
+      //     // return {
+      //     //   success: true,
+      //     //   message: 'We have sent an OTP code to your email',
+      //     // };
 
-  //     // ----------------------------------------------------
+      //     // ----------------------------------------------------
 
-  //     // Generate verification token
+      //     // Generate verification token
       const token = await UcodeRepository.createVerificationToken({
         userId: user.data.id,
         email: email,
@@ -1256,6 +1257,30 @@ export class AuthService {
           },
           data: {
             billing_id: stripeCustomer.id,
+          },
+        });
+      }
+
+      // Calculate and update profile completion
+      const staffProfileWithRelations = await this.prisma.staffProfile.findUnique({
+        where: { id: result.staffProfile.id },
+        include: {
+          certificates: true,
+          dbs_info: true,
+          emergency_contacts: true,
+          current_address: true,
+          previous_address: true,
+          educations: true,
+        },
+      });
+
+      if (staffProfileWithRelations) {
+        const completionResult = calculateStaffProfileCompletion(staffProfileWithRelations);
+        await this.prisma.staffProfile.update({
+          where: { id: result.staffProfile.id },
+          data: {
+            profile_completion: completionResult.profile_completion,
+            is_profile_complete: completionResult.is_profile_complete,
           },
         });
       }
