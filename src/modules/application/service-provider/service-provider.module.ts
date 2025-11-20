@@ -4,6 +4,7 @@ import { ShiftApplicationModule } from './shift-application/shift-application.mo
 import { ShiftTimesheetModule } from './shift-timesheet/shift-timesheet.module';
 import { StaffPreferenceModule } from './staff-preference/staff-preference.module';
 import { StaffReviewModule } from './staff-review/staff-review.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { StaffReviewModule } from './staff-review/staff-review.module';
     ShiftTimesheetModule,
     StaffPreferenceModule,
     StaffReviewModule,
+    ProfileModule,
   ],
 })
 export class ServiceProviderModule { }
