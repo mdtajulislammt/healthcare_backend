@@ -246,6 +246,47 @@ export class AuthService {
       const token = this.jwtService.sign(payload);
       const user = await UserRepository.getUserDetails(userId);
 
+      // If user is an employee, fetch employee details and permissions
+      let employeeData = null;
+      if (user.type === 'employee') {
+        const employee = await this.prisma.employee.findFirst({
+          where: {
+            user_id: userId,
+            is_active: true,
+          },
+          include: {
+            permissions: {
+              where: {
+                is_granted: true,
+              },
+              select: {
+                id: true,
+                permission: true,
+                is_granted: true,
+              },
+            },
+            service_provider_info: {
+              select: {
+                id: true,
+                organization_name: true,
+              },
+            },
+          },
+        });
+
+        if (employee) {
+          employeeData = {
+            id: employee.id,
+            employee_role: employee.employee_role,
+            permissions: employee.permissions.map((p) => p.permission),
+            service_provider: {
+              id: employee.service_provider_info.id,
+              organization_name: employee.service_provider_info.organization_name,
+            },
+          };
+        }
+      }
+
       return {
         success: true,
         message: 'Logged in successfully',
@@ -254,6 +295,7 @@ export class AuthService {
           type: 'bearer',
         },
         type: user.type,
+        employee: employeeData,
       };
     } catch (error) {
       return {
