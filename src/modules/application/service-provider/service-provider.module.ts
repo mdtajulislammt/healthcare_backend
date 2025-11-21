@@ -5,6 +5,7 @@ import { ShiftTimesheetModule } from './shift-timesheet/shift-timesheet.module';
 import { StaffPreferenceModule } from './staff-preference/staff-preference.module';
 import { StaffReviewModule } from './staff-review/staff-review.module';
 import { ProfileModule } from './profile/profile.module';
+import { EmployeeModule } from './employee/employee.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ProfileModule } from './profile/profile.module';
     StaffPreferenceModule,
     StaffReviewModule,
     ProfileModule,
+    EmployeeModule,
   ],
 })
 export class ServiceProviderModule { }
