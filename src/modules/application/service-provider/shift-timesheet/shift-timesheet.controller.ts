@@ -20,39 +20,54 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
+import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/employee-permission.guard';
+import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
+import { EmployeePermissionType } from '@prisma/client';
 
 @Controller('application/service-provider/shift-timesheet')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.SERVICE_PROVIDER)
+@UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
+@Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class ShiftTimesheetController {
   constructor(private readonly shiftTimesheetService: ShiftTimesheetService) { }
 
   @Post()
+  @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   create(@Body() createShiftTimesheetDto: CreateShiftTimesheetDto) {
     return this.shiftTimesheetService.create(createShiftTimesheetDto);
   }
 
   @Get()
+  @RequireEmployeePermission(
+    EmployeePermissionType.approve_timesheets,
+    EmployeePermissionType.dispute_timesheets,
+  )
   findAll() {
     return this.shiftTimesheetService.findAll();
   }
 
   @Get(':id')
+  @RequireEmployeePermission(
+    EmployeePermissionType.approve_timesheets,
+    EmployeePermissionType.dispute_timesheets,
+  )
   findOne(@Param('id') id: string) {
     return this.shiftTimesheetService.findOne(id);
   }
 
   @Patch(':id')
+  @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   update(@Param('id') id: string, @Body() updateShiftTimesheetDto: UpdateShiftTimesheetDto) {
     return this.shiftTimesheetService.update(id, updateShiftTimesheetDto);
   }
 
   @Delete(':id')
+  @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   remove(@Param('id') id: string) {
     return this.shiftTimesheetService.remove(id);
   }
 
   @Post(':id/approve')
+  @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   approveTimesheet(
     @Param('id') id: string,
     @Body() approveTimesheetDto: ApproveTimesheetDto,
@@ -66,6 +81,10 @@ export class ShiftTimesheetController {
   }
 
   @Post(':id/reject')
+  @RequireEmployeePermission(
+    EmployeePermissionType.approve_timesheets,
+    EmployeePermissionType.dispute_timesheets,
+  )
   rejectTimesheet(
     @Param('id') id: string,
     @Body() rejectTimesheetDto: RejectTimesheetDto,

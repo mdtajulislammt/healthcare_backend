@@ -21,21 +21,26 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { Request } from 'express';
+import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/employee-permission.guard';
+import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
+import { EmployeePermissionType } from '@prisma/client';
 
 @ApiTags('Service Provider - Shift Applications')
 @Controller('application/shift-applications')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.SERVICE_PROVIDER)
+@UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
+@Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 @ApiBearerAuth()
 export class ShiftApplicationController {
   constructor(private readonly shiftApplicationService: ShiftApplicationService) { }
 
   @Post()
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   create(@Body() createShiftApplicationDto: CreateShiftApplicationDto) {
     return this.shiftApplicationService.create(createShiftApplicationDto);
   }
 
   @Get()
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   findAll(
     @Req() req: Request,
     @Query('page') page?: string,
@@ -60,11 +65,13 @@ export class ShiftApplicationController {
   }
 
   @Get(':id')
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   findOne(@Param('id') id: string) {
     return this.shiftApplicationService.findOne(+id);
   }
 
   @Get(':id/profile')
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   viewApplicantProfile(@Param('id') id: string, @Req() req: Request) {
     const user_id = req.user?.userId;
     if (!user_id) {
@@ -74,11 +81,13 @@ export class ShiftApplicationController {
   }
 
   @Patch(':id')
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   update(@Param('id') id: string, @Body() updateShiftApplicationDto: UpdateShiftApplicationDto) {
     return this.shiftApplicationService.update(+id, updateShiftApplicationDto);
   }
 
   @Delete(':id')
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   remove(@Param('id') id: string) {
     return this.shiftApplicationService.remove(+id);
   }
@@ -90,6 +99,7 @@ export class ShiftApplicationController {
    * @param req - Request object to get user_id from JWT
    */
   @Post(':id/accept')
+  @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   acceptApplication(
     @Param('id') id: string,
     @Body() acceptApplicationDto: AcceptApplicationDto,

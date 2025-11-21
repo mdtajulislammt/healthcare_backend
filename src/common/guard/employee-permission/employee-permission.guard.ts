@@ -17,10 +17,11 @@ export class EmployeePermissionGuard implements CanActivate {
     ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-        const requiredPermissions = this.reflector.getAllAndOverride<EmployeePermissionType[]>(
-            EMPLOYEE_PERMISSION_KEY,
-            [context.getHandler(), context.getClass()],
-        );
+        const requiredPermissions =
+            this.reflector.getAllAndOverride<EmployeePermissionType[]>(
+                EMPLOYEE_PERMISSION_KEY,
+                [context.getHandler(), context.getClass()],
+            );
 
         // If no permissions are required, allow access
         if (!requiredPermissions || requiredPermissions.length === 0) {
@@ -32,6 +33,25 @@ export class EmployeePermissionGuard implements CanActivate {
 
         if (!userId) {
             throw new ForbiddenException('User not authenticated');
+        }
+
+        // Fetch user to determine type
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { type: true },
+        });
+
+        if (!user) {
+            throw new ForbiddenException('User not found');
+        }
+
+        // Allow service providers to bypass employee permission checks
+        if (user.type === 'service_provider') {
+            return true;
+        }
+
+        if (user.type !== 'employee') {
+            throw new ForbiddenException('User is not authorized to access this resource');
         }
 
         // Check if user is an employee
@@ -73,4 +93,3 @@ export class EmployeePermissionGuard implements CanActivate {
         return true;
     }
 }
-
