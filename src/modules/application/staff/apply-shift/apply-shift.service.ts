@@ -10,10 +10,14 @@ import { CreateApplyShiftDto } from './dto/create-apply-shift.dto';
 import { UpdateApplyShiftDto } from './dto/update-apply-shift.dto';
 import { DateHelper } from '../../../../common/helper/date.helper';
 import { DistanceHelper } from '../../../../common/helper/distance.helper';
+import { ActivityLogService } from '../../../../common/service/activity-log.service';
 
 @Injectable()
 export class ApplyShiftService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogService: ActivityLogService,
+  ) { }
 
   async create(createApplyShiftDto: CreateApplyShiftDto, user_id: string) {
     try {
@@ -43,6 +47,8 @@ export class ApplyShiftService {
           id: true,
           status: true,
           assigned_staff_id: true,
+          posting_title: true,
+          facility_name: true,
         },
       });
 

@@ -131,6 +131,21 @@ enum StaffPreferenceType {
   blocked
 }
 
+enum ActivityLogActionType {
+  shift_apply
+  timesheet_submit
+  employee_create
+  shift_checkin
+  shift_checkout
+  profile_update
+  shift_assign
+  timesheet_approve
+  timesheet_reject
+  shift_create
+  shift_update
+  shift_delete
+}
+
 // -------------------- MODELS --------------------
 
 // --------- Core Models ---------
@@ -202,6 +217,7 @@ model User {
   // Care Home Staffing App Relations
   service_provider_info ServiceProviderInfo?
   staff_profile         StaffProfile?
+  activity_logs         ActivityLog[]
 
   @@map("users")
 }
@@ -894,6 +910,24 @@ model UserSetting {
   value String?
 
   @@map("user_settings")
+}
+
+// Activity Log Model
+model ActivityLog {
+  id          String                @id @default(cuid())
+  user_id     String
+  action_type ActivityLogActionType
+  entity_type String? // 'shift', 'timesheet', 'employee', etc.
+  entity_id   String? // ID of the related entity
+  description String
+  metadata    Json? // Additional details like shift name, employee name, etc.
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime              @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
 }
 
 // this table stores example

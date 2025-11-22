@@ -31,11 +31,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
+import { ActivityLogService } from 'src/common/service/activity-log.service';
+import { Query } from '@nestjs/common';
 
 @ApiTags('Staff - Profile')
 @Controller('application/staff/profile')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) { }
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly activityLogService: ActivityLogService,
+  ) { }
 
   @ApiOperation({ summary: 'Update staff personal info and roles' })
   @ApiBearerAuth()

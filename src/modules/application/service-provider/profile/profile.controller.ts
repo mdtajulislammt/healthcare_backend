@@ -27,11 +27,16 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
+import { ActivityLogService } from 'src/common/service/activity-log.service';
+import { Query } from '@nestjs/common';
 
 @ApiTags('Service Provider - Profile')
 @Controller('application/service-provider/profile')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) { }
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly activityLogService: ActivityLogService,
+  ) { }
 
   @Post()
   create(@Body() createProfileDto: CreateProfileDto) {
@@ -119,5 +124,27 @@ export class ProfileController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.profileService.remove(+id);
+  }
+
+  @ApiOperation({ summary: 'Get recent activities for logged-in service provider' })
+  @Get('activities')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SERVICE_PROVIDER)
+  getActivities(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action_type') actionType?: string,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.activityLogService.getUserActivities(user_id, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      actionType: actionType as any,
+    });
   }
 }

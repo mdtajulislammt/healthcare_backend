@@ -299,4 +299,32 @@ export class HomeService {
             );
         }
     }
+
+    async getAllHomeData(
+        staffUserId: string,
+        latitude?: number,
+        longitude?: number,
+        limit: number = 10,
+    ) {
+        try {
+            // Fetch both dashboard and new shifts in parallel
+            const [dashboardData, newShiftsData] = await Promise.all([
+                this.getDashboardData(staffUserId),
+                this.getNewShiftsNearYou(staffUserId, latitude, longitude, limit),
+            ]);
+
+            return {
+                success: true,
+                message: 'Home data fetched successfully',
+                data: {
+                    dashboard: dashboardData.data,
+                    newShifts: newShiftsData.data,
+                },
+            };
+        } catch (error) {
+            throw new InternalServerErrorException(
+                error.message || 'Failed to fetch home data',
+            );
+        }
+    }
 }
