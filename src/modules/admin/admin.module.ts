@@ -7,6 +7,9 @@ import { UserModule } from './user/user.module';
 import { NotificationModule } from './notification/notification.module';
 import { StaffModule } from './staff/staff.module';
 import { ServiceProviderModule } from './service-provider/service-provider.module';
+import { ShiftModule } from './shift/shift.module';
+import { TimesheetModule } from './timesheet/timesheet.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { ServiceProviderModule } from './service-provider/service-provider.modul
     NotificationModule,
     StaffModule,
     ServiceProviderModule,
+    ShiftModule,
+    TimesheetModule,
+    DashboardModule,
   ],
 })
-export class AdminModule {}
+export class AdminModule { }

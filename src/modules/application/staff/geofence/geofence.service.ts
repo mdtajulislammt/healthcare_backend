@@ -360,7 +360,7 @@ export class GeofenceService {
 
             const staff_id = staffProfile.id;
 
-            // Get shift with assigned staff
+            // Get shift with assigned staff and pay rate
             const shift = await this.prisma.shift.findUnique({
                 where: { id: shiftId },
                 select: {
@@ -368,6 +368,7 @@ export class GeofenceService {
                     assigned_staff_id: true,
                     posting_title: true,
                     facility_name: true,
+                    pay_rate_hourly: true,
                 },
             });
 
@@ -411,6 +412,22 @@ export class GeofenceService {
 
             // Update ShiftAttendance with check-out
             const checkOutTime = new Date();
+            const checkInTime = existingAttendance.check_in_time;
+
+            if (!checkInTime) {
+                throw new BadRequestException('Check-in time is missing. Cannot calculate hours.');
+            }
+
+            // Calculate total hours worked
+            const timeDifferenceMs = checkOutTime.getTime() - checkInTime.getTime();
+            const totalHours = parseFloat((timeDifferenceMs / (1000 * 60 * 60)).toFixed(2)); // Convert to hours with 2 decimal places
+
+            // Get hourly rate from shift
+            const hourlyRate = shift.pay_rate_hourly;
+
+            // Calculate total pay
+            const totalPay = parseFloat((totalHours * hourlyRate).toFixed(2));
+
             const attendance = await this.prisma.shiftAttendance.update({
                 where: { shift_id: shiftId },
                 data: {
@@ -419,7 +436,7 @@ export class GeofenceService {
                 },
             });
 
-            // Automatically verify clock-out
+            // Automatically verify clock-out and update timesheet with calculated values
             await this.prisma.shiftTimesheet.upsert({
                 where: { shift_id: shiftId },
                 create: {
@@ -428,9 +445,18 @@ export class GeofenceService {
                     verification_method: 'Geofence Verified',
                     clock_out_verified: true,
                     status: TimesheetStatus.submitted,
+                    total_hours: totalHours,
+                    hourly_rate: hourlyRate,
+                    total_pay: totalPay,
+                    submitted_at: new Date(),
                 },
                 update: {
                     clock_out_verified: true,
+                    total_hours: totalHours,
+                    hourly_rate: hourlyRate,
+                    total_pay: totalPay,
+                    status: TimesheetStatus.submitted,
+                    submitted_at: new Date(),
                 },
             });
 
