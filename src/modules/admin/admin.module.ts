@@ -9,6 +9,7 @@ import { StaffModule } from './staff/staff.module';
 import { ServiceProviderModule } from './service-provider/service-provider.module';
 import { ShiftModule } from './shift/shift.module';
 import { TimesheetModule } from './timesheet/timesheet.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TimesheetModule } from './timesheet/timesheet.module';
     ServiceProviderModule,
     ShiftModule,
     TimesheetModule,
+    DashboardModule,
   ],
 })
 export class AdminModule { }
