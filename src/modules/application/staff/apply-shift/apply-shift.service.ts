@@ -31,11 +31,15 @@ export class ApplyShiftService {
       // Get staff profile from user_id
       const staffProfile = await this.prisma.staffProfile.findUnique({
         where: { user_id },
-        select: { id: true, user_id: true },
+        select: { id: true, user_id: true, profile_completion: true },
       });
 
       if (!staffProfile) {
         throw new BadRequestException('Staff profile not found. Please complete your profile first.');
+      }
+
+      if ((staffProfile.profile_completion ?? 0) < 90) {
+        throw new BadRequestException('You must complete at least 90% of your profile before applying to shifts.');
       }
 
       const staff_id = staffProfile.id;

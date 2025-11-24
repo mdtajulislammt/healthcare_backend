@@ -45,6 +45,22 @@ export class ShiftTimesheetController {
     return this.shiftTimesheetService.findAll();
   }
 
+  @Get('shift/:shift_id')
+  @RequireEmployeePermission(
+    EmployeePermissionType.approve_timesheets,
+    EmployeePermissionType.dispute_timesheets,
+  )
+  findByShift(
+    @Param('shift_id') shiftId: string,
+    @Req() req: Request,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftTimesheetService.findByShiftId(shiftId, user_id);
+  }
+
   @Get(':id')
   @RequireEmployeePermission(
     EmployeePermissionType.approve_timesheets,

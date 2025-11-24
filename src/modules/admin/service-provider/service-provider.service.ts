@@ -5,6 +5,7 @@ import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
 import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
+import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 
 @Injectable()
 export class ServiceProviderService {
@@ -50,6 +51,7 @@ export class ServiceProviderService {
             cqc_provider_number: true,
             website: true,
             max_client_capacity: true,
+            emergency_bonus_increments: true,
             created_at: true,
             updated_at: true,
             user: {
@@ -145,16 +147,73 @@ export class ServiceProviderService {
       });
       if (!provider) throw new NotFoundException('Service provider not found');
 
+      const updateData: any = { status: Number(status) };
+      if (Number(status) === 1) {
+        updateData.approved_at = new Date();
+      } else {
+        updateData.approved_at = null;
+      }
+
       const updatedUser = await this.prisma.user.update({
         where: { id: provider.user_id },
-        data: { status: Number(status) },
-        select: { id: true, email: true, status: true, updated_at: true },
+        data: updateData,
+        select: { id: true, email: true, status: true, approved_at: true, updated_at: true },
       });
 
       return { success: true, message: 'Service provider status updated successfully', data: updatedUser };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('Failed to update service provider status');
+    }
+  }
+
+  async updateEmergencyBonus(id: string, dto: UpdateEmergencyBonusDto) {
+    
+    try {
+      const provider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!provider) throw new NotFoundException('Service provider not found');
+
+      const uniqueIncrements = Array.from(
+        new Set(
+          dto.increments.map((value) => {
+            if (typeof value !== 'number' || Number.isNaN(value)) {
+              throw new BadRequestException('All increments must be valid numbers');
+            }
+            return Number(value);
+          }),
+        ),
+      ).filter((value) => value >= 0);
+
+      if (!uniqueIncrements.length) {
+        throw new BadRequestException('Provide at least one non-negative increment value');
+      }
+
+      uniqueIncrements.sort((a, b) => a - b);
+
+      const updated = await this.prisma.serviceProviderInfo.update({
+        where: { id },
+        data: {
+          emergency_bonus_increments: uniqueIncrements,
+        },
+        select: {
+          id: true,
+          organization_name: true,
+          emergency_bonus_increments: true,
+          updated_at: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Emergency bonus increments updated successfully',
+        data: updated,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Failed to update emergency bonus increments');
     }
   }
 

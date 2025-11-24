@@ -296,7 +296,8 @@ export class AuthService {
 
       // check user approved
       const userApproved = await UserRepository.getUserDetails(userId);
-      if (userApproved.status !== 1) {
+
+      if (userApproved.approved_at === null) {
         return {
           success: false,
           message: 'User not approved',
@@ -1010,6 +1011,81 @@ export class AuthService {
       return {
         success: true,
         message: 'Verification code sent to email',
+        next_step: 'email_verify',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Resend OTP for email verification
+   * Resends verification OTP code to user's email
+   */
+  async resendOtp(userId: string, email: string) {
+    try {
+      // Get user to verify onboarding step
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // Check if user is in the correct onboarding step
+      if (user.onboarding_step !== 'email_verify' && user.onboarding_step !== 'email') {
+        return {
+          success: false,
+          message: 'Invalid onboarding step. Please register email first',
+        };
+      }
+
+      // Verify email matches user's email
+      if (user.email !== email) {
+        return {
+          success: false,
+          message: 'Email does not match user email',
+        };
+      }
+
+      // Delete existing OTP codes for this email
+      await this.prisma.ucode.deleteMany({
+        where: {
+          email: email,
+          user_id: userId,
+        },
+      });
+
+      // Create new verification OTP code
+      const otpCode = await UcodeRepository.createRegistrationOtp({
+        userId: userId,
+        email: email,
+      });
+
+      if (!otpCode) {
+        return {
+          success: false,
+          message: 'Failed to create verification code',
+        };
+      }
+
+      // Send OTP code to email
+      await this.mailService.sendOtpCodeToEmail({
+        email: email,
+        name: email,
+        otp: otpCode,
+      });
+
+      return {
+        success: true,
+        message: 'Verification code resent to email',
         next_step: 'email_verify',
       };
     } catch (error) {

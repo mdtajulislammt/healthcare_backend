@@ -11,15 +11,20 @@ import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
+import { ActivityLogService } from 'src/common/service/activity-log.service';
+import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 
 @Injectable()
 export class ShiftService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogService: ActivityLogService,
+    private readonly providerContextHelper: ServiceProviderContextHelper,
+  ) { }
 
-  async create(createShiftDto: CreateShiftDto) {
+  async create(createShiftDto: CreateShiftDto, requestingUserId: string) {
     try {
       const {
-        service_provider_id,
         created_by_employee_id,
         assigned_staff_id,
         posting_title,
@@ -40,22 +45,52 @@ export class ShiftService {
         status,
       } = createShiftDto;
 
+      const {
+        serviceProviderId,
+        employeeId: requesterEmployeeId,
+      } = await this.providerContextHelper.resolveFromUser(requestingUserId);
+
       const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
-        where: { id: service_provider_id },
-        select: { id: true },
+        where: { id: serviceProviderId },
+        select: { id: true, emergency_bonus_increments: true },
       });
       if (!serviceProvider) {
         throw new NotFoundException('Service provider not found');
       }
 
-      if (created_by_employee_id) {
+      const bonusOptions = this.normalizeBonusOptions(
+        serviceProvider.emergency_bonus_increments,
+      );
+
+      const selectedEmergencyBonus =
+        emergency_bonus !== undefined && emergency_bonus !== null
+          ? Number(emergency_bonus)
+          : 0;
+
+      if (Number.isNaN(selectedEmergencyBonus) || selectedEmergencyBonus < 0) {
+        throw new BadRequestException('Emergency bonus must be a non-negative number');
+      }
+
+      if (
+        selectedEmergencyBonus > 0 &&
+        bonusOptions.length > 0 &&
+        !bonusOptions.includes(selectedEmergencyBonus)
+      ) {
+        throw new BadRequestException(
+          'Emergency bonus must match one of the allowed increments',
+        );
+      }
+
+      let finalCreatorEmployeeId = created_by_employee_id || requesterEmployeeId || null;
+      if (finalCreatorEmployeeId) {
         const creator = await this.prisma.employee.findUnique({
-          where: { id: created_by_employee_id },
+          where: { id: finalCreatorEmployeeId },
           select: { id: true, service_provider_id: true },
         });
-        if (!creator || creator.service_provider_id !== service_provider_id) {
+        if (!creator || creator.service_provider_id !== serviceProviderId) {
           throw new BadRequestException('Creator employee is invalid for this service provider');
         }
+        finalCreatorEmployeeId = creator.id;
       }
 
       if (assigned_staff_id) {
@@ -72,27 +107,27 @@ export class ShiftService {
       let latitude: number | null = null;
       let longitude: number | null = null;
 
-      if (full_address) {
-        try {
-          const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
-          console.log('geocodeResult', geocodeResult);
-          if (geocodeResult) {
-            latitude = geocodeResult.latitude;
-            longitude = geocodeResult.longitude;
-          }
-        } catch (error) {
-          // Log error but continue without coordinates
-          console.error('Failed to geocode address for shift:', error.message);
-        }
-      }
+      // if (full_address) {
+      //   try {
+      //     const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
+      //     console.log('geocodeResult', geocodeResult);
+      //     if (geocodeResult) {
+      //       latitude = geocodeResult.latitude;
+      //       longitude = geocodeResult.longitude;
+      //     }
+      //   } catch (error) {
+      //     // Log error but continue without coordinates
+      //     console.error('Failed to geocode address for shift:', error.message);
+      //   }
+      // }
 
-      console.log('latitude', latitude);
-      console.log('longitude', longitude);
+      latitude = 51.5074;
+      longitude = -0.1278;
 
       const shift = await this.prisma.shift.create({
         data: {
-          service_provider_id,
-          created_by_employee_id,
+          service_provider_id: serviceProviderId,
+          created_by_employee_id: finalCreatorEmployeeId,
           assigned_staff_id,
           posting_title,
           shift_type,
@@ -109,7 +144,7 @@ export class ShiftService {
           pay_rate_hourly,
           signing_bonus,
           internal_po_number,
-          emergency_bonus,
+          emergency_bonus: selectedEmergencyBonus,
           notes,
           status,
         },
@@ -125,6 +160,14 @@ export class ShiftService {
           created_at: true,
         },
       });
+
+      await this.activityLogService.logShiftCreate(
+        requestingUserId,
+        shift.id,
+        posting_title,
+        facility_name,
+        selectedEmergencyBonus,
+      );
 
       return {
         success: true,
@@ -142,8 +185,15 @@ export class ShiftService {
     }
   }
 
-  async findAll({ page = 1, limit = 10, search = '' }: { page?: number; limit?: number; search?: string } = {}) {
+  async findAll(
+    requestingUserId: string,
+    { page = 1, limit = 10, search = '' }: { page?: number; limit?: number; search?: string } = {},
+  ) {
     try {
+      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(
+        requestingUserId,
+      );
+
       const currentPage = Math.max(Number(page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
       if (Number.isNaN(currentPage) || Number.isNaN(pageSize)) {
@@ -151,7 +201,7 @@ export class ShiftService {
       }
       const skip = (currentPage - 1) * pageSize;
 
-      const where = search
+      const searchCondition = search
         ? {
           OR: [
             { posting_title: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
@@ -160,6 +210,11 @@ export class ShiftService {
           ],
         }
         : undefined;
+
+      const where: Prisma.ShiftWhereInput = {
+        service_provider_id: serviceProviderId,
+        ...(searchCondition ?? {}),
+      };
 
       const [total, itemsRaw] = await this.prisma.$transaction([
         this.prisma.shift.count({ where }),
@@ -304,4 +359,49 @@ export class ShiftService {
   remove(id: string) {
     return `This action removes a #${id} shift`;
   }
+
+  async getEmergencyBonusOptions(service_provider_id: string) {
+    try {
+      const provider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id: service_provider_id },
+        select: { emergency_bonus_increments: true },
+      });
+
+      if (!provider) {
+        throw new NotFoundException('Service provider not found');
+      }
+
+      const increments = this.normalizeBonusOptions(
+        provider.emergency_bonus_increments,
+      );
+
+      return {
+        success: true,
+        message: 'Emergency bonus options fetched successfully',
+        data: increments,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch emergency bonus options');
+    }
+  }
+
+  private normalizeBonusOptions(
+    value: Prisma.JsonValue | null | undefined,
+  ): number[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        value
+          .map((item) => Number(item))
+          .filter((num) => !Number.isNaN(num) && num >= 0),
+      ),
+    ).sort((a, b) => a - b);
+  }
+
 }

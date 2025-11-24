@@ -12,9 +12,9 @@ import {
 import { ProfessionRole, ShiftStatus, ShiftType } from '@prisma/client';
 
 export class CreateShiftDto {
-    @IsNotEmpty()
+    @IsOptional()
     @IsString()
-    service_provider_id: string;
+    service_provider_id?: string;
 
     @IsOptional()
     @IsString()
