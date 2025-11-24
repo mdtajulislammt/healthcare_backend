@@ -11,10 +11,14 @@ import { UpdateShiftTimesheetDto } from './dto/update-shift-timesheet.dto';
 import { ApproveTimesheetDto } from './dto/approve-timesheet.dto';
 import { RejectTimesheetDto } from './dto/reject-timesheet.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 
 @Injectable()
 export class ShiftTimesheetService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly providerContextHelper: ServiceProviderContextHelper,
+  ) { }
 
   create(createShiftTimesheetDto: CreateShiftTimesheetDto) {
     return 'This action adds a new shiftTimesheet';
@@ -44,6 +48,69 @@ export class ShiftTimesheetService {
     return this.handleTimesheetDecision(id, user_id, TimesheetStatus.rejected, dto.message);
   }
 
+  async findByShiftId(shiftId: string, user_id: string) {
+    try {
+      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
+
+      const timesheet = await this.prisma.shiftTimesheet.findFirst({
+        where: {
+          shift_id: shiftId,
+          shift: {
+            service_provider_id: serviceProviderId,
+          },
+        },
+        include: {
+          shift: {
+            select: {
+              id: true,
+              posting_title: true,
+              facility_name: true,
+              start_date: true,
+              end_date: true,
+              start_time: true,
+              end_time: true,
+              status: true,
+              attendance: {
+                select: {
+                  id: true,
+                  status: true,
+                  check_in_time: true,
+                  check_out_time: true,
+                  location_check: true,
+                  created_at: true,
+                  updated_at: true,
+                },
+              },
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              photo_url: true,
+            },
+          },
+        },
+      });
+
+      if (!timesheet) {
+        throw new NotFoundException('Timesheet not found for this shift');
+      }
+
+      return {
+        success: true,
+        message: 'Timesheet fetched successfully',
+        data: timesheet,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch timesheet for shift');
+    }
+  }
+
   private async handleTimesheetDecision(
     timesheetId: string,
     user_id: string,
@@ -51,14 +118,7 @@ export class ShiftTimesheetService {
     message?: string,
   ) {
     try {
-      const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
-        where: { user_id },
-        select: { id: true },
-      });
-
-      if (!serviceProvider) {
-        throw new ForbiddenException('Service provider profile not found.');
-      }
+      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
 
       const timesheet = await this.prisma.shiftTimesheet.findUnique({
         where: { id: timesheetId },
@@ -78,7 +138,7 @@ export class ShiftTimesheetService {
         throw new NotFoundException('Timesheet not found');
       }
 
-      if (timesheet.shift.service_provider_id !== serviceProvider.id) {
+      if (timesheet.shift.service_provider_id !== serviceProviderId) {
         throw new ForbiddenException('You do not have permission to update this timesheet.');
       }
 
@@ -92,7 +152,7 @@ export class ShiftTimesheetService {
           status,
           notes: message ?? timesheet.notes,
           reviewed_at: new Date(),
-          approved_by: serviceProvider.id,
+          approved_by: serviceProviderId,
         },
         include: {
           shift: { select: { id: true, posting_title: true } },
@@ -125,4 +185,6 @@ export class ShiftTimesheetService {
       throw new InternalServerErrorException('Failed to update timesheet status.');
     }
   }
+
+
 }

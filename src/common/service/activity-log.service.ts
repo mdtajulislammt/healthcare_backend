@@ -175,6 +175,31 @@ export class ActivityLogService {
         });
     }
 
+    async logShiftCreate(
+        userId: string,
+        shiftId: string,
+        postingTitle: string,
+        facilityName: string,
+        emergencyBonus?: number,
+        ipAddress?: string,
+        userAgent?: string,
+    ) {
+        await this.logActivity({
+            userId,
+            actionType: ActivityLogActionType.shift_create,
+            description: `Created shift "${postingTitle}" at ${facilityName}`,
+            entityType: 'shift',
+            entityId: shiftId,
+            metadata: {
+                posting_title: postingTitle,
+                facility: facilityName,
+                emergency_bonus: emergencyBonus ?? 0,
+            },
+            ipAddress,
+            userAgent,
+        });
+    }
+
     async logProfileUpdate(userId: string, updatedFields: string[], ipAddress?: string, userAgent?: string) {
         await this.logActivity({
             userId,

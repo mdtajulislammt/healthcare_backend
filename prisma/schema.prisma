@@ -451,23 +451,24 @@ model Conversation {
 // --------- Care Home Staffing App Models ---------
 // Service Provider Models
 model ServiceProviderInfo {
-  id                    String      @id @default(cuid())
-  user_id               String      @unique
-  first_name            String
-  last_name             String
-  mobile_code           String?
-  mobile_number         String?
-  facility_name         String?
-  brand_logo_url        String?
-  agreed_to_terms       Boolean     @default(false)
-  organization_name     String
-  website               String?
-  cqc_provider_number   String
-  vat_tax_id            String?
-  primary_address       String
-  main_service_type     ServiceType
-  max_client_capacity   Int
-  support_documents_url String?
+  id                         String      @id @default(cuid())
+  user_id                    String      @unique
+  first_name                 String
+  last_name                  String
+  mobile_code                String?
+  mobile_number              String?
+  facility_name              String?
+  brand_logo_url             String?
+  agreed_to_terms            Boolean     @default(false)
+  organization_name          String
+  website                    String?
+  cqc_provider_number        String
+  vat_tax_id                 String?
+  primary_address            String
+  main_service_type          ServiceType
+  max_client_capacity        Int
+  support_documents_url      String?
+  emergency_bonus_increments Json?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

@@ -175,10 +175,21 @@ export class StaffService {
       });
       if (!staff) throw new NotFoundException('Staff not found');
 
+      // Prepare update data
+      const updateData: any = { status: Number(status) };
+
+      // If status is 1 (active), set approved_at to current date
+      // If status is not 1, remove approved_at (set to null)
+      if (Number(status) === 1) {
+        updateData.approved_at = new Date();
+      } else {
+        updateData.approved_at = null;
+      }
+
       const updatedUser = await this.prisma.user.update({
         where: { id: staff.user_id },
-        data: { status: Number(status) },
-        select: { id: true, email: true, status: true, updated_at: true },
+        data: updateData,
+        select: { id: true, email: true, status: true, approved_at: true, updated_at: true },
       });
 
       return { success: true, message: 'Staff status updated successfully', data: updatedUser };

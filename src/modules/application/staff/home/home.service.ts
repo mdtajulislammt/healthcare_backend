@@ -223,6 +223,8 @@ export class HomeService {
                 select: {
                     id: true,
                     posting_title: true,
+                    shift_type: true,
+                    is_urgent: true,
                     facility_name: true,
                     start_date: true,
                     start_time: true,
@@ -274,6 +276,9 @@ export class HomeService {
 
                     return {
                         id: shift.id,
+                        title: shift.posting_title,
+                        shiftType: shift.shift_type,
+                        isUrgent: shift.is_urgent,
                         facilityName: shift.facility_name,
                         postedAgo: publishedAgo,
                         date: startDate.toISOString().split('T')[0],

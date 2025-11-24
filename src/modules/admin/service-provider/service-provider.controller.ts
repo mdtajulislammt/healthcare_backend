@@ -6,6 +6,7 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
+import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 
 @Controller('admin/service-provider')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -54,5 +55,13 @@ export class ServiceProviderController {
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body('status') status: number) {
     return this.serviceProviderService.updateStatus(id, Number(status));
+  }
+
+  @Patch(':id/emergency-bonus')
+  updateEmergencyBonus(
+    @Param('id') id: string,
+    @Body() updateEmergencyBonusDto: UpdateEmergencyBonusDto,
+  ) {
+    return this.serviceProviderService.updateEmergencyBonus(id, updateEmergencyBonusDto);
   }
 }

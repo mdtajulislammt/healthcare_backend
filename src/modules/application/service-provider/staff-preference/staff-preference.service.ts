@@ -7,10 +7,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StaffPreferenceType } from '@prisma/client';
+import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 
 @Injectable()
 export class StaffPreferenceService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly providerContextHelper: ServiceProviderContextHelper,
+    ) { }
 
     async setPreference(
         user_id: string,
@@ -19,14 +23,7 @@ export class StaffPreferenceService {
         reason?: string,
     ) {
         try {
-            const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
-                where: { user_id },
-                select: { id: true },
-            });
-
-            if (!serviceProvider) {
-                throw new ForbiddenException('Service provider profile not found.');
-            }
+            const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
 
             const staff = await this.prisma.staffProfile.findUnique({
                 where: { id: staffId },
@@ -40,13 +37,13 @@ export class StaffPreferenceService {
             const preference = await this.prisma.providerStaffPreference.upsert({
                 where: {
                     provider_id_staff_id_preference_type: {
-                        provider_id: serviceProvider.id,
+                        provider_id: serviceProviderId,
                         staff_id: staffId,
                         preference_type: preferenceType,
                     },
                 },
                 create: {
-                    provider_id: serviceProvider.id,
+                    provider_id: serviceProviderId,
                     staff_id: staffId,
                     preference_type: preferenceType,
                     reason: reason?.trim() || null,
@@ -87,18 +84,11 @@ export class StaffPreferenceService {
 
     async getPreferences(user_id: string, preferenceType: StaffPreferenceType) {
         try {
-            const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
-                where: { user_id },
-                select: { id: true },
-            });
-
-            if (!serviceProvider) {
-                throw new ForbiddenException('Service provider profile not found.');
-            }
+            const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
 
             const preferences = await this.prisma.providerStaffPreference.findMany({
                 where: {
-                    provider_id: serviceProvider.id,
+                    provider_id: serviceProviderId,
                     preference_type: preferenceType,
                 },
                 orderBy: { created_at: 'desc' },
@@ -137,6 +127,7 @@ export class StaffPreferenceService {
             throw new InternalServerErrorException('Failed to fetch staff preferences.');
         }
     }
+
 }
 
 

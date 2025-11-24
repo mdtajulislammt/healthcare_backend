@@ -7,21 +7,18 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateStaffReviewDto } from './dto/create-staff-review.dto';
+import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 
 @Injectable()
 export class StaffReviewService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly providerContextHelper: ServiceProviderContextHelper,
+    ) { }
 
     async createReview(user_id: string, staffId: string, dto: CreateStaffReviewDto) {
         try {
-            const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
-                where: { user_id },
-                select: { id: true },
-            });
-
-            if (!serviceProvider) {
-                throw new ForbiddenException('Service provider profile not found.');
-            }
+            const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
 
             const shift = await this.prisma.shift.findUnique({
                 where: { id: dto.shift_id },
@@ -36,7 +33,7 @@ export class StaffReviewService {
                 throw new NotFoundException('Shift not found.');
             }
 
-            if (shift.service_provider_id !== serviceProvider.id) {
+            if (shift.service_provider_id !== serviceProviderId) {
                 throw new ForbiddenException('You do not have permission to review this shift.');
             }
 
@@ -56,7 +53,7 @@ export class StaffReviewService {
                 create: {
                     shift_id: dto.shift_id,
                     staff_id: staffId,
-                    provider_id: serviceProvider.id,
+                    provider_id: serviceProviderId,
                     rating: dto.rating,
                     feedback: dto.feedback ?? null,
                     admin_alert: adminAlert,

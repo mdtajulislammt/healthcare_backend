@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   Query,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ShiftService } from './shift.service';
 import { CreateShiftDto } from './dto/create-shift.dto';
@@ -19,6 +21,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/employee-permission.guard';
 import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
 import { EmployeePermissionType } from '@prisma/client';
+import { Request } from 'express';
 
 @Controller('application/shifts')
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
@@ -28,8 +31,12 @@ export class ShiftController {
 
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
-  create(@Body() createShiftDto: CreateShiftDto) {
-    return this.shiftService.create(createShiftDto);
+  create(@Req() req: Request, @Body() createShiftDto: CreateShiftDto) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.create(createShiftDto, userId);
   }
 
   @Get()
@@ -38,15 +45,26 @@ export class ShiftController {
     EmployeePermissionType.assign_shift_applicants,
   )
   findAll(
+    @Req() req: Request,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
   ) {
-    return this.shiftService.findAll({
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.findAll(userId, {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
     });
+  }
+
+  @Get('bonus-options/:service_provider_id')
+  @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
+  getEmergencyBonusOptions(@Param('service_provider_id') serviceProviderId: string) {
+    return this.shiftService.getEmergencyBonusOptions(serviceProviderId);
   }
 
   @Get(':id')

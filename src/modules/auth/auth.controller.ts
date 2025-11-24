@@ -23,6 +23,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SelectAccountTypeDto } from './dto/select-account-type.dto';
 import { RegisterEmailDto } from './dto/register-email.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { CompleteStaffProfileDto } from './dto/complete-staff-profile.dto';
 import { CompleteServiceProviderProfileDto } from './dto/complete-service-provider-profile.dto';
@@ -471,6 +472,27 @@ export class AuthController {
         throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
       }
       return await this.authService.registerEmail(userId, email);
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Resend OTP for email verification' })
+  @Post('resend-otp')
+  async resendOtp(@Body() data: ResendOtpDto) {
+    try {
+      const email = data.email;
+      const userId = data.user_id;
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.BAD_REQUEST);
+      }
+      if (!userId) {
+        throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
+      }
+      return await this.authService.resendOtp(userId, email);
     } catch (error) {
       return {
         success: false,
