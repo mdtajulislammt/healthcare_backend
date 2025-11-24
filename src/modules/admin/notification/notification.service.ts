@@ -7,7 +7,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async findAll(user_id: string) {
     try {
@@ -34,20 +34,46 @@ export class NotificationService {
           receiver_id: true,
           entity_id: true,
           created_at: true,
+          read_at: true,
+          status: true,
           sender: {
             select: {
               id: true,
-              name: true,
               email: true,
-              avatar: true,
+              type: true,
+              staff_profile: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  photo_url: true,
+                },
+              },
+              service_provider_info: {
+                select: {
+                  organization_name: true,
+                  brand_logo_url: true,
+                },
+              },
             },
           },
           receiver: {
             select: {
               id: true,
-              name: true,
               email: true,
-              avatar: true,
+              type: true,
+              staff_profile: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  photo_url: true,
+                },
+              },
+              service_provider_info: {
+                select: {
+                  organization_name: true,
+                  brand_logo_url: true,
+                },
+              },
             },
           },
           notification_event: {
@@ -58,21 +84,80 @@ export class NotificationService {
             },
           },
         },
+        orderBy: {
+          created_at: 'desc',
+        },
       });
 
-      // add url to avatar
+      // Format notifications with name and avatar - consistent format for all types
       if (notifications.length > 0) {
         for (const notification of notifications) {
-          if (notification.sender && notification.sender.avatar) {
-            notification.sender['avatar_url'] = SojebStorage.url(
-              appConfig().storageUrl.avatar + notification.sender.avatar,
-            );
+          // Format sender - consistent format
+          if (notification.sender) {
+            let senderName = null;
+            let senderAvatar = null;
+
+            // Check user type and get appropriate data
+            if (notification.sender.type === 'staff' && notification.sender.staff_profile) {
+              senderName = `${notification.sender.staff_profile.first_name} ${notification.sender.staff_profile.last_name}`;
+              if (notification.sender.staff_profile.photo_url) {
+                senderAvatar = SojebStorage.url(
+                  appConfig().storageUrl.staff + notification.sender.staff_profile.photo_url,
+                );
+              }
+            } else if (notification.sender.type === 'service_provider' && notification.sender.service_provider_info) {
+              senderName = notification.sender.service_provider_info.organization_name;
+              if (notification.sender.service_provider_info.brand_logo_url) {
+                senderAvatar = SojebStorage.url(
+                  appConfig().storageUrl.brand + notification.sender.service_provider_info.brand_logo_url,
+                );
+              }
+            } else if (notification.sender.type === 'admin') {
+              senderName = notification.sender.email || 'Admin';
+            }
+
+            // Replace sender with clean format (remove nested profile objects)
+            (notification as any).sender = {
+              id: notification.sender.id,
+              email: notification.sender.email,
+              type: notification.sender.type,
+              name: senderName,
+              avatar_url: senderAvatar,
+            };
           }
 
-          if (notification.receiver && notification.receiver.avatar) {
-            notification.receiver['avatar_url'] = SojebStorage.url(
-              appConfig().storageUrl.avatar + notification.receiver.avatar,
-            );
+          // Format receiver - consistent format
+          if (notification.receiver) {
+            let receiverName = null;
+            let receiverAvatar = null;
+
+            // Check user type and get appropriate data
+            if (notification.receiver.type === 'staff' && notification.receiver.staff_profile) {
+              receiverName = `${notification.receiver.staff_profile.first_name} ${notification.receiver.staff_profile.last_name}`;
+              if (notification.receiver.staff_profile.photo_url) {
+                receiverAvatar = SojebStorage.url(
+                  appConfig().storageUrl.staff + notification.receiver.staff_profile.photo_url,
+                );
+              }
+            } else if (notification.receiver.type === 'service_provider' && notification.receiver.service_provider_info) {
+              receiverName = notification.receiver.service_provider_info.organization_name;
+              if (notification.receiver.service_provider_info.brand_logo_url) {
+                receiverAvatar = SojebStorage.url(
+                  appConfig().storageUrl.brand + notification.receiver.service_provider_info.brand_logo_url,
+                );
+              }
+            } else if (notification.receiver.type === 'admin') {
+              receiverName = notification.receiver.email || 'Admin';
+            }
+
+            // Replace receiver with clean format (remove nested profile objects)
+            (notification as any).receiver = {
+              id: notification.receiver.id,
+              email: notification.receiver.email,
+              type: notification.receiver.type,
+              name: receiverName,
+              avatar_url: receiverAvatar,
+            };
           }
         }
       }

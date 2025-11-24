@@ -22,57 +22,119 @@ export class AuthService {
     private mailService: MailService,
   ) { }
 
-  // async me(userId: string) {
-  //   try {
-  //     const user = await this.prisma.user.findFirst({
-  //       where: {
-  //         id: userId,
-  //       },
-  //       select: {
-  //         id: true,
-  //         name: true,
-  //         email: true,
-  //         avatar: true,
-  //         address: true,
-  //         phone_number: true,
-  //         type: true,
-  //         gender: true,
-  //         date_of_birth: true,
-  //         created_at: true,
-  //       },
-  //     });
+  async me(userId: string) {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: userId,
+        },
+        select: {
+          id: true,
+          email: true,
+          type: true,
+          created_at: true,
+          staff_profile: {
+            select: {
+              first_name: true,
+              last_name: true,
+              photo_url: true,
+              mobile_code: true,
+              mobile_number: true,
+              date_of_birth: true,
+            },
+          },
+          service_provider_info: {
+            select: {
+              organization_name: true,
+              brand_logo_url: true,
+            },
+          },
+        },
+      });
 
-  //     if (!user) {
-  //       return {
-  //         success: false,
-  //         message: 'User not found',
-  //       };
-  //     }
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
 
-  //     if (user.avatar) {
-  //       user['avatar_url'] = SojebStorage.url(
-  //         appConfig().storageUrl.avatar + user.avatar,
-  //       );
-  //     }
+      // Format user data with consistent format
+      let name = null;
+      let avatar_url = null;
+      let phone_number = null;
+      let date_of_birth = null;
 
-  //     if (user) {
-  //       return {
-  //         success: true,
-  //         data: user,
-  //       };
-  //     } else {
-  //       return {
-  //         success: false,
-  //         message: 'User not found',
-  //       };
-  //     }
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       message: error.message,
-  //     };
-  //   }
-  // }
+      if (user.type === 'staff' && user.staff_profile) {
+        name = `${user.staff_profile.first_name} ${user.staff_profile.last_name}`;
+        if (user.staff_profile.photo_url) {
+          avatar_url = SojebStorage.url(
+            appConfig().storageUrl.staff + user.staff_profile.photo_url,
+          );
+        }
+        phone_number = user.staff_profile.mobile_number
+          ? `${user.staff_profile.mobile_code || ''}${user.staff_profile.mobile_number}`
+          : null;
+        date_of_birth = user.staff_profile.date_of_birth;
+      } else if (user.type === 'service_provider' && user.service_provider_info) {
+        name = user.service_provider_info.organization_name;
+        if (user.service_provider_info.brand_logo_url) {
+          avatar_url = SojebStorage.url(
+            appConfig().storageUrl.brand + user.service_provider_info.brand_logo_url,
+          );
+        }
+      } else if (user.type === 'employee') {
+        // Fetch employee data
+        const employee = await this.prisma.employee.findFirst({
+          where: {
+            user_id: userId,
+          },
+          select: {
+            first_name: true,
+            last_name: true,
+            photo_url: true,
+            mobile_code: true,
+            mobile_number: true,
+          },
+        });
+
+        if (employee) {
+          name = `${employee.first_name} ${employee.last_name}`;
+          if (employee.photo_url) {
+            avatar_url = SojebStorage.url(
+              appConfig().storageUrl.avatar + employee.photo_url,
+            );
+          }
+          phone_number = employee.mobile_number
+            ? `${employee.mobile_code || ''}${employee.mobile_number}`
+            : null;
+        }
+      } else if (user.type === 'admin') {
+        name = user.email || 'Admin';
+      }
+
+      const formattedUser = {
+        id: user.id,
+        email: user.email,
+        type: user.type,
+        name: name,
+        avatar_url: avatar_url,
+        phone_number: phone_number,
+        date_of_birth: date_of_birth,
+        created_at: user.created_at,
+      };
+
+      return {
+        success: true,
+        data: formattedUser,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
 
   // async updateUser(
   //   userId: string,

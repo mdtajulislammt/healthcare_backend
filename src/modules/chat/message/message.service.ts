@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MessageStatus, PrismaClient } from '@prisma/client';
+import { MessageStatus } from '@prisma/client';
 import appConfig from '../../../config/app.config';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -15,7 +15,7 @@ export class MessageService {
   constructor(
     private prisma: PrismaService,
     private readonly messageGateway: MessageGateway,
-  ) {}
+  ) { }
 
   async create(user_id: string, createMessageDto: CreateMessageDto) {
     try {
@@ -158,18 +158,43 @@ export class MessageService {
           sender: {
             select: {
               id: true,
-              name: true,
-              avatar: true,
+              email: true,
+              type: true,
+              staff_profile: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  photo_url: true,
+                },
+              },
+              service_provider_info: {
+                select: {
+                  organization_name: true,
+                  brand_logo_url: true,
+                },
+              },
             },
           },
           receiver: {
             select: {
               id: true,
-              name: true,
-              avatar: true,
+              email: true,
+              type: true,
+              staff_profile: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  photo_url: true,
+                },
+              },
+              service_provider_info: {
+                select: {
+                  organization_name: true,
+                  brand_logo_url: true,
+                },
+              },
             },
           },
-
           attachment: {
             select: {
               id: true,
@@ -182,26 +207,77 @@ export class MessageService {
         },
       });
 
-      // add attachment url
+      // Format messages with consistent format
       for (const message of messages) {
+        // Format attachment URL
         if (message.attachment) {
-          message.attachment['file_url'] = SojebStorage.url(
+          (message.attachment as any).file_url = SojebStorage.url(
             appConfig().storageUrl.attachment + message.attachment.file,
           );
         }
-      }
 
-      // add image url
-      for (const message of messages) {
-        if (message.sender && message.sender.avatar) {
-          message.sender['avatar_url'] = SojebStorage.url(
-            appConfig().storageUrl.avatar + message.sender.avatar,
-          );
+        // Format sender
+        if (message.sender) {
+          let senderName = null;
+          let senderAvatar = null;
+
+          if (message.sender.type === 'staff' && message.sender.staff_profile) {
+            senderName = `${message.sender.staff_profile.first_name} ${message.sender.staff_profile.last_name}`;
+            if (message.sender.staff_profile.photo_url) {
+              senderAvatar = SojebStorage.url(
+                appConfig().storageUrl.staff + message.sender.staff_profile.photo_url,
+              );
+            }
+          } else if (message.sender.type === 'service_provider' && message.sender.service_provider_info) {
+            senderName = message.sender.service_provider_info.organization_name;
+            if (message.sender.service_provider_info.brand_logo_url) {
+              senderAvatar = SojebStorage.url(
+                appConfig().storageUrl.brand + message.sender.service_provider_info.brand_logo_url,
+              );
+            }
+          } else if (message.sender.type === 'admin') {
+            senderName = message.sender.email || 'Admin';
+          }
+
+          (message as any).sender = {
+            id: message.sender.id,
+            email: message.sender.email,
+            type: message.sender.type,
+            name: senderName,
+            avatar_url: senderAvatar,
+          };
         }
-        if (message.receiver && message.receiver.avatar) {
-          message.receiver['avatar_url'] = SojebStorage.url(
-            appConfig().storageUrl.avatar + message.receiver.avatar,
-          );
+
+        // Format receiver
+        if (message.receiver) {
+          let receiverName = null;
+          let receiverAvatar = null;
+
+          if (message.receiver.type === 'staff' && message.receiver.staff_profile) {
+            receiverName = `${message.receiver.staff_profile.first_name} ${message.receiver.staff_profile.last_name}`;
+            if (message.receiver.staff_profile.photo_url) {
+              receiverAvatar = SojebStorage.url(
+                appConfig().storageUrl.staff + message.receiver.staff_profile.photo_url,
+              );
+            }
+          } else if (message.receiver.type === 'service_provider' && message.receiver.service_provider_info) {
+            receiverName = message.receiver.service_provider_info.organization_name;
+            if (message.receiver.service_provider_info.brand_logo_url) {
+              receiverAvatar = SojebStorage.url(
+                appConfig().storageUrl.brand + message.receiver.service_provider_info.brand_logo_url,
+              );
+            }
+          } else if (message.receiver.type === 'admin') {
+            receiverName = message.receiver.email || 'Admin';
+          }
+
+          (message as any).receiver = {
+            id: message.receiver.id,
+            email: message.receiver.email,
+            type: message.receiver.type,
+            name: receiverName,
+            avatar_url: receiverAvatar,
+          };
         }
       }
 
