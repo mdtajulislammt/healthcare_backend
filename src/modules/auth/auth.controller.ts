@@ -37,24 +37,24 @@ import { AuthGuard } from '@nestjs/passport';
 export class AuthController {
   constructor(private authService: AuthService) { }
 
-  // @ApiOperation({ summary: 'Get user details' })
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard)
-  // @Get('me')
-  // async me(@Req() req: Request) {
-  //   try {
-  //     const user_id = req.user.userId;
+  @ApiOperation({ summary: 'Get user details' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async me(@Req() req: Request) {
+    try {
+      const user_id = req.user.userId;
 
-  //     const response = await this.authService.me(user_id);
+      const response = await this.authService.me(user_id);
 
-  //     return response;
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       message: 'Failed to fetch user details',
-  //     };
-  //   }
-  // }
+      return response;
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch user details',
+      };
+    }
+  }
 
   @ApiOperation({ summary: 'Register a user' })
   @Post('register')

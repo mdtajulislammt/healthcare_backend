@@ -6,6 +6,7 @@ import { StaffPreferenceModule } from './staff-preference/staff-preference.modul
 import { StaffReviewModule } from './staff-review/staff-review.module';
 import { ProfileModule } from './profile/profile.module';
 import { EmployeeModule } from './employee/employee.module';
+import { HomeModule } from './home/home.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { EmployeeModule } from './employee/employee.module';
     StaffReviewModule,
     ProfileModule,
     EmployeeModule,
+    HomeModule,
   ],
 })
 export class ServiceProviderModule { }

@@ -14,12 +14,14 @@ import { EmployeePermissionType, EmployeeRole } from '@prisma/client';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { StringHelper } from 'src/common/helper/string.helper';
+import { ActivityLogService } from 'src/common/service/activity-log.service';
 
 @Injectable()
 export class EmployeeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly activityLogService: ActivityLogService,
   ) { }
 
   /**
@@ -158,6 +160,14 @@ export class EmployeeService {
         password: createEmployeeDto.password, // Send plain password as it's a new account
         organizationName: user.service_provider_info.organization_name,
       });
+
+      // Log activity
+      await this.activityLogService.logEmployeeCreate(
+        serviceProviderUserId,
+        employee.id,
+        `${createEmployeeDto.first_name} ${createEmployeeDto.last_name}`,
+        createEmployeeDto.employee_role,
+      );
 
       // Fetch created employee with permissions
       const createdEmployee = await this.findOne(serviceProviderUserId, employee.id);

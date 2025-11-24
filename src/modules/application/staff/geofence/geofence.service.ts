@@ -9,12 +9,16 @@ import { PrismaService } from '../../../../prisma/prisma.service';
 import { DistanceHelper } from '../../../../common/helper/distance.helper';
 import { NotificationRepository } from '../../../../common/repository/notification/notification.repository';
 import { TimesheetStatus, ShiftAttendanceStatus } from '@prisma/client';
+import { ActivityLogService } from '../../../../common/service/activity-log.service';
 
 @Injectable()
 export class GeofenceService {
     private readonly GEOFENCE_RADIUS_METERS = 100; // 100 meters threshold
 
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly activityLogService: ActivityLogService,
+    ) { }
 
     async checkGeofence(
         shiftId: string,
@@ -314,6 +318,13 @@ export class GeofenceService {
                 },
             });
 
+            // Log activity
+            await this.activityLogService.logShiftCheckIn(
+                staffUserId,
+                shiftId,
+                shift.facility_name,
+            );
+
             return {
                 success: true,
                 message: 'Check-in completed successfully',
@@ -459,6 +470,29 @@ export class GeofenceService {
                     submitted_at: new Date(),
                 },
             });
+
+            // Log activity for checkout
+            await this.activityLogService.logShiftCheckOut(
+                staffUserId,
+                shiftId,
+                shift.facility_name,
+            );
+
+            // Log activity for timesheet submission
+            const timesheet = await this.prisma.shiftTimesheet.findUnique({
+                where: { shift_id: shiftId },
+                select: { id: true },
+            });
+
+            if (timesheet) {
+                await this.activityLogService.logTimesheetSubmit(
+                    staffUserId,
+                    timesheet.id,
+                    shiftId,
+                    totalHours,
+                    totalPay,
+                );
+            }
 
             return {
                 success: true,
