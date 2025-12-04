@@ -282,6 +282,23 @@ export class ApplyShiftService {
                 organization_name: true,
               },
             },
+            attendance: {
+              select: {
+                id: true,
+                status: true,
+                check_in_time: true,
+                check_out_time: true,
+              },
+            },
+            timesheet: {
+              select: {
+                id: true,
+                status: true,
+                total_hours: true,
+                total_pay: true,
+                verification_method: true,
+            },
+            },
             applications: staff_id
               ? {
                 where: { staff_id },

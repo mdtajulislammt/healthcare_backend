@@ -10,6 +10,7 @@ import {
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { GeofenceService } from './geofence.service';
 import { CheckGeofenceDto } from './dto/check-geofence.dto';
+import { CheckInDto } from './dto/check-in.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
@@ -44,13 +45,22 @@ export class GeofenceController {
     }
 
     @Post(':shiftId/check-in')
-    checkIn(@Param('shiftId') shiftId: string, @Req() req: Request) {
+    checkIn(
+        @Param('shiftId') shiftId: string,
+        @Body() checkInDto: CheckInDto,
+        @Req() req: Request,
+    ) {
         const user_id = req.user?.userId;
         if (!user_id) {
             throw new BadRequestException('User not authenticated');
         }
 
-        return this.geofenceService.checkIn(shiftId, user_id);
+        return this.geofenceService.checkIn(
+            shiftId,
+            user_id,
+            checkInDto.latitude,
+            checkInDto.longitude,
+        );
     }
 
     @Post(':shiftId/check-out')

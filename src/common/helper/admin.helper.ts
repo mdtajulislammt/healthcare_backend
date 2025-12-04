@@ -23,7 +23,6 @@ export class AdminHelper {
             const existingAdmin = await prisma.user.findFirst({
                 where: {
                     email: adminEmail,
-                    type: 'admin',
                 },
                 include: {
                     role_users: {
