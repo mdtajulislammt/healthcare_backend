@@ -12,10 +12,15 @@ import { PrismaService } from '../../../../prisma/prisma.service';
 import { Prisma, ShiftApplicationStatus, ShiftStatus } from '@prisma/client';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import { PushNotificationService } from 'src/common/service/push-notification.service';
+import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class ShiftApplicationService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushNotificationService: PushNotificationService,
+  ) { }
 
   create(createShiftApplicationDto: CreateShiftApplicationDto) {
     return 'This action adds a new shiftApplication';
@@ -258,6 +263,7 @@ export class ShiftApplicationService {
               last_name: true,
               user: {
                 select: {
+                  id: true,
                   email: true,
                 },
               },
@@ -333,6 +339,7 @@ export class ShiftApplicationService {
                   last_name: true,
                   user: {
                     select: {
+                      id: true,
                       email: true,
                     },
                   },
@@ -366,6 +373,25 @@ export class ShiftApplicationService {
 
           return updatedApplication;
         });
+
+        // Notify and push to staff user if user id is available
+        const staffUserId = application.staff.user?.id;
+        if (staffUserId) {
+          await NotificationRepository.createNotification({
+            receiver_id: staffUserId,
+            text: `You have been assigned to shift: ${application.shift.posting_title}`,
+            type: 'booking',
+            entity_id: application.shift.id,
+          });
+
+          await this.pushNotificationService.sendToUser(staffUserId, {
+            title: 'Shift assigned',
+            body: `You have been assigned to a new shift: ${application.shift.posting_title}`,
+            data: {
+              shiftId: application.shift.id,
+            },
+          });
+        }
 
         return {
           success: true,

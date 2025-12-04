@@ -213,6 +213,7 @@ model User {
   roles                Role[]
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
+  device_tokens        UserDeviceToken[]
 
   // Care Home Staffing App Relations
   service_provider_info ServiceProviderInfo?
@@ -344,6 +345,21 @@ model Notification {
   entity_id String?
 
   @@map("notifications")
+}
+
+// --------- Device & Push Notification Models ---------
+
+model UserDeviceToken {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id  String
+  user     User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token    String @unique
+  platform String // e.g. 'android' | 'ios'
+
+  @@map("user_device_tokens")
 }
 
 // --------- Payment Models ---------

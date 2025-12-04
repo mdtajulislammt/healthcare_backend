@@ -30,6 +30,10 @@ export default () => ({
     port: process.env.REDIS_PORT,
   },
 
+  firebase: {
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  },
+
   security: {
     salt: 10,
   },

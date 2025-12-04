@@ -8,6 +8,8 @@ import { Prisma, TimesheetStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ForceApproveTimesheetDto } from './dto/force-approve-timesheet.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { PushNotificationService } from 'src/common/service/push-notification.service';
+import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 
 interface FindAllOptions {
     page?: number;
@@ -18,7 +20,10 @@ interface FindAllOptions {
 
 @Injectable()
 export class TimesheetService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly pushNotificationService: PushNotificationService,
+    ) { }
 
     async findAll(options: FindAllOptions) {
         try {
@@ -221,6 +226,7 @@ export class TimesheetService {
                     staff: {
                         select: {
                             id: true,
+                            user_id: true,
                             first_name: true,
                             last_name: true,
                         },
@@ -263,6 +269,26 @@ export class TimesheetService {
                 },
             });
 
+            // Notify staff about approval
+            const staffUserId = timesheet.staff.user_id;
+            if (staffUserId) {
+                await NotificationRepository.createNotification({
+                    receiver_id: staffUserId,
+                    text: `Your timesheet for shift "${timesheet.shift.posting_title}" has been approved.`,
+                    type: 'booking',
+                    entity_id: timesheet.shift.id,
+                });
+
+                await this.pushNotificationService.sendToUser(staffUserId, {
+                    title: 'Timesheet approved',
+                    body: `Your timesheet for "${timesheet.shift.posting_title}" has been approved.`,
+                    data: {
+                        timesheetId: timesheet.id,
+                        shiftId: timesheet.shift.id,
+                    },
+                });
+            }
+
             return {
                 success: true,
                 message: 'Timesheet force approved successfully',
@@ -296,6 +322,7 @@ export class TimesheetService {
                     staff: {
                         select: {
                             id: true,
+                            user_id: true,
                             first_name: true,
                             last_name: true,
                         },
@@ -346,6 +373,31 @@ export class TimesheetService {
                     },
                 },
             });
+
+            // Notify staff about dispute resolution
+            const staffUserId = timesheet.staff.user_id;
+            if (staffUserId) {
+                const isApproved = dto.status === TimesheetStatus.approved;
+                await NotificationRepository.createNotification({
+                    receiver_id: staffUserId,
+                    text: isApproved
+                        ? `Your disputed timesheet for "${timesheet.shift.posting_title}" has been approved.`
+                        : `Your disputed timesheet for "${timesheet.shift.posting_title}" has been moved back to review.`,
+                    type: 'booking',
+                    entity_id: timesheet.shift.id,
+                });
+
+                await this.pushNotificationService.sendToUser(staffUserId, {
+                    title: isApproved ? 'Timesheet dispute approved' : 'Timesheet under review',
+                    body: isApproved
+                        ? `Your disputed timesheet for "${timesheet.shift.posting_title}" has been approved.`
+                        : `Your disputed timesheet for "${timesheet.shift.posting_title}" is under review again.`,
+                    data: {
+                        timesheetId: timesheet.id,
+                        shiftId: timesheet.shift.id,
+                    },
+                });
+            }
 
             return {
                 success: true,
