@@ -20,6 +20,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ActivityLogModule } from './common/module/activity-log.module';
+import { PushNotificationModule } from './common/module/push-notification.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { ActivityLogModule } from './common/module/activity-log.module';
     ChatModule,
     PaymentModule,
     ActivityLogModule,
+    PushNotificationModule,
   ],
   controllers: [AppController],
   providers: [

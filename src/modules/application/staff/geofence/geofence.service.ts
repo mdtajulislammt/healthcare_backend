@@ -10,6 +10,7 @@ import { DistanceHelper } from '../../../../common/helper/distance.helper';
 import { NotificationRepository } from '../../../../common/repository/notification/notification.repository';
 import { TimesheetStatus, ShiftAttendanceStatus } from '@prisma/client';
 import { ActivityLogService } from '../../../../common/service/activity-log.service';
+import { PushNotificationService } from '../../../../common/service/push-notification.service';
 
 @Injectable()
 export class GeofenceService {
@@ -18,6 +19,7 @@ export class GeofenceService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly activityLogService: ActivityLogService,
+        private readonly pushNotificationService: PushNotificationService,
     ) { }
 
     async checkGeofence(
@@ -177,6 +179,15 @@ export class GeofenceService {
                     });
 
                     notificationSent = true;
+                });
+
+                // Send push notification outside of transaction
+                await this.pushNotificationService.sendToUser(staffUserId, {
+                    title: 'Geofence verified',
+                    body: 'You can now check in to your shift.',
+                    data: {
+                        shiftId,
+                    },
                 });
             }
 

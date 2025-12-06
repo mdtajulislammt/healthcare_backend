@@ -213,6 +213,7 @@ model User {
   roles                Role[]
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
+  device_tokens        UserDeviceToken[]
 
   // Care Home Staffing App Relations
   service_provider_info ServiceProviderInfo?
@@ -346,6 +347,21 @@ model Notification {
   @@map("notifications")
 }
 
+// --------- Device & Push Notification Models ---------
+
+model UserDeviceToken {
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  user_id  String
+  user     User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token    String @unique
+  platform String // e.g. 'android' | 'ios'
+
+  @@map("user_device_tokens")
+}
+
 // --------- Payment Models ---------
 model UserPaymentMethod {
   id         String    @id @default(cuid())
@@ -469,6 +485,7 @@ model ServiceProviderInfo {
   max_client_capacity        Int
   support_documents_url      String?
   emergency_bonus_increments Json?
+  xero_contact_id            String? // Xero contact ID for invoicing
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -767,6 +784,15 @@ model ShiftTimesheet {
   approved_by  String? // admin or manager ID
   paid_at      DateTime?
 
+  // Xero integration fields
+  xero_invoice_id     String? // Xero invoice ID
+  xero_invoice_number String? // Invoice number from Xero
+  xero_status         String? // DRAFT, AUTHORISED, PAID, etc.
+
+  // Staff payout tracking (manual)
+  staff_pay_status String? // 'pending' | 'paid'
+  staff_paid_at    DateTime?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -929,6 +955,20 @@ model ActivityLog {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("activity_logs")
+}
+
+// Xero OAuth Token Storage
+model XeroAuth {
+  id            String   @id @default(cuid())
+  tenant_id     String // Xero organisation/tenant ID
+  access_token  String // Encrypted access token
+  refresh_token String // Encrypted refresh token
+  expires_at    DateTime // Token expiration time
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@unique([tenant_id])
+  @@map("xero_auths")
 }
 
 // this table stores example

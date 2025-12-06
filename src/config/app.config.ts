@@ -30,6 +30,10 @@ export default () => ({
     port: process.env.REDIS_PORT,
   },
 
+  firebase: {
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  },
+
   security: {
     salt: 10,
   },
@@ -59,6 +63,11 @@ export default () => ({
     stripe: {
       secret_key: process.env.STRIPE_SECRET_KEY,
       webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
+    },
+    xero: {
+      clientId: process.env.XERO_CLIENT_ID,
+      clientSecret: process.env.XERO_CLIENT_SECRET,
+      redirectUri: process.env.XERO_REDIRECT_URI,
     },
   },
 
