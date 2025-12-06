@@ -133,6 +133,9 @@ export class TimesheetService {
                         paid_at: true,
                         created_at: true,
                         updated_at: true,
+                        xero_invoice_id: true,
+                        xero_invoice_number: true,
+                        xero_status: true,
                         shift: {
                             select: {
                                 id: true,

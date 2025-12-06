@@ -23,7 +23,7 @@ Add to your `.env` file:
 ```env
 XERO_CLIENT_ID=your_client_id_here
 XERO_CLIENT_SECRET=your_client_secret_here
-XERO_REDIRECT_URI=http://localhost:3000/payment/xero/callback
+XERO_REDIRECT_URI=http://localhost:4000/api/payment/xero/callback
 ```
 
 ### 3. Run Database Migration
@@ -55,7 +55,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/payment/xero/status" \
+curl -X GET "http://localhost:4000/api/payment/xero/status" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -80,7 +80,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/payment/xero/connect" \
+curl -X GET "http://localhost:4000/api/payment/xero/connect" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -L
 ```
@@ -93,7 +93,7 @@ curl -X GET "http://localhost:3000/payment/xero/connect" \
 **Alternative (Browser):**
 Just open in browser:
 ```
-http://localhost:3000/payment/xero/connect
+http://localhost:4000/api/payment/xero/connect
 ```
 (Make sure you're logged in as Admin with valid JWT token in cookies/headers)
 
@@ -107,7 +107,7 @@ http://localhost:3000/payment/xero/connect
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/payment/xero/callback?code=YOUR_AUTH_CODE_FROM_XERO"
+curl -X GET "http://localhost:4000/api/payment/xero/callback?code=YOUR_AUTH_CODE_FROM_XERO"
 ```
 
 **Expected Response:**
@@ -126,7 +126,7 @@ curl -X GET "http://localhost:3000/payment/xero/callback?code=YOUR_AUTH_CODE_FRO
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/payment/xero/status" \
+curl -X GET "http://localhost:4000/api/payment/xero/status" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -151,7 +151,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/admin/timesheets?status=approved" \
+curl -X GET "http://localhost:4000/api/admin/timesheets?status=approved" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -183,7 +183,7 @@ curl -X GET "http://localhost:3000/admin/timesheets?status=approved" \
 
 ### **Step 6: Create Xero Invoice for Timesheet**
 
-**Endpoint:** `POST /admin/timesheets/:id/invoice`
+**Endpoint:** `POST /admin/timesheets/:id/      `
 
 **Headers:**
 ```
@@ -192,7 +192,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/TIMESHEET_ID_HERE/invoice" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/TIMESHEET_ID_HERE/invoice" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -230,7 +230,7 @@ Content-Type: application/json
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/TIMESHEET_ID_HERE/force-approve" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/TIMESHEET_ID_HERE/force-approve" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -270,7 +270,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/TIMESHEET_ID_HERE/sync-invoice" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/TIMESHEET_ID_HERE/sync-invoice" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -303,7 +303,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/sync-all-invoices" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/sync-all-invoices" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -333,7 +333,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/TIMESHEET_ID_HERE/mark-staff-paid" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/TIMESHEET_ID_HERE/mark-staff-paid" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -364,7 +364,7 @@ Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
 
 **cURL:**
 ```bash
-curl -X GET "http://localhost:3000/admin/timesheets/staff/STAFF_ID_HERE/earnings" \
+curl -X GET "http://localhost:4000/api/admin/timesheets/staff/STAFF_ID_HERE/earnings" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -415,7 +415,7 @@ Content-Type: application/json
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:3000/admin/timesheets/invoices/bulk" \
+curl -X POST "http://localhost:4000/api/admin/timesheets/invoices/bulk" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

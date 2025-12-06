@@ -24,6 +24,7 @@ export class XeroService {
                 'accounting.transactions',
                 'accounting.contacts',
                 'accounting.settings',
+                'offline_access', // Required to get refresh token
             ],
         });
     }
@@ -279,6 +280,13 @@ export class XeroService {
      */
     private async refreshAccessToken(xeroAuth: any): Promise<void> {
         try {
+            // Check if refresh token exists
+            if (!xeroAuth.refresh_token || xeroAuth.refresh_token.trim() === '') {
+                throw new BadRequestException(
+                    'No refresh token available. Please reconnect Xero to get a refresh token.',
+                );
+            }
+
             this.xeroClient.setTokenSet({
                 access_token: xeroAuth.access_token,
                 refresh_token: xeroAuth.refresh_token,
