@@ -64,6 +64,11 @@ export default () => ({
       secret_key: process.env.STRIPE_SECRET_KEY,
       webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
     },
+    xero: {
+      clientId: process.env.XERO_CLIENT_ID,
+      clientSecret: process.env.XERO_CLIENT_SECRET,
+      redirectUri: process.env.XERO_REDIRECT_URI,
+    },
   },
 
   googleMaps: {

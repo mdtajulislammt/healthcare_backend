@@ -10,6 +10,7 @@ import { ForceApproveTimesheetDto } from './dto/force-approve-timesheet.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
+import { XeroService } from 'src/modules/payment/xero/xero.service';
 
 interface FindAllOptions {
     page?: number;
@@ -23,6 +24,7 @@ export class TimesheetService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly pushNotificationService: PushNotificationService,
+        private readonly xeroService: XeroService,
     ) { }
 
     async findAll(options: FindAllOptions) {
@@ -289,10 +291,29 @@ export class TimesheetService {
                 });
             }
 
+            // Create Xero invoice for approved timesheet
+            let invoiceInfo = null;
+            try {
+                invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
+                    updatedTimesheet.id,
+                );
+            } catch (error) {
+                // Log error but don't fail the approval
+                console.error('Failed to create Xero invoice:', error);
+            }
+
             return {
                 success: true,
                 message: 'Timesheet force approved successfully',
-                data: updatedTimesheet,
+                data: {
+                    ...updatedTimesheet,
+                    invoice: invoiceInfo
+                        ? {
+                              invoiceId: invoiceInfo.invoiceId,
+                              invoiceNumber: invoiceInfo.invoiceNumber,
+                          }
+                        : null,
+                },
             };
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -399,16 +420,350 @@ export class TimesheetService {
                 });
             }
 
+            // Create Xero invoice if dispute resolved to approved
+            let invoiceInfo = null;
+            if (dto.status === TimesheetStatus.approved) {
+                try {
+                    invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
+                        updatedTimesheet.id,
+                    );
+                } catch (error) {
+                    // Log error but don't fail the resolution
+                    console.error('Failed to create Xero invoice:', error);
+                }
+            }
+
             return {
                 success: true,
                 message: `Dispute resolved. Timesheet ${dto.status === TimesheetStatus.approved ? 'approved' : 'moved to review'}.`,
-                data: updatedTimesheet,
+                data: {
+                    ...updatedTimesheet,
+                    invoice: invoiceInfo
+                        ? {
+                              invoiceId: invoiceInfo.invoiceId,
+                              invoiceNumber: invoiceInfo.invoiceNumber,
+                          }
+                        : null,
+                },
             };
         } catch (error) {
             if (error instanceof NotFoundException || error instanceof BadRequestException) {
                 throw error;
             }
             throw new InternalServerErrorException(error.message || 'Failed to resolve dispute');
+        }
+    }
+
+    async createInvoice(timesheetId: string) {
+        try {
+            const invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
+                timesheetId,
+            );
+
+            return {
+                success: true,
+                message: 'Xero invoice created successfully',
+                data: invoiceInfo,
+            };
+        } catch (error) {
+            if (
+                error instanceof BadRequestException ||
+                error instanceof NotFoundException
+            ) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to create invoice',
+            );
+        }
+    }
+
+    async syncInvoiceStatus(timesheetId: string) {
+        try {
+            const timesheet = await this.prisma.shiftTimesheet.findUnique({
+                where: { id: timesheetId },
+                select: {
+                    id: true,
+                    xero_invoice_id: true,
+                },
+            });
+
+            if (!timesheet) {
+                throw new NotFoundException('Timesheet not found');
+            }
+
+            if (!timesheet.xero_invoice_id) {
+                throw new BadRequestException(
+                    'Timesheet does not have a Xero invoice',
+                );
+            }
+
+            await this.xeroService.updateInvoiceStatusFromXero(
+                timesheet.xero_invoice_id,
+            );
+
+            // Fetch updated timesheet
+            const updated = await this.prisma.shiftTimesheet.findUnique({
+                where: { id: timesheetId },
+                select: {
+                    id: true,
+                    xero_invoice_id: true,
+                    xero_invoice_number: true,
+                    xero_status: true,
+                    status: true,
+                    paid_at: true,
+                },
+            });
+
+            return {
+                success: true,
+                message: 'Invoice status synced from Xero',
+                data: updated,
+            };
+        } catch (error) {
+            if (
+                error instanceof BadRequestException ||
+                error instanceof NotFoundException
+            ) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to sync invoice status',
+            );
+        }
+    }
+
+    async markStaffPaid(timesheetId: string, userId: string) {
+        try {
+            const timesheet = await this.prisma.shiftTimesheet.findUnique({
+                where: { id: timesheetId },
+                select: {
+                    id: true,
+                    staff_pay_status: true,
+                },
+            });
+
+            if (!timesheet) {
+                throw new NotFoundException('Timesheet not found');
+            }
+
+            if (timesheet.staff_pay_status === 'paid') {
+                throw new BadRequestException(
+                    'Staff payout already marked as paid',
+                );
+            }
+
+            const updated = await this.prisma.shiftTimesheet.update({
+                where: { id: timesheetId },
+                data: {
+                    staff_pay_status: 'paid',
+                    staff_paid_at: new Date(),
+                },
+                include: {
+                    shift: {
+                        select: {
+                            id: true,
+                            posting_title: true,
+                        },
+                    },
+                    staff: {
+                        select: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                        },
+                    },
+                },
+            });
+
+            return {
+                success: true,
+                message: 'Staff payout marked as paid',
+                data: updated,
+            };
+        } catch (error) {
+            if (
+                error instanceof BadRequestException ||
+                error instanceof NotFoundException
+            ) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to mark staff as paid',
+            );
+        }
+    }
+
+    async getStaffEarnings(staffId: string) {
+        try {
+            const timesheets = await this.prisma.shiftTimesheet.findMany({
+                where: { staff_id: staffId },
+                select: {
+                    id: true,
+                    total_hours: true,
+                    hourly_rate: true,
+                    total_pay: true,
+                    status: true,
+                    xero_status: true,
+                    staff_pay_status: true,
+                    staff_paid_at: true,
+                    paid_at: true,
+                    shift: {
+                        select: {
+                            id: true,
+                            posting_title: true,
+                            start_date: true,
+                        },
+                    },
+                },
+                orderBy: {
+                    created_at: 'desc',
+                },
+            });
+
+            const totalHours = timesheets.reduce(
+                (sum, t) => sum + (t.total_hours || 0),
+                0,
+            );
+            const totalPayable = timesheets.reduce(
+                (sum, t) => sum + (t.total_pay || 0),
+                0,
+            );
+
+            // Calculate paid amount (where staff_pay_status = 'paid')
+            const totalPaid = timesheets
+                .filter((t) => t.staff_pay_status === 'paid')
+                .reduce((sum, t) => sum + (t.total_pay || 0), 0);
+
+            const outstanding = totalPayable - totalPaid;
+
+            // Group by status
+            const pending = timesheets.filter(
+                (t) => t.staff_pay_status !== 'paid',
+            );
+            const paid = timesheets.filter(
+                (t) => t.staff_pay_status === 'paid',
+            );
+
+            return {
+                success: true,
+                message: 'Staff earnings fetched successfully',
+                data: {
+                    summary: {
+                        total_hours: totalHours,
+                        total_payable: totalPayable,
+                        total_paid: totalPaid,
+                        outstanding: outstanding,
+                    },
+                    timesheets: {
+                        pending: pending.length,
+                        paid: paid.length,
+                        total: timesheets.length,
+                    },
+                    breakdown: timesheets,
+                },
+            };
+        } catch (error) {
+            throw new InternalServerErrorException(
+                error.message || 'Failed to fetch staff earnings',
+            );
+        }
+    }
+
+    async syncAllInvoiceStatuses() {
+        try {
+            // Get all timesheets with Xero invoice IDs that are not yet paid
+            const timesheets = await this.prisma.shiftTimesheet.findMany({
+                where: {
+                    xero_invoice_id: { not: null },
+                    xero_status: {
+                        notIn: ['PAID'],
+                    },
+                },
+                select: {
+                    id: true,
+                    xero_invoice_id: true,
+                },
+            });
+
+            const results = {
+                success: 0,
+                failed: 0,
+                errors: [] as string[],
+            };
+
+            for (const timesheet of timesheets) {
+                if (!timesheet.xero_invoice_id) continue;
+
+                try {
+                    await this.xeroService.updateInvoiceStatusFromXero(
+                        timesheet.xero_invoice_id,
+                    );
+                    results.success++;
+                } catch (error) {
+                    results.failed++;
+                    results.errors.push(
+                        `Timesheet ${timesheet.id}: ${error.message}`,
+                    );
+                }
+            }
+
+            return {
+                success: true,
+                message: `Synced ${results.success} invoices. ${results.failed} failed.`,
+                data: results,
+            };
+        } catch (error) {
+            throw new InternalServerErrorException(
+                error.message || 'Failed to sync invoice statuses',
+            );
+        }
+    }
+
+    async createBulkInvoices(timesheetIds: string[]) {
+        try {
+            if (!timesheetIds || timesheetIds.length === 0) {
+                throw new BadRequestException('Timesheet IDs are required');
+            }
+
+            const results = {
+                success: 0,
+                failed: 0,
+                invoices: [] as any[],
+                errors: [] as string[],
+            };
+
+            for (const timesheetId of timesheetIds) {
+                try {
+                    const invoiceInfo =
+                        await this.xeroService.createInvoiceForTimesheet(
+                            timesheetId,
+                        );
+                    results.success++;
+                    results.invoices.push({
+                        timesheetId,
+                        ...invoiceInfo,
+                    });
+                } catch (error) {
+                    results.failed++;
+                    results.errors.push(
+                        `Timesheet ${timesheetId}: ${error.message}`,
+                    );
+                }
+            }
+
+            return {
+                success: true,
+                message: `Created ${results.success} invoices. ${results.failed} failed.`,
+                data: results,
+            };
+        } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to create bulk invoices',
+            );
         }
     }
 }
