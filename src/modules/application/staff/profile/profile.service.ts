@@ -29,6 +29,7 @@ export class ProfileService {
         current_address: true,
         previous_address: true,
         educations: true,
+        bank_details: true,
       },
     });
 
@@ -792,6 +793,7 @@ export class ProfileService {
               educations: {
                 orderBy: { created_at: 'desc' },
               },
+              bank_details: true,
             },
           },
         },
@@ -840,6 +842,12 @@ export class ProfileService {
         profile.current_address.evidence_file_url = SojebStorage.url(
           appConfig().storageUrl.certificate + profile.current_address.evidence_file_url,
         );
+      }
+
+      // Mask bank account number for security
+      if (profile.bank_details && profile.bank_details.account_number) {
+        const accountNumber = profile.bank_details.account_number;
+        (profile.bank_details as any).account_number = '****' + accountNumber.slice(-4);
       }
 
       // Include user info (without sensitive data)

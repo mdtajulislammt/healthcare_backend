@@ -35,6 +35,11 @@ interface StaffProfileWithRelations {
         address?: string;
     } | null;
     educations?: Array<{ id: string }>;
+    bank_details?: {
+        account_holder_name?: string;
+        sort_code?: string;
+        account_number?: string;
+    } | null;
 }
 
 export interface ProfileCompletionResult {
@@ -46,13 +51,25 @@ export interface ProfileCompletionResult {
  * Calculate staff profile completion percentage
  * @param staffProfile - Staff profile with all relations
  * @returns Profile completion result with percentage and completion status
+ * 
+ * Weights:
+ * - Basic Info: 20%
+ * - Roles & Work: 15%
+ * - Certificates: 25%
+ * - DBS Info: 5%
+ * - Emergency Contact: 5%
+ * - Current Address: 5%
+ * - Previous Address: 5%
+ * - Education: 10%
+ * - Bank Details: 10%
+ * - Total: 100%
  */
 export function calculateStaffProfileCompletion(
     staffProfile: StaffProfileWithRelations,
 ): ProfileCompletionResult {
     let totalPercentage = 0;
 
-    // 1. Basic Info (20%) - 8 fields
+    // 1. Basic Info (20%) - 8 fields, 2.5% each
     const basicInfoFields = [
         { value: staffProfile.first_name, weight: 2.5 },
         { value: staffProfile.last_name, weight: 2.5 },
@@ -66,7 +83,6 @@ export function calculateStaffProfileCompletion(
 
     let basicInfoScore = 0;
     for (const field of basicInfoFields) {
-        // Handle Date objects and regular values
         const hasValue = field.value !== null &&
             field.value !== undefined &&
             (field.value instanceof Date ? true : field.value !== '');
@@ -76,7 +92,7 @@ export function calculateStaffProfileCompletion(
     }
     totalPercentage += Math.min(basicInfoScore, 20);
 
-    // 2. Roles & Work (15%) - 3 fields
+    // 2. Roles & Work (15%) - 3 fields, 5% each
     let rolesWorkScore = 0;
 
     // Roles (5%)
@@ -96,17 +112,17 @@ export function calculateStaffProfileCompletion(
 
     totalPercentage += rolesWorkScore;
 
-    // 3. Certificates (20%) - at least 10 certificates = full points
+    // 3. Certificates (25%) - at least 10 certificates = full points
     if (staffProfile.certificates && Array.isArray(staffProfile.certificates)) {
         if (staffProfile.certificates.length >= 10) {
-            totalPercentage += 20;
+            totalPercentage += 25;
         } else {
-            // Partial points: 2% per certificate (max 20%)
-            totalPercentage += Math.min(staffProfile.certificates.length * 2, 20);
+            // Partial points: 2.5% per certificate (max 25%)
+            totalPercentage += Math.min(staffProfile.certificates.length * 2.5, 25);
         }
     }
 
-    // 4. DBS Info (15%) - all required fields must exist
+    // 4. DBS Info (5%) - all required fields must exist
     if (staffProfile.dbs_info) {
         const dbsFields = [
             staffProfile.dbs_info.certificate_number,
@@ -120,34 +136,34 @@ export function calculateStaffProfileCompletion(
         ).length;
 
         if (filledDbsFields === 4) {
-            totalPercentage += 15; // All fields filled = full points
+            totalPercentage += 5; // All fields filled = full points
         } else if (filledDbsFields > 0) {
-            // Partial points: 3.75% per field
-            totalPercentage += filledDbsFields * 3.75;
+            // Partial points: 1.25% per field
+            totalPercentage += filledDbsFields * 1.25;
         }
     }
 
-    // 5. Emergency Contact (10%) - mobile_code and mobile_number required
+    // 5. Emergency Contact (5%) - mobile_code and mobile_number required
     if (staffProfile.emergency_contacts) {
         const hasMobileCode = !!staffProfile.emergency_contacts.mobile_code;
         const hasMobileNumber = !!staffProfile.emergency_contacts.mobile_number;
 
         if (hasMobileCode && hasMobileNumber) {
-            totalPercentage += 10; // Both required fields = full points
+            totalPercentage += 5; // Both required fields = full points
         } else if (hasMobileCode || hasMobileNumber) {
-            totalPercentage += 5; // Only one field = half points
+            totalPercentage += 2.5; // Only one field = half points
         }
     }
 
-    // 6. Current Address (10%) - address and evidence_file_url required
+    // 6. Current Address (5%) - address and evidence_file_url required
     if (staffProfile.current_address) {
         const hasAddress = !!staffProfile.current_address.address;
         const hasEvidence = !!staffProfile.current_address.evidence_file_url;
 
         if (hasAddress && hasEvidence) {
-            totalPercentage += 10; // Both required = full points
+            totalPercentage += 5; // Both required = full points
         } else if (hasAddress) {
-            totalPercentage += 5; // Only address = half points
+            totalPercentage += 2.5; // Only address = half points
         }
     }
 
@@ -156,9 +172,29 @@ export function calculateStaffProfileCompletion(
         totalPercentage += 5;
     }
 
-    // 8. Education (5%) - at least 1 education = full points
+    // 8. Education (10%) - at least 1 education = full points
     if (staffProfile.educations && Array.isArray(staffProfile.educations) && staffProfile.educations.length > 0) {
-        totalPercentage += 5;
+        totalPercentage += 10;
+    }
+
+    // 9. Bank Details (10%) - required for staff payment
+    if (staffProfile.bank_details) {
+        const bankFields = [
+            staffProfile.bank_details.account_holder_name,
+            staffProfile.bank_details.sort_code,
+            staffProfile.bank_details.account_number,
+        ];
+
+        const filledBankFields = bankFields.filter(
+            (field) => field !== null && field !== undefined && field !== '',
+        ).length;
+
+        if (filledBankFields === 3) {
+            totalPercentage += 10; // All required fields = full points
+        } else if (filledBankFields > 0) {
+            // Partial points: ~3.33% per field
+            totalPercentage += Math.round((filledBankFields / 3) * 10);
+        }
     }
 
     // Round to nearest integer and ensure it's between 0-100
@@ -172,4 +208,3 @@ export function calculateStaffProfileCompletion(
         is_profile_complete: isProfileComplete,
     };
 }
-

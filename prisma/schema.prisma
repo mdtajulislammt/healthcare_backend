@@ -579,8 +579,26 @@ model StaffProfile {
   timesheets      ShiftTimesheet[]
   preferences     ProviderStaffPreference[]
   reviews         StaffPerformanceReview[]
+  bank_details    StaffBankDetails?
 
   @@map("staff_profiles")
+}
+
+model StaffBankDetails {
+  id                  String  @id @default(cuid())
+  staff_id            String  @unique
+  account_holder_name String
+  sort_code           String // UK: 6 digits (e.g., "12-34-56")
+  account_number      String // UK: 8 digits
+  bank_name           String?
+  is_verified         Boolean @default(false)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@map("staff_bank_details")
 }
 
 model StaffCertificate {

@@ -437,6 +437,7 @@ export class XeroService {
                         select: {
                             first_name: true,
                             last_name: true,
+                            bank_details: true,
                         },
                     },
                 },
@@ -498,6 +499,21 @@ export class XeroService {
 
             const description = `${shift.posting_title} - ${staffName} (${timesheet.total_hours}h @ £${timesheet.hourly_rate}/hr)`;
 
+            // Build staff payment details for manual payment
+            const bankDetails = timesheet.staff.bank_details;
+            let staffPaymentNotes = `Staff Payment Details:\nStaff Name: ${staffName}\nAmount Due to Staff: £${timesheet.total_pay?.toFixed(2) || '0.00'}`;
+            
+            if (bankDetails) {
+                staffPaymentNotes += `\nAccount Holder: ${bankDetails.account_holder_name}`;
+                staffPaymentNotes += `\nSort Code: ${bankDetails.sort_code}`;
+                staffPaymentNotes += `\nAccount Number: ${bankDetails.account_number}`;
+                if (bankDetails.bank_name) {
+                    staffPaymentNotes += `\nBank: ${bankDetails.bank_name}`;
+                }
+            } else {
+                staffPaymentNotes += `\n\nNote: Staff bank details not provided.`;
+            }
+
             // Create invoice in Xero
             const invoiceResponse = await this.xeroClient.accountingApi.createInvoices(
                 tenantId,
@@ -521,7 +537,10 @@ export class XeroService {
                             ],
                             reference: `TS-${timesheetId.substring(0, 8)}`,
                             status: 'AUTHORISED' as any,
-                        },
+                            currencyCode: 'GBP' as any,
+                            // Staff bank details for manual payment (appears at bottom of invoice)
+                            notes: staffPaymentNotes,
+                        } as any,
                     ],
                 },
             );
