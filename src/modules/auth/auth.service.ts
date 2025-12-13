@@ -41,6 +41,7 @@ export class AuthService {
               mobile_code: true,
               mobile_number: true,
               date_of_birth: true,
+              profile_completion: true,
             },
           },
           service_provider_info: {
@@ -113,7 +114,7 @@ export class AuthService {
         name = user.email || 'Admin';
       }
 
-      const formattedUser = {
+      const formattedUser: any = {
         id: user.id,
         email: user.email,
         type: user.type,
@@ -123,6 +124,10 @@ export class AuthService {
         date_of_birth: date_of_birth,
         created_at: user.created_at,
       };
+
+      if (user.type === 'staff' && user.staff_profile) {
+        formattedUser.profile_completion = user.staff_profile.profile_completion;
+      }
 
       return {
         success: true,

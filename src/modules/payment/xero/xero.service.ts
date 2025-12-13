@@ -49,6 +49,77 @@ export class XeroService {
     }
 
     /**
+     * Get Xero connection status with organization info
+     */
+    async getConnectionStatus(): Promise<{
+        connected: boolean;
+        organization?: {
+            tenant_id: string;
+            name?: string;
+            expires_at: Date;
+        };
+    }> {
+        try {
+            const xeroAuth = await this.prisma.xeroAuth.findFirst();
+            if (!xeroAuth) {
+                return { connected: false };
+            }
+
+            // Check if token is still valid (with buffer)
+            const now = new Date();
+            const expiresAt = new Date(xeroAuth.expires_at);
+            const buffer = 5 * 60 * 1000; // 5 minutes
+            const isConnected = now.getTime() + buffer < expiresAt.getTime();
+
+            if (!isConnected) {
+                return { connected: false };
+            }
+
+            // Try to get organization name from Xero
+            let orgName: string | undefined;
+            try {
+                this.xeroClient.setTokenSet({
+                    access_token: xeroAuth.access_token,
+                    refresh_token: xeroAuth.refresh_token,
+                });
+                const tenants = await this.xeroClient.updateTenants();
+                const tenant = tenants?.find(t => t.tenantId === xeroAuth.tenant_id);
+                orgName = tenant?.tenantName;
+            } catch (error) {
+                // If we can't get org name, just continue without it
+                this.logger.warn('Could not fetch Xero organization name', error);
+            }
+
+            return {
+                connected: true,
+                organization: {
+                    tenant_id: xeroAuth.tenant_id,
+                    name: orgName,
+                    expires_at: xeroAuth.expires_at,
+                },
+            };
+        } catch {
+            return { connected: false };
+        }
+    }
+
+    /**
+     * Disconnect Xero by removing stored tokens
+     */
+    async disconnect(): Promise<void> {
+        try {
+            // Delete all XeroAuth records
+            await this.prisma.xeroAuth.deleteMany();
+            this.logger.log('Xero disconnected successfully');
+        } catch (error) {
+            this.logger.error('Failed to disconnect Xero', error);
+            throw new InternalServerErrorException(
+                'Failed to disconnect Xero',
+            );
+        }
+    }
+
+    /**
      * Get Xero OAuth authorization URL
      */
     async getAuthorizationUrl(): Promise<string> {
@@ -537,7 +608,7 @@ export class XeroService {
                             ],
                             reference: `TS-${timesheetId.substring(0, 8)}`,
                             status: 'AUTHORISED' as any,
-                            currencyCode: 'GBP' as any,
+                         //   currencyCode: 'GBP' as any,
                             // Staff bank details for manual payment (appears at bottom of invoice)
                             notes: staffPaymentNotes,
                         } as any,
