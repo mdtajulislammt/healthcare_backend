@@ -62,11 +62,30 @@ export class XeroController {
     @Roles(Role.ADMIN)
     @ApiBearerAuth()
     async getStatus() {
-        const isConnected = await this.xeroService.isConnected();
+        const status = await this.xeroService.getConnectionStatus();
         return {
             success: true,
-            connected: isConnected,
+            connected: status.connected,
+            organization: status.organization || null,
         };
+    }
+
+    @Post('disconnect')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    @ApiBearerAuth()
+    async disconnect() {
+        try {
+            await this.xeroService.disconnect();
+            return {
+                success: true,
+                message: 'Xero disconnected successfully',
+            };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to disconnect Xero: ${error.message}`,
+            );
+        }
     }
 
     @Get('callback')

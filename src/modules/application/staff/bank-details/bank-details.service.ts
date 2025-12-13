@@ -45,11 +45,9 @@ export class BankDetailsService {
             update: {
                 account_holder_name: createBankDetailDto.account_holder_name,
                 sort_code: createBankDetailDto.sort_code,
-                account_number: createBankDetailDto.account_number,
-                bank_name: createBankDetailDto.bank_name ?? null,
+                account_number: createBankDetailDto.account_number,bank_name: createBankDetailDto.bank_name ?? null,
                 is_verified: false, // Reset verification on update
-            },
-            create: {
+            },   create: {
                 staff_id,
                 account_holder_name: createBankDetailDto.account_holder_name,
                 sort_code: createBankDetailDto.sort_code,

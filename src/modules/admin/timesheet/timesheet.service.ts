@@ -52,10 +52,13 @@ export class TimesheetService {
                 } else if (statusFilterValue === 'approved') {
                     // Show approved timesheets
                     statusFilter = TimesheetStatus.approved;
+                } else if (statusFilterValue === 'paid') {
+                    // Show paid timesheets
+                    statusFilter = TimesheetStatus.paid;
                 }
             } else {
                 // Default: show all timesheets that need review or are processed
-                // Include: pending_submission, submitted, under_review, rejected, approved
+                // Include: pending_submission, submitted, under_review, rejected, approved, paid
                 statusFilter = {
                     in: [
                         TimesheetStatus.pending_submission,
@@ -63,6 +66,7 @@ export class TimesheetService {
                         TimesheetStatus.under_review,
                         TimesheetStatus.rejected,
                         TimesheetStatus.approved,
+                        TimesheetStatus.paid,
                     ],
                 };
             }
@@ -556,11 +560,20 @@ export class TimesheetService {
                 );
             }
 
+            //sync invoice status from Xero
+            const invoiceStatus = await this.syncInvoiceStatus(timesheetId);
+            if (invoiceStatus.data.xero_status !== 'PAID') {
+                throw new BadRequestException(
+                    'Invoice status is not paid',
+                );
+            }
+
             const updated = await this.prisma.shiftTimesheet.update({
                 where: { id: timesheetId },
                 data: {
                     staff_pay_status: 'paid',
                     staff_paid_at: new Date(),
+                    paid_at: invoiceStatus.data.paid_at,
                 },
                 include: {
                     shift: {
