@@ -1,4 +1,24 @@
-<!-- 5d5647ca-39e3-48e8-adab-9700d0d220cb 6784b5ed-5dd3-40fa-87eb-822632c0f5ea -->
+---
+name: Xero Payment Integration Plan
+overview: ""
+todos:
+  - id: a5a52ecf-9229-4c06-84bc-63e829de72ea
+    content: Implement Xero OAuth flow and token storage (XeroAuthService, /xero/connect, /xero/callback)
+    status: pending
+  - id: 2904c140-576b-4c6c-801c-ef00de80f084
+    content: Create XeroInvoiceService to map approved timesheets to Xero invoices and store invoice IDs/status
+    status: pending
+  - id: b0c2a680-8dfe-44ea-b9ed-1aad647ecb81
+    content: Hook timesheet approval flow to call XeroInvoiceService and update billing status
+    status: pending
+  - id: 92541aa3-b5b1-4384-bfe0-b3c8e21f21a6
+    content: Implement a scheduled job or endpoint to sync invoice payment status from Xero back into the app
+    status: pending
+  - id: 7fd79859-76fc-4a66-95a1-28aba9e1734d
+    content: Add payout_status and payout tracking for staff earnings linked to paid invoices
+    status: pending
+---
+
 # Xero Payment Integration Plan
 
 ## Goal
@@ -207,11 +227,3 @@ Later, if you automate staff payout, we can plug into this field.
 - Read-only invoice status sync.
 
 3. Then gradually add bulk invoicing, webhooks/polling, and staff payout tracking in the admin UI.
-
-### To-dos
-
-- [ ] Implement Xero OAuth flow and token storage (XeroAuthService, /xero/connect, /xero/callback)
-- [ ] Create XeroInvoiceService to map approved timesheets to Xero invoices and store invoice IDs/status
-- [ ] Hook timesheet approval flow to call XeroInvoiceService and update billing status
-- [ ] Implement a scheduled job or endpoint to sync invoice payment status from Xero back into the app
-- [ ] Add payout_status and payout tracking for staff earnings linked to paid invoices
