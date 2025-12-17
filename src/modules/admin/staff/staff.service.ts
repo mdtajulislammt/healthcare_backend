@@ -48,7 +48,15 @@ export class StaffService {
             roles: true,
             right_to_work_status: true,
             created_at: true,
-            updated_at: true,
+            updated_at: true,   
+            dbs_info: {
+              select: {
+                id: true,
+                certificate_number: true,
+                created_at: true,
+                updated_at: true,
+              },
+            },
             user: {
               select: {
                 id: true,
@@ -147,7 +155,43 @@ export class StaffService {
         }
       }
 
-      return { success: true, message: 'Staff fetched successfully', data: staff };
+      // Calculate average rating
+      const reviews = await this.prisma.staffPerformanceReview.findMany({
+        where: { staff_id: id },
+        select: { rating: true },
+      });
+      const avgRating = reviews.length > 0
+        ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(2)
+        : 0;
+
+      // Calculate max hours per week
+      const timesheets = await this.prisma.shiftTimesheet.findMany({
+        where: { staff_id: id },
+        select: { total_hours: true, shift: { select: { start_date: true } } },
+      });
+      
+      let maxHoursPerWeek = 0;
+      if (timesheets.length > 0) {
+        const hoursPerWeek = new Map<string, number>();
+        for (const ts of timesheets) {
+          if (ts.total_hours && ts.shift?.start_date) {
+            const weekNumber = Math.ceil(ts.shift.start_date.getDate() / 7);
+            const yearWeek = `${ts.shift.start_date.getFullYear()}-W${weekNumber}`;
+            hoursPerWeek.set(yearWeek, (hoursPerWeek.get(yearWeek) || 0) + ts.total_hours);
+          }
+        }
+        maxHoursPerWeek = Math.max(...Array.from(hoursPerWeek.values()));
+      }
+
+      return {
+        success: true,
+        message: 'Staff fetched successfully',
+        data: {
+          ...staff,
+          avgRating: Number(avgRating),
+          maxHoursPerWeek,
+        },
+      };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('Failed to fetch staff');

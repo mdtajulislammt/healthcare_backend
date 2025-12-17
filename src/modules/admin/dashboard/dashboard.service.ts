@@ -301,8 +301,7 @@ export class DashboardService {
             }
 
             // Fetch top 5 service providers and staff in parallel
-            const [serviceProviders, staff] = await this.prisma.$transaction([
-                this.prisma.serviceProviderInfo.findMany({
+            const serviceProviders = await this.prisma.serviceProviderInfo.findMany({
                     where: providerWhere,
                     select: {
                         id: true,
@@ -313,6 +312,8 @@ export class DashboardService {
                         brand_logo_url: true,
                         mobile_code: true,
                         mobile_number: true,
+                        cqc_provider_number: true,
+                        primary_address: true,
                         created_at: true,
                         user: {
                             select: {
@@ -324,31 +325,7 @@ export class DashboardService {
                     },
                     orderBy: { created_at: 'desc' },
                     take: 5,
-                }),
-                this.prisma.staffProfile.findMany({
-                    where: staffWhere,
-                    select: {
-                        id: true,
-                        user_id: true,
-                        first_name: true,
-                        last_name: true,
-                        mobile_code: true,
-                        mobile_number: true,
-                        photo_url: true,
-                        roles: true,
-                        created_at: true,
-                        user: {
-                            select: {
-                                id: true,
-                                email: true,
-                                status: true,
-                            },
-                        },
-                    },
-                    orderBy: { created_at: 'desc' },
-                    take: 5,
-                }),
-            ]);
+                });
 
             // Format photo URLs if needed
             const formattedProviders = serviceProviders.map((provider) => ({
@@ -358,20 +335,12 @@ export class DashboardService {
                     : null,
             }));
 
-            const formattedStaff = staff.map((s) => ({
-                ...s,
-                photo_url: s.photo_url
-                    ? SojebStorage.url(appConfig().storageUrl.staff + s.photo_url)
-                    : null,
-            }));
+           
 
             return {
                 success: true,
                 message: 'Top providers and staff fetched successfully',
-                data: {
-                    serviceProviders: formattedProviders,
-                    staff: formattedStaff,
-                },
+                data: formattedProviders,
             };
         } catch (error) {
             throw new InternalServerErrorException(
