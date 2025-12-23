@@ -218,6 +218,7 @@ model User {
   // Care Home Staffing App Relations
   service_provider_info ServiceProviderInfo?
   staff_profile         StaffProfile?
+  admin_profile         AdminProfile?
   activity_logs         ActivityLog[]
 
   @@map("users")
@@ -465,6 +466,25 @@ model Conversation {
 }
 
 // --------- Care Home Staffing App Models ---------
+
+// Admin Models
+model AdminProfile {
+  id         String   @id @default(cuid())
+  user_id    String   @unique
+  first_name String
+  last_name  String
+  photo_url  String?
+  date_of_birth DateTime?
+  mobile_code   String?
+  mobile_number String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}
 // Service Provider Models
 model ServiceProviderInfo {
   id                         String      @id @default(cuid())
