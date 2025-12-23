@@ -33,6 +33,16 @@ export class AuthService {
           email: true,
           type: true,
           created_at: true,
+          admin_profile: {
+            select: {
+              first_name: true,
+              last_name: true,
+              photo_url: true,
+              mobile_code: true,
+              mobile_number: true,
+              date_of_birth: true,
+            },
+          },
           staff_profile: {
             select: {
               first_name: true,
@@ -111,7 +121,20 @@ export class AuthService {
             : null;
         }
       } else if (user.type === 'admin') {
-        name = user.email || 'Admin';
+        if (user.admin_profile) {
+          name = `${user.admin_profile.first_name} ${user.admin_profile.last_name}`;
+          if (user.admin_profile.photo_url) {
+            avatar_url = SojebStorage.url(
+              appConfig().storageUrl.avatar + user.admin_profile.photo_url,
+            );
+          }
+          phone_number = user.admin_profile.mobile_number
+            ? `${user.admin_profile.mobile_code || ''}${user.admin_profile.mobile_number}`
+            : null;
+          date_of_birth = user.admin_profile.date_of_birth;
+        } else {
+          name = user.email || 'Admin';
+        }
       }
 
       const formattedUser: any = {

@@ -8,6 +8,53 @@ import { StripePayment } from '../lib/Payment/stripe/StripePayment';
  * Handles admin user initialization on application startup
  */
 export class AdminHelper {
+    private static async ensureAdminProfile(prisma: PrismaClient, userId: string) {
+        const profile = await prisma.adminProfile.findUnique({ where: { user_id: userId } });
+        if (!profile) {
+            await prisma.adminProfile.create({
+                data: {
+                    user_id: userId,
+                    first_name: 'Admin',
+                    last_name: 'User',
+                },
+            });
+            console.log('✅ Admin profile created');
+        }
+    }
+
+    private static async setAdminPassword(prisma: PrismaClient, userId: string, adminPassword: string) {
+        const hashedPassword = await bcrypt.hash(adminPassword, appConfig().security.salt);
+        await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+        const verifyUser = await prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+        const verifyCompare = await bcrypt.compare(adminPassword, verifyUser?.password ?? '');
+        if (verifyCompare) {
+            console.log('✅ Admin password set/reset successfully');
+            console.log(`   Email: ${appConfig().defaultUser.system.email || 'admin@example.com'}`);
+            console.log(`   Password: ${adminPassword}`);
+        } else {
+            console.error('❌ Failed to verify admin password after update');
+        }
+    }
+
+    private static async ensureAdminRole(prisma: PrismaClient) {
+        let adminRole = await prisma.role.findFirst({ where: { name: 'admin' } });
+        if (!adminRole) {
+            adminRole = await prisma.role.create({ data: { name: 'admin', title: 'Administrator', status: 1 } });
+        }
+        return adminRole;
+    }
+
+    private static async createStripeCustomerForUser(prisma: PrismaClient, userId: string, email: string, name: string) {
+        try {
+            const stripeCustomer = await StripePayment.createCustomer({ user_id: userId, email, name });
+            if (stripeCustomer && stripeCustomer.id) {
+                await prisma.user.update({ where: { id: userId }, data: { billing_id: stripeCustomer.id } });
+                console.log('✅ Stripe customer created for admin user');
+            }
+        } catch (stripeError) {
+            console.error('❌ Error creating Stripe customer for admin user:', (stripeError as any).message);
+        }
+    }
     /**
      * Initialize or update admin user
      * Creates admin user if not exists, updates password if mismatch
@@ -41,69 +88,20 @@ export class AdminHelper {
                     const testPassword = await bcrypt.compare(adminPassword, existingAdmin.password);
                     if (!testPassword) {
                         console.log('⚠️  Admin password mismatch detected. Resetting password...');
-
-                        // Reset password
-                        const hashedPassword = await bcrypt.hash(
-                            adminPassword,
-                            appConfig().security.salt,
-                        );
-
-                        await prisma.user.update({
-                            where: { id: existingAdmin.id },
-                            data: { password: hashedPassword },
-                        });
-
-                        // Verify the new password works
-                        const verifyUser = await prisma.user.findUnique({
-                            where: { id: existingAdmin.id },
-                            select: { password: true },
-                        });
-
-                        const verifyCompare = await bcrypt.compare(adminPassword, verifyUser.password);
-                        if (verifyCompare) {
-                            console.log('✅ Admin password reset successfully');
-                            console.log(`   Email: ${adminEmail}`);
-                            console.log(`   New Password: ${adminPassword}`);
-                        } else {
-                            console.error('❌ Failed to reset admin password - verification failed');
-                        }
+                        await this.setAdminPassword(prisma, existingAdmin.id, adminPassword);
                     } else {
                         console.log('   Password is correct, no reset needed.');
                     }
                 } else {
                     // No password set, create one
                     console.log('⚠️  Admin user has no password. Setting password...');
-                    const hashedPassword = await bcrypt.hash(
-                        adminPassword,
-                        appConfig().security.salt,
-                    );
-
-                    await prisma.user.update({
-                        where: { id: existingAdmin.id },
-                        data: { password: hashedPassword },
-                    });
-
-                    console.log('✅ Admin password set successfully');
-                    console.log(`   Email: ${adminEmail}`);
-                    console.log(`   Password: ${adminPassword}`);
+                    await this.setAdminPassword(prisma, existingAdmin.id, adminPassword);
                 }
+                await this.ensureAdminProfile(prisma, existingAdmin.id);
                 return;
             }
 
-            // Check if admin role exists, create if not
-            let adminRole = await prisma.role.findFirst({
-                where: { name: 'admin' },
-            });
-
-            if (!adminRole) {
-                adminRole = await prisma.role.create({
-                    data: {
-                        name: 'admin',
-                        title: 'Administrator',
-                        status: 1,
-                    },
-                });
-            }
+            const adminRole = await this.ensureAdminRole(prisma);
 
             // Create admin user
             const hashedPassword = await bcrypt.hash(
@@ -123,6 +121,8 @@ export class AdminHelper {
                 },
             });
 
+            await this.ensureAdminProfile(prisma, adminUser.id);
+
             // Assign admin role to user
             await prisma.roleUser.create({
                 data: {
@@ -131,28 +131,7 @@ export class AdminHelper {
                 },
             });
 
-            // Create Stripe customer after transaction succeeds (external API)
-            try {
-                const stripeCustomer = await StripePayment.createCustomer({
-                    user_id: adminUser.id,
-                    email: adminEmail,
-                    name: 'Admin User',
-                });
-
-                if (stripeCustomer && stripeCustomer.id) {
-                    await prisma.user.update({
-                        where: {
-                            id: adminUser.id,
-                        },
-                        data: {
-                            billing_id: stripeCustomer.id,
-                        },
-                    });
-                    console.log('✅ Stripe customer created for admin user');
-                }
-            } catch (stripeError) {
-                console.error('❌ Error creating Stripe customer for admin user:', stripeError.message);
-            }
+            await this.createStripeCustomerForUser(prisma, adminUser.id, adminEmail, 'Admin User');
 
             console.log('✅ Admin user created successfully');
             console.log(`   Email: ${adminEmail}`);
