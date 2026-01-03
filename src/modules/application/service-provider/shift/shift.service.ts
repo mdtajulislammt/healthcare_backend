@@ -235,6 +235,16 @@ export class ShiftService {
             pay_rate_hourly: true,
             status: true,
             created_at: true,
+            assigned_staff: { 
+              select: { 
+                id: true, 
+                first_name: true, 
+                last_name: true,
+                reviews: {
+                  select: { rating: true }
+                }
+              } 
+            },
             _count: { select: { applications: true } },
           },
           orderBy: { created_at: 'desc' },
@@ -243,11 +253,23 @@ export class ShiftService {
         }),
       ]);
 
-      const items = itemsRaw.map((s) => ({
-        ...s,
-        applications_count: s._count?.applications ?? 0,
-        _count: undefined,
-      }));
+      const items = itemsRaw.map((s) => {
+        const avgRating = s.assigned_staff?.reviews?.length
+          ? s.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) / s.assigned_staff.reviews.length
+          : null;
+
+        return {
+          ...s,
+          assigned_staff: s.assigned_staff ? {
+            id: s.assigned_staff.id,
+            first_name: s.assigned_staff.first_name,
+            last_name: s.assigned_staff.last_name,
+            avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+          } : null,
+          applications_count: s._count?.applications ?? 0,
+          _count: undefined,
+        };
+      });
 
       return {
         success: true,
@@ -304,7 +326,15 @@ export class ShiftService {
             select: { id: true, first_name: true, last_name: true, email: true, employee_role: true },
           },
           assigned_staff: {
-            select: { id: true, first_name: true, last_name: true, roles: true },
+            select: { 
+              id: true, 
+              first_name: true, 
+              last_name: true, 
+              roles: true,
+              reviews: {
+                select: { rating: true }
+              }
+            },
           },
           applications: {
             where: applicationsWhere,
@@ -339,9 +369,27 @@ export class ShiftService {
           }
         }
       }
-      const { _count, ...rest } = shift as any;
+
+      // Calculate average rating for assigned staff
+      let assignedStaffWithRating = null;
+      if (shift.assigned_staff) {
+        const avgRating = shift.assigned_staff.reviews?.length
+          ? shift.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) / shift.assigned_staff.reviews.length
+          : null;
+        
+        assignedStaffWithRating = {
+          id: shift.assigned_staff.id,
+          first_name: shift.assigned_staff.first_name,
+          last_name: shift.assigned_staff.last_name,
+          roles: shift.assigned_staff.roles,
+          avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+        };
+      }
+
+      const { _count, assigned_staff, ...rest } = shift as any;
       const formatted = {
         ...rest,
+        assigned_staff: assignedStaffWithRating,
         applications_count: _count?.applications ?? 0,
       };
 

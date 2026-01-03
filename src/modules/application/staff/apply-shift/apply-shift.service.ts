@@ -358,18 +358,15 @@ export class ApplyShiftService {
         });
       }
 
-      // Recalculate total after distance filtering
-      const filteredTotal = items.length;
-
       return {
         success: true,
         message: 'Shifts fetched successfully',
         data: items,
         meta: {
-          total: filteredTotal,
+          total: total,
           page: currentPage,
           limit: pageSize,
-          totalPages: Math.ceil(filteredTotal / pageSize) || 1,
+          totalPages: Math.ceil(total / pageSize) || 1,
         },
       };
     } catch (error) {

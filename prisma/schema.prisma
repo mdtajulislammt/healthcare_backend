@@ -568,7 +568,7 @@ model StaffProfile {
   photo_url     String?
   bio           String?
   experience    String?
-
+  nmc_pin       String? 
   agreed_to_terms Boolean @default(false)
 
   // Step 2: Role & Work Status

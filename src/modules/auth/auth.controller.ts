@@ -471,7 +471,16 @@ export class AuthController {
       if (!userId) {
         throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
       }
-      return await this.authService.registerEmail(userId, email);
+      const result = await this.authService.registerEmail(userId, email);
+      //! TODO: Remove this code from response after testing
+      if (result.success) {
+        const ucode = await this.authService.getRegistrationOtpForTesting(email);
+        return {
+          ...result,
+          test_otp_code: ucode, // For testing purposes only
+        };
+      }
+      return result;
     } catch (error) {
       return {
         success: false,
@@ -492,7 +501,16 @@ export class AuthController {
       if (!userId) {
         throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
       }
-      return await this.authService.resendOtp(userId, email);
+      const result = await this.authService.resendOtp(userId, email);
+      //! TODO: Remove this code from response after testing
+      if (result.success) {
+        const ucode = await this.authService.getRegistrationOtpForTesting(email);
+        return {
+          ...result,
+          test_otp_code: ucode, // For testing purposes only
+        };
+      }
+      return result;
     } catch (error) {
       return {
         success: false,
@@ -575,6 +593,7 @@ export class AuthController {
         password: data.password,
         agreed_to_terms: data.agreed_to_terms,
         experience: data.experience,
+        nmc_pin: data.nmc_pin,
         dbs_certificate_number: data.dbs_certificate_number,
         dbs_surname_as_certificate: data.dbs_surname_as_certificate,
         dbs_date_of_birth_on_cert: data.dbs_date_of_birth_on_cert,

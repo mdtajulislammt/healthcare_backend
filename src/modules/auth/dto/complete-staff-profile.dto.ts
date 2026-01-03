@@ -39,6 +39,11 @@ export class CompleteStaffProfileDto {
     @IsOptional()
     experience?: string;
 
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'NMC PIN', required: false })
+    nmc_pin?: string;
+
     // Optional: DBS Info
     @IsOptional()
     @IsString()
