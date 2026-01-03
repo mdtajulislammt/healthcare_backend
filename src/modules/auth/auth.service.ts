@@ -1397,6 +1397,7 @@ export class AuthService {
             photo_url: staffPhotoFileName ?? undefined,
             agreed_to_terms: agreedStaff,
             experience: profileData.experience,
+            nmc_pin: profileData.nmc_pin,
           },
         });
 
@@ -1928,4 +1929,28 @@ export class AuthService {
     }
   }
   // --------- end Registration Flow ---------
+
+  /**
+   * FOR TESTING ONLY: Get the OTP code for a given email
+   * This method is used to retrieve the OTP code during testing
+   * @param email - Email address
+   * @returns OTP code or null
+   */
+  async getRegistrationOtpForTesting(email: string): Promise<string | null> {
+    try {
+      const ucode = await this.prisma.ucode.findFirst({
+        where: {
+          email: email,
+          status: 1,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      return ucode?.token || null;
+    } catch (error) {
+      return null;
+    }
+  }
 }
