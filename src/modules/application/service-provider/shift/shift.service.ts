@@ -234,6 +234,7 @@ export class ShiftService {
             full_address: true,
             pay_rate_hourly: true,
             status: true,
+            notes: true,
             created_at: true,
             assigned_staff: { 
               select: { 
