@@ -34,7 +34,9 @@ export class XeroService {
      */
     async isConnected(): Promise<boolean> {
         try {
-            const xeroAuth = await this.prisma.xeroAuth.findFirst();
+            const xeroAuth = await this.prisma.xeroAuth.findFirst({
+                orderBy: { updated_at: 'desc' },
+            });
             if (!xeroAuth) return false;
 
             // Check if token is still valid (with buffer)
@@ -60,7 +62,9 @@ export class XeroService {
         };
     }> {
         try {
-            const xeroAuth = await this.prisma.xeroAuth.findFirst();
+            const xeroAuth = await this.prisma.xeroAuth.findFirst({
+                orderBy: { updated_at: 'desc' },
+            });
             if (!xeroAuth) {
                 return { connected: false };
             }
@@ -321,7 +325,9 @@ export class XeroService {
      * Get valid access token (refresh if needed)
      */
     private async getValidAccessToken(): Promise<string> {
-        const xeroAuth = await this.prisma.xeroAuth.findFirst();
+        const xeroAuth = await this.prisma.xeroAuth.findFirst({
+            orderBy: { updated_at: 'desc' },
+        });
 
         if (!xeroAuth) {
             throw new BadRequestException(
@@ -417,7 +423,7 @@ export class XeroService {
             this.xeroClient.setTokenSet({ access_token: accessToken });
 
             const tenantId = (
-                await this.prisma.xeroAuth.findFirst()
+                await this.prisma.xeroAuth.findFirst({ orderBy: { updated_at: 'desc' } })
             )?.tenant_id;
 
             if (!tenantId) {
@@ -554,7 +560,7 @@ export class XeroService {
             this.xeroClient.setTokenSet({ access_token: accessToken });
 
             const tenantId = (
-                await this.prisma.xeroAuth.findFirst()
+                await this.prisma.xeroAuth.findFirst({ orderBy: { updated_at: 'desc' } })
             )?.tenant_id;
 
             if (!tenantId) {
@@ -689,7 +695,7 @@ export class XeroService {
             this.xeroClient.setTokenSet({ access_token: accessToken });
 
             const tenantId = (
-                await this.prisma.xeroAuth.findFirst()
+                await this.prisma.xeroAuth.findFirst({ orderBy: { updated_at: 'desc' } })
             )?.tenant_id;
 
             if (!tenantId) {

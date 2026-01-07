@@ -43,6 +43,12 @@ export class TimesheetController {
         });
     }
 
+    @ApiOperation({ summary: 'Get a single timesheet by ID' })
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.timesheetService.findOne(id);
+    }
+
     @ApiOperation({ summary: 'Force approve a timesheet (admin action)' })
     @Post(':id/force-approve')
     forceApprove(

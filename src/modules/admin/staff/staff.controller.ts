@@ -20,11 +20,17 @@ export class StaffController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('right_to_work_status') right_to_work_status?: string,
+    @Query('roles') roles?: string,
   ) {
     return this.staffService.findAll({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
+      status,
+      right_to_work_status,
+      roles,
     });
   }
 

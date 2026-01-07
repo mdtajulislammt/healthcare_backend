@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ShiftService } from './shift.service';
 
 @Controller('admin/shifts')
@@ -18,5 +18,10 @@ export class ShiftController {
       search,
       status,
     });
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.shiftService.findOne(id);
   }
 }

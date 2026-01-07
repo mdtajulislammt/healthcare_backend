@@ -24,11 +24,15 @@ export class ServiceProviderController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('main_service_type') main_service_type?: string,
   ) {
     return this.serviceProviderService.findAll({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
+      status,
+      main_service_type,
     });
   }
 

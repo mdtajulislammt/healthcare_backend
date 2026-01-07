@@ -107,22 +107,22 @@ export class ShiftService {
       let latitude: number | null = null;
       let longitude: number | null = null;
 
-      // if (full_address) {
-      //   try {
-      //     const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
-      //     console.log('geocodeResult', geocodeResult);
-      //     if (geocodeResult) {
-      //       latitude = geocodeResult.latitude;
-      //       longitude = geocodeResult.longitude;
-      //     }
-      //   } catch (error) {
-      //     // Log error but continue without coordinates
-      //     console.error('Failed to geocode address for shift:', error.message);
-      //   }
-      // }
+      if (full_address) {
+        try {
+          const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
+          console.log('geocodeResult', geocodeResult);
+          if (geocodeResult) {
+            latitude = geocodeResult.latitude;
+            longitude = geocodeResult.longitude;
+          }
+        } catch (error) {
+          // Log error but continue without coordinates
+          console.error('Failed to geocode address for shift:', error.message);
+        }
+      }
 
-      latitude = 51.5074;
-      longitude = -0.1278;
+      // latitude = 51.5074;
+      // longitude = -0.1278;
 
       const shift = await this.prisma.shift.create({
         data: {
@@ -344,7 +344,14 @@ export class ShiftService {
               status: true,
               applied_at: true,
               staff: {
-                select: { id: true, first_name: true, last_name: true, photo_url: true },
+                select: { 
+                  id: true, 
+                  first_name: true, 
+                  last_name: true,
+                  mobile_code: true, 
+                  mobile_number: true,
+                  photo_url: true , 
+                  user: { select: { email: true } } },
               },
             },
             orderBy: { applied_at: applicationsOrder },

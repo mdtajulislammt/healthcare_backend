@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, ShiftStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -110,6 +110,80 @@ export class ShiftService {
             };
         } catch (error) {
             throw new BadRequestException(error.message || 'Failed to fetch shifts');
+        }
+    }
+
+    async findOne(id: string) {
+        try {
+            const shift = await this.prisma.shift.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    posting_title: true,
+                    shift_type: true,
+                    profession_role: true,
+                    is_urgent: true,
+                    // schedule
+                    start_date: true,
+                    end_date: true,
+                    start_time: true,
+                    end_time: true,
+                    // location
+                    facility_name: true,
+                    full_address: true,
+                    latitude: true,
+                    longitude: true,
+                    // pay
+                    pay_rate_hourly: true,
+                    signing_bonus: true,
+                    internal_po_number: true,
+                    emergency_bonus: true,
+                    // other
+                    notes: true,
+                    status: true,
+                    created_at: true,
+                    updated_at: true,
+                    service_provider_info: {
+                        select: {
+                            id: true,
+                            organization_name: true,
+                        },
+                    },
+                    assigned_staff: {
+                        select: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                        },
+                    },
+                    _count: {
+                        select: {
+                            applications: true,
+                        },
+                    },
+                },
+            });
+
+            if (!shift) {
+                throw new NotFoundException('Shift not found');
+            }
+
+            const data = {
+                ...shift,
+                applications_count: shift._count?.applications ?? 0,
+                _count: undefined,
+            } as any;
+
+            return {
+                success: true,
+                message: 'Shift fetched successfully',
+                data,
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new BadRequestException(error.message || 'Failed to fetch shift');
         }
     }
 }

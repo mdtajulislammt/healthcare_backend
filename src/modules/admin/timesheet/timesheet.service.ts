@@ -52,13 +52,16 @@ export class TimesheetService {
                 } else if (statusFilterValue === 'approved') {
                     // Show approved timesheets
                     statusFilter = TimesheetStatus.approved;
+                } else if (statusFilterValue === 'invoiced') {
+                    // Show invoiced timesheets
+                    statusFilter = TimesheetStatus.invoiced;
                 } else if (statusFilterValue === 'paid') {
                     // Show paid timesheets
                     statusFilter = TimesheetStatus.paid;
                 }
             } else {
                 // Default: show all timesheets that need review or are processed
-                // Include: pending_submission, submitted, under_review, rejected, approved, paid
+                // Include: pending_submission, submitted, under_review, rejected, approved, invoiced, paid
                 statusFilter = {
                     in: [
                         TimesheetStatus.pending_submission,
@@ -66,6 +69,7 @@ export class TimesheetService {
                         TimesheetStatus.under_review,
                         TimesheetStatus.rejected,
                         TimesheetStatus.approved,
+                        TimesheetStatus.invoiced,
                         TimesheetStatus.paid,
                     ],
                 };
@@ -215,6 +219,91 @@ export class TimesheetService {
         }
     }
 
+    async findOne(id: string) {
+        try {
+            const timesheet = await this.prisma.shiftTimesheet.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    shift_id: true,
+                    staff_id: true,
+                    total_hours: true,
+                    hourly_rate: true,
+                    total_pay: true,
+                    notes: true,
+                    status: true,
+                    verification_method: true,
+                    clock_in_verified: true,
+                    clock_out_verified: true,
+                    submitted_at: true,
+                    reviewed_at: true,
+                    approved_by: true,
+                    paid_at: true,
+                    created_at: true,
+                    updated_at: true,
+                    xero_invoice_id: true,
+                    xero_invoice_number: true,
+                    xero_status: true,
+                    shift: {
+                        select: {
+                            id: true,
+                            posting_title: true,
+                            pay_rate_hourly: true,
+                            start_date: true,
+                            service_provider_info: {
+                                select: {
+                                    id: true,
+                                    organization_name: true,
+                                },
+                            },
+                        },
+                    },
+                    staff: {
+                        select: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                            photo_url: true,
+                            bank_details: {
+                                select: {
+                                    account_holder_name: true,
+                                    sort_code: true,
+                                    account_number: true,
+                                    bank_name: true,
+                                    is_verified: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
+            if (!timesheet) {
+                throw new NotFoundException('Timesheet not found');
+            }
+
+            const data = {
+                ...timesheet,
+                client: timesheet.shift.service_provider_info.organization_name,
+                client_rate: timesheet.shift.pay_rate_hourly,
+                shift_title: timesheet.shift.posting_title,
+                hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
+                hours: timesheet.total_hours || 0,
+            };
+
+            return {
+                success: true,
+                message: 'Timesheet fetched successfully',
+                data,
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(error.message || 'Failed to fetch timesheet');
+        }
+    }
+
     async forceApprove(id: string, userId: string, dto: ForceApproveTimesheetDto) {
         try {
             const timesheet = await this.prisma.shiftTimesheet.findUnique({
@@ -304,6 +393,13 @@ export class TimesheetService {
                 invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
                     updatedTimesheet.id,
                 );
+                // Update status to invoiced after successful invoice creation
+                if (invoiceInfo) {
+                    await this.prisma.shiftTimesheet.update({
+                        where: { id: updatedTimesheet.id },
+                        data: { status: TimesheetStatus.invoiced },
+                    });
+                }
             } catch (error) {
                 // Log error but don't fail the approval
                 console.error('Failed to create Xero invoice:', error);
@@ -434,6 +530,13 @@ export class TimesheetService {
                     invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
                         updatedTimesheet.id,
                     );
+                    // Update status to invoiced after successful invoice creation
+                    if (invoiceInfo) {
+                        await this.prisma.shiftTimesheet.update({
+                            where: { id: updatedTimesheet.id },
+                            data: { status: TimesheetStatus.invoiced },
+                        });
+                    }
                 } catch (error) {
                     // Log error but don't fail the resolution
                     console.error('Failed to create Xero invoice:', error);
@@ -463,9 +566,49 @@ export class TimesheetService {
 
     async createInvoice(timesheetId: string) {
         try {
+            // Check if invoice already exists for this timesheet
+            const existing = await this.prisma.shiftTimesheet.findUnique({
+                where: { id: timesheetId },
+                select: {
+                    id: true,
+                    xero_invoice_id: true,
+                    xero_invoice_number: true,
+                    status: true,
+                },
+            });
+
+            if (!existing) {
+                throw new NotFoundException('Timesheet not found');
+            }
+
+            if (existing.xero_invoice_id) {
+                // Update status to invoiced if not already
+                if (existing.status !== TimesheetStatus.invoiced && existing.status !== TimesheetStatus.paid) {
+                    await this.prisma.shiftTimesheet.update({
+                        where: { id: timesheetId },
+                        data: { status: TimesheetStatus.invoiced },
+                    });
+                }
+
+                return {
+                    success: true,
+                    message: 'Xero invoice already exists',
+                    data: {
+                        invoiceId: existing.xero_invoice_id,
+                        invoiceNumber: existing.xero_invoice_number || '',
+                    },
+                };
+            }
+
             const invoiceInfo = await this.xeroService.createInvoiceForTimesheet(
                 timesheetId,
             );
+
+            // Update timesheet status to invoiced
+            await this.prisma.shiftTimesheet.update({
+                where: { id: timesheetId },
+                data: { status: TimesheetStatus.invoiced },
+            });
 
             return {
                 success: true,
