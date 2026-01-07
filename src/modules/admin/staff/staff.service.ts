@@ -12,7 +12,7 @@ export class StaffService {
   constructor(private readonly prisma: PrismaService) { }
 
 
-  async findAll({ page = 1, limit = 10, search = '' }: { page?: number; limit?: number; search?: string } = {}) {
+  async findAll({ page = 1, limit = 10, search = '', status, right_to_work_status, roles }: { page?: number; limit?: number; search?: string; status?: string; right_to_work_status?: string; roles?: string } = {}) {
     try {
       const currentPage = Math.max(Number(page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
@@ -21,15 +21,57 @@ export class StaffService {
       }
       const skip = (currentPage - 1) * pageSize;
 
-      const where = search
-        ? {
+      // Build where clause
+      const andConditions: any[] = [];
+
+      // Search filter
+      if (search) {
+        andConditions.push({
           OR: [
             { first_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { last_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { user: { email: { contains: search, mode: 'insensitive' as Prisma.QueryMode } } },
           ],
+        });
+      }
+
+      // Status filter (0=pending, 1=active, 2=suspended)
+      if (status) {
+        const statusValue = status.toLowerCase().trim();
+        let userStatus: number | undefined;
+
+        if (statusValue === 'pending' || statusValue === '0') {
+          userStatus = 0;
+        } else if (statusValue === 'active' || statusValue === '1') {
+          userStatus = 1;
+        } else if (statusValue === 'suspended' || statusValue === '2') {
+          userStatus = 2;
         }
-        : undefined;
+
+        if (userStatus !== undefined) {
+          andConditions.push({ user: { status: userStatus } });
+        }
+      }
+
+      // Right to work status filter (enum field - exact match)
+      if (right_to_work_status) {
+        const rtw = right_to_work_status.trim();
+        andConditions.push({ right_to_work_status: rtw });
+      }
+
+      // Roles filter (can be comma-separated for multiple roles)
+      if (roles) {
+        const roleList = roles.split(',').map(r => r.trim()).filter(r => r.length > 0);
+        if (roleList.length > 0) {
+          andConditions.push({
+            OR: roleList.map(role => ({
+              roles: { has: role },
+            })),
+          });
+        }
+      }
+
+      const where = andConditions.length > 0 ? { AND: andConditions } : undefined;
 
       const [total, staff] = await this.prisma.$transaction([
         this.prisma.staffProfile.count({ where }),

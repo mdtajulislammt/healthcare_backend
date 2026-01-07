@@ -15,7 +15,7 @@ export class ServiceProviderService {
     return 'This action adds a new serviceProvider';
   }
 
-  async findAll({ page = 1, limit = 10, search = '' }: { page?: number; limit?: number; search?: string } = {}) {
+  async findAll({ page = 1, limit = 10, search = '', status, main_service_type }: { page?: number; limit?: number; search?: string; status?: string; main_service_type?: string } = {}) {
     try {
       const currentPage = Math.max(Number(page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
@@ -24,16 +24,48 @@ export class ServiceProviderService {
       }
       const skip = (currentPage - 1) * pageSize;
 
-      const where = search
-        ? {
+      // Build where clause
+      const andConditions: any[] = [];
+
+      // Search filter
+      if (search) {
+        andConditions.push({
           OR: [
             { organization_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { first_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { last_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
             { user: { email: { contains: search, mode: 'insensitive' as Prisma.QueryMode } } },
           ],
+        });
+      }
+
+      // Status filter (0=pending, 1=active, 2=suspended)
+      if (status) {
+        const statusValue = status.toLowerCase().trim();
+        let userStatus: number | undefined;
+
+        if (statusValue === 'pending' || statusValue === '0') {
+          userStatus = 0;
+        } else if (statusValue === 'active' || statusValue === '1') {
+          userStatus = 1;
+        } else if (statusValue === 'suspended' || statusValue === '2') {
+          userStatus = 2;
         }
-        : undefined;
+
+        if (userStatus !== undefined) {
+          andConditions.push({ user: { status: userStatus } });
+        }
+      }
+
+      // Main service type filter (enum field - use exact match)
+      if (main_service_type) {
+        const serviceTypeValue = main_service_type.trim();
+        andConditions.push({
+          main_service_type: serviceTypeValue,
+        });
+      }
+
+      const where = andConditions.length > 0 ? { AND: andConditions } : undefined;
 
       const [total, providers] = await this.prisma.$transaction([
         this.prisma.serviceProviderInfo.count({ where }),

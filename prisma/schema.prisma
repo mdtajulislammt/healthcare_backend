@@ -122,6 +122,7 @@ enum TimesheetStatus {
   submitted
   under_review
   approved
+  invoiced
   rejected
   paid
 }
