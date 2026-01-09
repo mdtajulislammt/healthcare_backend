@@ -20,7 +20,7 @@ export class AuthService {
     private jwtService: JwtService,
     private prisma: PrismaService,
     private mailService: MailService,
-  ) { }
+  ) {}
 
   async me(userId: string) {
     try {
@@ -87,11 +87,15 @@ export class AuthService {
           ? `${user.staff_profile.mobile_code || ''}${user.staff_profile.mobile_number}`
           : null;
         date_of_birth = user.staff_profile.date_of_birth;
-      } else if (user.type === 'service_provider' && user.service_provider_info) {
+      } else if (
+        user.type === 'service_provider' &&
+        user.service_provider_info
+      ) {
         name = user.service_provider_info.organization_name;
         if (user.service_provider_info.brand_logo_url) {
           avatar_url = SojebStorage.url(
-            appConfig().storageUrl.brand + user.service_provider_info.brand_logo_url,
+            appConfig().storageUrl.brand +
+              user.service_provider_info.brand_logo_url,
           );
         }
       } else if (user.type === 'employee') {
@@ -149,7 +153,8 @@ export class AuthService {
       };
 
       if (user.type === 'staff' && user.staff_profile) {
-        formattedUser.profile_completion = user.staff_profile.profile_completion;
+        formattedUser.profile_completion =
+          user.staff_profile.profile_completion;
       }
 
       return {
@@ -311,8 +316,6 @@ export class AuthService {
 
   async login({ email, userId }) {
     try {
-
-
       // check if user is verified
       const userVerified = await UserRepository.getUserDetails(userId);
       if (!userVerified.email_verified_at) {
@@ -331,7 +334,6 @@ export class AuthService {
           message: 'User not approved',
         };
       }
-
 
       const payload = { email: email, sub: userId };
       const token = this.jwtService.sign(payload);
@@ -372,7 +374,8 @@ export class AuthService {
             permissions: employee.permissions.map((p) => p.permission),
             service_provider: {
               id: employee.service_provider_info.id,
-              organization_name: employee.service_provider_info.organization_name,
+              organization_name:
+                employee.service_provider_info.organization_name,
             },
           };
         }
@@ -524,7 +527,9 @@ export class AuthService {
           where: { id: user.id },
           include: {
             staff_profile: { select: { first_name: true, last_name: true } },
-            service_provider_info: { select: { first_name: true, last_name: true } },
+            service_provider_info: {
+              select: { first_name: true, last_name: true },
+            },
           },
         });
 
@@ -676,7 +681,9 @@ export class AuthService {
           where: { id: user.id },
           include: {
             staff_profile: { select: { first_name: true, last_name: true } },
-            service_provider_info: { select: { first_name: true, last_name: true } },
+            service_provider_info: {
+              select: { first_name: true, last_name: true },
+            },
           },
         });
 
@@ -930,7 +937,8 @@ export class AuthService {
       if (!['staff', 'service_provider', 'admin'].includes(type)) {
         return {
           success: false,
-          message: 'Invalid account type. Must be staff, service_provider, or admin',
+          message:
+            'Invalid account type. Must be staff, service_provider, or admin',
         };
       }
 
@@ -938,7 +946,8 @@ export class AuthService {
       if (type === 'admin') {
         return {
           success: false,
-          message: 'Admin accounts cannot be created through public registration',
+          message:
+            'Admin accounts cannot be created through public registration',
         };
       }
 
@@ -947,7 +956,7 @@ export class AuthService {
         data: {
           type: type,
           onboarding_step: 'email',
-          status: 1,
+          status: 0,
         },
       });
 
@@ -1000,10 +1009,14 @@ export class AuthService {
         };
       }
 
-      if (user.onboarding_step !== 'email' && user.onboarding_step !== 'account_type') {
+      if (
+        user.onboarding_step !== 'email' &&
+        user.onboarding_step !== 'account_type'
+      ) {
         return {
           success: false,
-          message: 'Invalid onboarding step. Please start from account type selection',
+          message:
+            'Invalid onboarding step. Please start from account type selection',
         };
       }
 
@@ -1068,7 +1081,10 @@ export class AuthService {
       }
 
       // Check if user is in the correct onboarding step
-      if (user.onboarding_step !== 'email_verify' && user.onboarding_step !== 'email') {
+      if (
+        user.onboarding_step !== 'email_verify' &&
+        user.onboarding_step !== 'email'
+      ) {
         return {
           success: false,
           message: 'Invalid onboarding step. Please register email first',
@@ -1302,12 +1318,18 @@ export class AuthService {
       // Normalize roles & agreed_to_terms from multipart
       const rolesNormalized = Array.isArray(profileData.roles)
         ? profileData.roles
-        : (typeof profileData.roles === 'string'
-          ? String(profileData.roles).split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean)
-          : undefined);
-      const agreedStaff = typeof profileData.agreed_to_terms === 'string'
-        ? ['true', '1', 'yes'].includes(String(profileData.agreed_to_terms).trim().toLowerCase())
-        : !!profileData.agreed_to_terms;
+        : typeof profileData.roles === 'string'
+          ? String(profileData.roles)
+              .split(',')
+              .map((v: string) => v.trim().toLowerCase())
+              .filter(Boolean)
+          : undefined;
+      const agreedStaff =
+        typeof profileData.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              String(profileData.agreed_to_terms).trim().toLowerCase(),
+            )
+          : !!profileData.agreed_to_terms;
 
       // Prepare DBS info data if provided
       let dbsData = null;
@@ -1331,20 +1353,28 @@ export class AuthService {
 
         // Validate and parse dates
         const dobString = String(profileData.dbs_date_of_birth_on_cert).trim();
-        const printString = String(profileData.dbs_certificate_print_date).trim();
+        const printString = String(
+          profileData.dbs_certificate_print_date,
+        ).trim();
 
         // Check if strings are not empty
         if (!dobString || dobString === 'undefined' || dobString === 'null') {
           return {
             success: false,
-            message: 'dbs_date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
+            message:
+              'dbs_date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
           };
         }
 
-        if (!printString || printString === 'undefined' || printString === 'null') {
+        if (
+          !printString ||
+          printString === 'undefined' ||
+          printString === 'null'
+        ) {
           return {
             success: false,
-            message: 'dbs_certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
+            message:
+              'dbs_certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
           };
         }
 
@@ -1391,7 +1421,10 @@ export class AuthService {
             mobile_code: profileData.mobile_code,
             mobile_number: profileData.mobile_number,
             date_of_birth: new Date(profileData.date_of_birth),
-            roles: (rolesNormalized && rolesNormalized.length > 0) ? rolesNormalized as any : undefined,
+            roles:
+              rolesNormalized && rolesNormalized.length > 0
+                ? (rolesNormalized as any)
+                : undefined,
             right_to_work_status: profileData.right_to_work_status,
             cv_url: staffCvFileName ?? undefined,
             photo_url: staffPhotoFileName ?? undefined,
@@ -1471,20 +1504,23 @@ export class AuthService {
       }
 
       // Calculate and update profile completion
-      const staffProfileWithRelations = await this.prisma.staffProfile.findUnique({
-        where: { id: result.staffProfile.id },
-        include: {
-          certificates: true,
-          dbs_info: true,
-          emergency_contacts: true,
-          current_address: true,
-          previous_address: true,
-          educations: true,
-        },
-      });
+      const staffProfileWithRelations =
+        await this.prisma.staffProfile.findUnique({
+          where: { id: result.staffProfile.id },
+          include: {
+            certificates: true,
+            dbs_info: true,
+            emergency_contacts: true,
+            current_address: true,
+            previous_address: true,
+            educations: true,
+          },
+        });
 
       if (staffProfileWithRelations) {
-        const completionResult = calculateStaffProfileCompletion(staffProfileWithRelations);
+        const completionResult = calculateStaffProfileCompletion(
+          staffProfileWithRelations,
+        );
         await this.prisma.staffProfile.update({
           where: { id: result.staffProfile.id },
           data: {
@@ -1513,14 +1549,23 @@ export class AuthService {
   }
 
   // --------- Staff Certificates ---------
-  async addStaffCertificate(payload: { user_id: string; certificate_type: string; expiry_date?: string }, file?: Express.Multer.File) {
+  async addStaffCertificate(
+    payload: {
+      user_id: string;
+      certificate_type: string;
+      expiry_date?: string;
+    },
+    file?: Express.Multer.File,
+  ) {
     try {
       const userId = payload.user_id;
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         return { success: false, message: 'User not found' };
       }
-      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { user_id: userId },
+      });
       if (!staff) {
         return { success: false, message: 'Staff profile not found' };
       }
@@ -1554,7 +1599,7 @@ export class AuthService {
 
   async addStaffCertificatesBulk(
     payload: { user_id: string; expiries?: string | Record<string, string> },
-    files?: { [key: string]: Express.Multer.File[] }
+    files?: { [key: string]: Express.Multer.File[] },
   ) {
     try {
       const userId = payload.user_id;
@@ -1562,7 +1607,9 @@ export class AuthService {
       if (!user) {
         return { success: false, message: 'Unrecognized user' };
       }
-      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { user_id: userId },
+      });
       if (!staff) {
         return { success: false, message: 'Staff profile not found' };
       }
@@ -1610,7 +1657,11 @@ export class AuthService {
 
       const types = Object.keys(typeToFile);
       if (types.length === 0) {
-        return { success: false, message: 'No valid certificate files provided. Use field name as certificate_type.' };
+        return {
+          success: false,
+          message:
+            'No valid certificate files provided. Use field name as certificate_type.',
+        };
       }
 
       // Prevent duplicates: check existing certificates for this staff
@@ -1622,11 +1673,15 @@ export class AuthService {
         select: { certificate_type: true },
       });
       const existingTypesSet = new Set(
-        existingCertificates.map((c) => (c.certificate_type as string).toLowerCase())
+        existingCertificates.map((c) =>
+          (c.certificate_type as string).toLowerCase(),
+        ),
       );
 
       // Build create operations
-      const createOps: ReturnType<typeof this.prisma.staffCertificate.create>[] = [];
+      const createOps: ReturnType<
+        typeof this.prisma.staffCertificate.create
+      >[] = [];
       for (const type of types) {
         if (existingTypesSet.has(type)) {
           continue; // Skip existing types
@@ -1656,7 +1711,7 @@ export class AuthService {
               file_url: fileName,
               ...(expiryDate ? { expiry_date: expiryDate } : {}),
             },
-          })
+          }),
         );
       }
 
@@ -1664,7 +1719,8 @@ export class AuthService {
         return {
           success: true,
           data: [],
-          message: 'No new certificates to create (all provided types already exist or invalid).',
+          message:
+            'No new certificates to create (all provided types already exist or invalid).',
         };
       }
 
@@ -1693,7 +1749,9 @@ export class AuthService {
         return { success: false, message: 'Unrecognized user' };
       }
 
-      const staff = await this.prisma.staffProfile.findUnique({ where: { user_id: userId } });
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { user_id: userId },
+      });
       if (!staff) {
         return { success: false, message: 'Staff profile not found' };
       }
@@ -1748,7 +1806,11 @@ export class AuthService {
    * Step 4B: Complete Service Provider Profile
    * Creates ServiceProviderInfo and assigns role
    */
-  async completeServiceProviderProfile(userId: string, profileData: any, brand_logo?: Express.Multer.File) {
+  async completeServiceProviderProfile(
+    userId: string,
+    profileData: any,
+    brand_logo?: Express.Multer.File,
+  ) {
     try {
       // Get user to verify
       const user = await this.prisma.user.findUnique({
@@ -1796,17 +1858,24 @@ export class AuthService {
       let brandLogoFileName: string = null;
       if (brand_logo) {
         brandLogoFileName = `${StringHelper.randomString()}${brand_logo.originalname}`;
-        await SojebStorage.put(appConfig().storageUrl.brand + brandLogoFileName, brand_logo.buffer);
+        await SojebStorage.put(
+          appConfig().storageUrl.brand + brandLogoFileName,
+          brand_logo.buffer,
+        );
       }
 
       // Normalize types from multipart form
-      const maxClientCapacity = typeof profileData.max_client_capacity === 'string'
-        ? parseInt(profileData.max_client_capacity, 10)
-        : profileData.max_client_capacity;
+      const maxClientCapacity =
+        typeof profileData.max_client_capacity === 'string'
+          ? parseInt(profileData.max_client_capacity, 10)
+          : profileData.max_client_capacity;
 
-      const agreedToTerms = typeof profileData.agreed_to_terms === 'string'
-        ? ['true', '1', 'yes'].includes(profileData.agreed_to_terms.trim().toLowerCase())
-        : !!profileData.agreed_to_terms;
+      const agreedToTerms =
+        typeof profileData.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              profileData.agreed_to_terms.trim().toLowerCase(),
+            )
+          : !!profileData.agreed_to_terms;
 
       // Create ServiceProviderInfo
       const serviceProviderInfo = await this.prisma.serviceProviderInfo.create({
