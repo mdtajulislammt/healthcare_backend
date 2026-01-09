@@ -9,6 +9,51 @@ import { StringHelper } from '../../../common/helper/string.helper';
 export class ProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Get admin profile
+   * @param userId - The user ID of the admin
+   */
+  async getAdminProfile(userId: string) {
+    const adminUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        admin_profile: true,
+      },
+    });
+
+    if (!adminUser) {
+      throw new NotFoundException('Admin user not found');
+    }
+
+    const profile = adminUser.admin_profile;
+    if (!profile) {
+      throw new NotFoundException('Admin profile not found');
+    }
+
+    return {
+      success: true,
+      message: 'Admin profile fetched successfully',
+      data: {
+        id: adminUser.id,
+        email: adminUser.email,
+        type: adminUser.type,
+        name: `${profile.first_name} ${profile.last_name}`.trim(),
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        avatar_url: profile.photo_url
+          ? SojebStorage.url(appConfig().storageUrl.avatar + profile.photo_url)
+          : null,
+        phone_number: profile.mobile_number
+          ? `${profile.mobile_code || ''}${profile.mobile_number}`
+          : null,
+        mobile_code: profile.mobile_code,
+        mobile_number: profile.mobile_number,
+        date_of_birth: profile.date_of_birth,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      },
+    };
+  }
 
   /**
    * Update admin profile with optional avatar file
