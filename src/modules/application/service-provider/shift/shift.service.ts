@@ -332,6 +332,8 @@ export class ShiftService {
               first_name: true, 
               last_name: true, 
               roles: true,
+              bio:true,
+              photo_url: true,
               reviews: {
                 select: { rating: true }
               }
@@ -381,6 +383,13 @@ export class ShiftService {
         }
       }
 
+      // Format assigned staff photo URL if exists
+      if (shift.assigned_staff?.photo_url) {
+        shift.assigned_staff.photo_url = SojebStorage.url(
+          appConfig().storageUrl.staff + shift.assigned_staff.photo_url,
+        );
+      }
+
       // Calculate average rating for assigned staff
       let assignedStaffWithRating = null;
       if (shift.assigned_staff) {
@@ -392,6 +401,8 @@ export class ShiftService {
           id: shift.assigned_staff.id,
           first_name: shift.assigned_staff.first_name,
           last_name: shift.assigned_staff.last_name,
+          photo_url: shift.assigned_staff.photo_url,
+          bio: shift.assigned_staff.bio,
           roles: shift.assigned_staff.roles,
           avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
         };
