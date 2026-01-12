@@ -196,10 +196,16 @@ export class ShiftService {
    * - filled/filed: shifts with assigned_staff_id not null
    * - unfilled: shifts with assigned_staff_id null
    * - cancelled/canceled: shifts with status = cancelled
+   * 
+   * Date range options:
+   * - daily: last 24 hours
+   * - weekly: last 7 days
+   * - monthly: last 30 days
+   * - yearly: last 365 days
    */
   async exportShifts(
     type: string,
-    options?: { search?: string },
+    options?: { search?: string; dateRange?: string },
   ): Promise<string> {
     
     try {
@@ -223,6 +229,36 @@ export class ShiftService {
         throw new BadRequestException(
           'Invalid export type. Use filled/filed, unfilled, or cancelled.',
         );
+      }
+
+      // Apply date range filter if provided
+      const dateRange = options?.dateRange?.trim().toLowerCase();
+      if (dateRange) {
+        const now = new Date();
+        let startDate: Date;
+
+        switch (dateRange) {
+          case 'daily':
+            startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
+            break;
+          case 'weekly':
+            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
+            break;
+          case 'monthly':
+            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
+            break;
+          case 'yearly':
+            startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); // Last 365 days
+            break;
+          default:
+            throw new BadRequestException(
+              'Invalid date range. Use daily, weekly, monthly, or yearly.',
+            );
+        }
+
+        where.created_at = {
+          gte: startDate,
+        };
       }
 
       const term = options?.search?.trim();

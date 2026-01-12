@@ -146,24 +146,45 @@ export class ShiftTimesheetService {
         throw new BadRequestException(`Timesheet is already ${status}.`);
       }
 
-      const updatedTimesheet = await this.prisma.shiftTimesheet.update({
-        where: { id: timesheetId },
-        data: {
-          status,
-          notes: message ?? timesheet.notes,
-          reviewed_at: new Date(),
-          approved_by: serviceProviderId,
-        },
-        include: {
-          shift: { select: { id: true, posting_title: true } },
-          staff: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
+      // Update timesheet and shift status in a transaction
+      const updatedTimesheet = await this.prisma.$transaction(async (tx) => {
+        // Update timesheet
+        const updated = await tx.shiftTimesheet.update({
+          where: { id: timesheetId },
+          data: {
+            status,
+            notes: message ?? timesheet.notes,
+            reviewed_at: new Date(),
+            approved_by: serviceProviderId,
+          },
+          include: {
+            shift: { select: { id: true, posting_title: true } },
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+              },
             },
           },
-        },
+        });
+
+        // Update shift status based on timesheet status
+        let shiftStatus: string | undefined;
+        if (status === TimesheetStatus.approved) {
+          shiftStatus = 'completed';
+        } else if (status === TimesheetStatus.rejected) {
+          shiftStatus = 'assigned';
+        }
+
+        if (shiftStatus) {
+          await tx.shift.update({
+            where: { id: timesheet.shift.id },
+            data: { status: shiftStatus as any },
+          });
+        }
+
+        return updated;
       });
 
       return {
