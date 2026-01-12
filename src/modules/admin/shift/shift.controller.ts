@@ -26,12 +26,14 @@ export class ShiftController {
   async export(
     @Query('type') type: string,
     @Query('search') search: string,
+    @Query('dateRange') dateRange: string,
     @Res() res: Response,
   ) {
-    const csv = await this.shiftService.exportShifts(type, { search });
+    const csv = await this.shiftService.exportShifts(type, { search, dateRange });
     const date = new Date().toISOString().slice(0, 10);
+    const rangeLabel = dateRange ? `_${dateRange}` : '';
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="shifts_${type || 'all'}_${date}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="shifts_${type || 'all'}${rangeLabel}_${date}.csv"`);
     res.send(csv);
   }
 
