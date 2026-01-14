@@ -100,6 +100,9 @@ export class StaffPreferenceService {
                             last_name: true,
                             photo_url: true,
                             roles: true,
+                            reviews: {
+                                select: { rating: true }
+                            },
                         },
                     },
                     set_by_employee: {
@@ -112,13 +115,32 @@ export class StaffPreferenceService {
                 },
             });
 
+            // Calculate average rating for each staff
+            const formattedPreferences = preferences.map(pref => {
+                const avgRating = pref.staff.reviews?.length
+                    ? pref.staff.reviews.reduce((sum, r) => sum + r.rating, 0) / pref.staff.reviews.length
+                    : null;
+
+                return {
+                    ...pref,
+                    staff: {
+                        id: pref.staff.id,
+                        first_name: pref.staff.first_name,
+                        last_name: pref.staff.last_name,
+                        photo_url: pref.staff.photo_url,
+                        roles: pref.staff.roles,
+                        avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+                    },
+                };
+            });
+
             return {
                 success: true,
                 message:
                     preferenceType === 'favorite'
                         ? 'Favorite staff fetched successfully'
                         : 'Blocked staff fetched successfully',
-                data: preferences,
+                data: formattedPreferences,
             };
         } catch (error) {
             if (error instanceof ForbiddenException) {

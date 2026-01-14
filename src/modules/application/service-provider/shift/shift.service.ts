@@ -373,6 +373,31 @@ export class ShiftService {
 
       if (!shift) throw new NotFoundException('Shift not found');
 
+      // Get service provider preferences for all staff in applications
+      const staffIds = shift.applications.map(app => app.staff.id);
+      const preferences = await this.prisma.providerStaffPreference.findMany({
+        where: {
+          provider_id: shift.service_provider_id,
+          staff_id: { in: staffIds },
+        },
+        select: {
+          staff_id: true,
+          preference_type: true,
+        },
+      });
+
+      // Create lookup maps for quick access
+      const favoriteMap = new Map(
+        preferences
+          .filter(p => p.preference_type === 'favorite')
+          .map(p => [p.staff_id, true])
+      );
+      const blockedMap = new Map(
+        preferences
+          .filter(p => p.preference_type === 'blocked')
+          .map(p => [p.staff_id, true])
+      );
+
       if (shift.applications && shift.applications.length) {
         for (const application of shift.applications) {
           if (application.staff.photo_url) {
@@ -380,6 +405,9 @@ export class ShiftService {
               appConfig().storageUrl.staff + application.staff.photo_url,
             );
           }
+          // Add preference flags
+          (application.staff as any).is_favorite = favoriteMap.has(application.staff.id) || false;
+          (application.staff as any).is_blocked = blockedMap.has(application.staff.id) || false;
         }
       }
 
@@ -408,11 +436,12 @@ export class ShiftService {
         };
       }
 
-      const { _count, assigned_staff, ...rest } = shift as any;
+      const { _count, assigned_staff, reviews, ...rest } = shift as any;
       const formatted = {
         ...rest,
         assigned_staff: assignedStaffWithRating,
         applications_count: _count?.applications ?? 0,
+        is_reviewed: reviews && reviews.length > 0,
       };
 
       return { success: true, message: 'Shift fetched successfully', data: formatted };
