@@ -345,6 +345,8 @@ export class ApplyShiftService {
 
       // Apply distance filter if provided
       let items = itemsWithDistance;
+      let filteredTotal = total;
+
       if (max_distance_miles !== undefined || max_distance_km !== undefined) {
         items = itemsWithDistance.filter((item) => {
           if (max_distance_miles !== undefined && item.distance_miles !== undefined) {
@@ -356,6 +358,7 @@ export class ApplyShiftService {
           // If distance not calculated, exclude from results when distance filter is applied
           return false;
         });
+        filteredTotal = items.length;
       }
 
       return {
@@ -363,10 +366,10 @@ export class ApplyShiftService {
         message: 'Shifts fetched successfully',
         data: items,
         meta: {
-          total: total,
+          total: filteredTotal,
           page: currentPage,
           limit: pageSize,
-          totalPages: Math.ceil(total / pageSize) || 1,
+          totalPages: Math.ceil(filteredTotal / pageSize) || 1,
         },
       };
     } catch (error) {
