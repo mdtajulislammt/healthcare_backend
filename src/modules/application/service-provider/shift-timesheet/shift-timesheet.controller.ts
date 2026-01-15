@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ShiftTimesheetService } from './shift-timesheet.service';
@@ -41,8 +42,21 @@ export class ShiftTimesheetController {
     EmployeePermissionType.approve_timesheets,
     EmployeePermissionType.dispute_timesheets,
   )
-  findAll() {
-    return this.shiftTimesheetService.findAll();
+  findAll(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftTimesheetService.findAll(user_id, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      status,
+    });
   }
 
   @Get('shift/:shift_id')

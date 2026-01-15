@@ -12,6 +12,8 @@ import { ApproveTimesheetDto } from './dto/approve-timesheet.dto';
 import { RejectTimesheetDto } from './dto/reject-timesheet.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
+import appConfig from 'src/config/app.config';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class ShiftTimesheetService {
@@ -24,8 +26,93 @@ export class ShiftTimesheetService {
     return 'This action adds a new shiftTimesheet';
   }
 
-  findAll() {
-    return `This action returns all shiftTimesheet`;
+  async findAll(user_id: string, options?: { page?: number; limit?: number; status?: string }) {
+    try {
+      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
+
+      const currentPage = Math.max(Number(options?.page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(options?.limit) || 10, 1), 100);
+      const skip = (currentPage - 1) * pageSize;
+
+      const where: any = {
+        shift: {
+          service_provider_id: serviceProviderId,
+        },
+        status: options?.status || { in: [TimesheetStatus.submitted, TimesheetStatus.under_review, TimesheetStatus.pending_submission] },
+      };
+
+      const [total, timesheets] = await this.prisma.$transaction([
+        this.prisma.shiftTimesheet.count({ where }),
+        this.prisma.shiftTimesheet.findMany({
+          where,
+          select: {
+            id: true,
+            status: true,
+            total_hours: true,
+            total_pay: true,
+            submitted_at: true,
+            reviewed_at: true,
+            created_at: true,
+            shift: {
+              select: {
+                id: true,
+                posting_title: true,
+                facility_name: true,
+                start_date: true,
+                end_date: true,
+                attendance: {
+                  select: {
+                    id: true,
+                    status: true,
+                    check_in_time: true,
+                    check_out_time: true,
+                    location_check: true,
+                  },
+                },
+              },
+            },
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+              },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: pageSize,
+        }),
+      ]);
+
+      const formattedTimesheets = timesheets.map((timesheet) => ({
+        ...timesheet,
+        staff: {
+          ...timesheet.staff,
+          photo_url: timesheet.staff.photo_url 
+            ? SojebStorage.url(appConfig().storageUrl.staff + timesheet.staff.photo_url) 
+            : null,
+        },
+      }));
+
+      return {
+        success: true,
+        message: 'Timesheets fetched successfully',
+        data: formattedTimesheets,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
+      };
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch timesheets.');
+    }
   }
 
   findOne(id: string) {
