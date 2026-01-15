@@ -94,4 +94,14 @@ export class HomeController {
 
     return this.homeService.getAllHomeData(user_id, shiftsLimitNum, activitiesLimitNum);
   }
+
+  @ApiOperation({ summary: 'Get pending timesheet approval count' })
+  @Get('pending-timesheet-count')
+  getPendingTimesheetCount(@Req() req: Request) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.homeService.getPendingTimesheetCount(user_id);
+  }
 }
