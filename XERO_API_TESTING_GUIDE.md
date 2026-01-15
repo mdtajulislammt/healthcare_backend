@@ -1,5 +1,6 @@
 # Xero API Integration - Step-by-Step Testing Guide
 
+
 ### 1. Set Up Xero App
 1. Go to [Xero Developer Portal](https://developer.xero.com/)
 2. Sign in or create an account
