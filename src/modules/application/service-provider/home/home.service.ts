@@ -5,7 +5,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ShiftStatus, Prisma } from '@prisma/client';
+import { ShiftStatus, Prisma, TimesheetStatus } from '@prisma/client';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
@@ -346,10 +346,11 @@ export class HomeService {
      */
     async getAllHomeData(serviceProviderUserId: string, shiftsLimit: number = 10, activitiesLimit: number = 10) {
         try {
-            const [metrics, recentShifts, recentActivities] = await Promise.all([
+            const [metrics, recentShifts, recentActivities, pendingTimesheetCount] = await Promise.all([
                 this.getDashboardMetrics(serviceProviderUserId),
                 this.getRecentShifts(serviceProviderUserId, shiftsLimit),
                 this.getRecentActivities(serviceProviderUserId, activitiesLimit),
+                this.getPendingTimesheetCount(serviceProviderUserId)
             ]);
 
             return {
@@ -357,6 +358,7 @@ export class HomeService {
                 message: 'Home data fetched successfully',
                 data: {
                     metrics: metrics.data,
+                    pending_timesheet_count: pendingTimesheetCount.data,
                     recent_shifts: recentShifts.data,
                     recent_activities: recentActivities.data,
                 },
@@ -370,6 +372,52 @@ export class HomeService {
             }
             throw new InternalServerErrorException(
                 error.message || 'Failed to fetch all home data',
+            );
+        }
+    }
+
+    /**
+     * Get pending timesheet approval count
+     */
+    async getPendingTimesheetCount(serviceProviderUserId: string) {
+        try {
+            const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
+                where: { user_id: serviceProviderUserId },
+                select: { id: true },
+            });
+
+            if (!serviceProvider) {
+                throw new NotFoundException('Service provider not found');
+            }
+
+            const pendingCount = await this.prisma.shiftTimesheet.count({
+                where: {
+                    shift: {
+                        service_provider_id: serviceProvider.id,
+                    },
+                    status: {
+                        in: [
+                            TimesheetStatus.submitted,
+                            TimesheetStatus.under_review,
+                            TimesheetStatus.pending_submission,
+                        ],
+                    },
+                },
+            });
+
+            return {
+                success: true,
+                message: 'Pending timesheet count fetched successfully',
+                data: {
+                    pending_count: pendingCount,
+                },
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                error.message || 'Failed to fetch pending timesheet count',
             );
         }
     }
