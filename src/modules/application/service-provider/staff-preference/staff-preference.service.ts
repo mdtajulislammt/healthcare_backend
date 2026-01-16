@@ -34,32 +34,50 @@ export class StaffPreferenceService {
                 throw new NotFoundException('Staff profile not found.');
             }
 
-            const preference = await this.prisma.providerStaffPreference.upsert({
-                where: {
-                    provider_id_staff_id_preference_type: {
+            // Determine the opposite preference type
+            const oppositePreferenceType = preferenceType === StaffPreferenceType.favorite 
+                ? StaffPreferenceType.blocked 
+                : StaffPreferenceType.favorite;
+
+            // Use transaction to ensure atomicity
+            const preference = await this.prisma.$transaction(async (tx) => {
+                // Delete opposite preference if exists
+                await tx.providerStaffPreference.deleteMany({
+                    where: {
+                        provider_id: serviceProviderId,
+                        staff_id: staffId,
+                        preference_type: oppositePreferenceType,
+                    },
+                });
+
+                // Upsert the new preference
+                return tx.providerStaffPreference.upsert({
+                    where: {
+                        provider_id_staff_id_preference_type: {
+                            provider_id: serviceProviderId,
+                            staff_id: staffId,
+                            preference_type: preferenceType,
+                        },
+                    },
+                    create: {
                         provider_id: serviceProviderId,
                         staff_id: staffId,
                         preference_type: preferenceType,
+                        reason: reason?.trim() || null,
                     },
-                },
-                create: {
-                    provider_id: serviceProviderId,
-                    staff_id: staffId,
-                    preference_type: preferenceType,
-                    reason: reason?.trim() || null,
-                },
-                update: {
-                    reason: reason?.trim() || null,
-                },
-                include: {
-                    staff: {
-                        select: {
-                            id: true,
-                            first_name: true,
-                            last_name: true,
+                    update: {
+                        reason: reason?.trim() || null,
+                    },
+                    include: {
+                        staff: {
+                            select: {
+                                id: true,
+                                first_name: true,
+                                last_name: true,
+                            },
                         },
                     },
-                },
+                });
             });
 
             return {
