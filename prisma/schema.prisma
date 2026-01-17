@@ -200,6 +200,9 @@ model User {
   is_two_factor_enabled Int?    @default(0)
   two_factor_secret     String? // secret key for two factor authentication
 
+  // Push notification preferences
+  push_notification_enabled Boolean @default(true)
+
   accounts                  Account[]
   creator_conversations     Conversation[] @relation("creator")
   participant_conversations Conversation[] @relation("participant")

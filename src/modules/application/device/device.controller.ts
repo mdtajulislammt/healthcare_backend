@@ -3,11 +3,14 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -45,6 +48,47 @@ export class DeviceController {
     }
 
     await this.deviceService.unregisterDevice(token);
+  }
+
+  @Post('test-notification')
+  async testNotification(
+    @Req() req: Request,
+    @Body('title') title?: string,
+    @Body('body') body?: string,
+  ) {
+    const userId = (req.user as any)?.userId as string | undefined;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.deviceService.testPushNotification(userId, title, body);
+  }
+
+  @Get('push-notification-status')
+  async getPushNotificationStatus(@Req() req: Request) {
+    const userId = (req.user as any)?.userId as string | undefined;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.deviceService.getPushNotificationStatus(userId);
+  }
+
+  @Patch('push-notification-toggle')
+  async togglePushNotification(
+    @Req() req: Request,
+    @Body('enabled') enabled: boolean,
+  ) {
+    const userId = (req.user as any)?.userId as string | undefined;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    if (typeof enabled !== 'boolean') {
+      throw new BadRequestException('enabled must be a boolean');
+    }
+
+    return this.deviceService.togglePushNotification(userId, enabled);
   }
 }
 
