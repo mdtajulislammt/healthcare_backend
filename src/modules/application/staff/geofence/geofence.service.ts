@@ -446,6 +446,40 @@ export class GeofenceService {
                 shift.facility_name,
             );
 
+            // Get service provider user_id from shift
+            const shiftWithProvider = await this.prisma.shift.findUnique({
+                where: { id: shiftId },
+                include: {
+                    service_provider_info: {
+                        select: {
+                            user_id: true,
+                        },
+                    },
+                },
+            });
+
+            // Send notification to service provider
+            if (shiftWithProvider?.service_provider_info?.user_id) {
+                await NotificationRepository.createNotification({
+                    receiver_id: shiftWithProvider.service_provider_info.user_id,
+                    text: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+                    type: 'shift_checkin',
+                    entity_id: shiftId,
+                });
+
+                await this.pushNotificationService.sendToUser(
+                    shiftWithProvider.service_provider_info.user_id,
+                    {
+                        title: 'Staff Checked In',
+                        body: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+                        data: {
+                            type: 'shift_checkin',
+                            shiftId: shiftId,
+                        },
+                    },
+                );
+            }
+
             return {
                 success: true,
                 message: 'Check-in completed successfully',
@@ -619,6 +653,41 @@ export class GeofenceService {
                     shiftId,
                     totalHours,
                     totalPay,
+                );
+            }
+
+            // Get service provider user_id from shift
+            const shiftWithProvider = await this.prisma.shift.findUnique({
+                where: { id: shiftId },
+                include: {
+                    service_provider_info: {
+                        select: {
+                            user_id: true,
+                        },
+                    },
+                },
+            });
+
+            // Send notification to service provider
+            if (shiftWithProvider?.service_provider_info?.user_id) {
+                await NotificationRepository.createNotification({
+                    receiver_id: shiftWithProvider.service_provider_info.user_id,
+                    text: `Staff has checked out from shift: ${shift.posting_title} at ${shift.facility_name}. Total hours: ${totalHours}`,
+                    type: 'shift_checkout',
+                    entity_id: shiftId,
+                });
+
+                await this.pushNotificationService.sendToUser(
+                    shiftWithProvider.service_provider_info.user_id,
+                    {
+                        title: 'Staff Checked Out',
+                        body: `Staff has checked out from shift: ${shift.posting_title}. Total hours: ${totalHours}`,
+                        data: {
+                            type: 'shift_checkout',
+                            shiftId: shiftId,
+                            totalHours: totalHours.toString(),
+                        },
+                    },
                 );
             }
 
