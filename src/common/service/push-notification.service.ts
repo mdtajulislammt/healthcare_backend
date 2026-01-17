@@ -22,6 +22,17 @@ export class PushNotificationService {
    */
   async sendToUser(userId: string, payload: PushNotificationPayload) {
     try {
+      // Check if user has push notifications enabled
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { push_notification_enabled: true },
+      });
+
+      if (!user?.push_notification_enabled) {
+        this.logger.debug(`Push notifications disabled for user ${userId}`);
+        return;
+      }
+
       const devices = await this.prisma.userDeviceToken.findMany({
         where: { user_id: userId },
         select: { token: true },

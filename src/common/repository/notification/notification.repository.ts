@@ -2,6 +2,23 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+export type NotificationType =
+  | 'message'
+  | 'comment'
+  | 'review'
+  | 'booking'
+  | 'payment_transaction'
+  | 'package'
+  | 'blog'
+  | 'shift_application'
+  | 'shift_assigned'
+  | 'shift_rejected'
+  | 'shift_checkin'
+  | 'shift_checkout'
+  | 'timesheet_submitted'
+  | 'timesheet_approved'
+  | 'timesheet_rejected';
+
 export class NotificationRepository {
   /**
    * Create a notification
@@ -22,14 +39,7 @@ export class NotificationRepository {
     sender_id?: string;
     receiver_id?: string;
     text?: string;
-    type?:
-      | 'message'
-      | 'comment'
-      | 'review'
-      | 'booking'
-      | 'payment_transaction'
-      | 'package'
-      | 'blog';
+    type?: NotificationType;
     entity_id?: string;
   }) {
     const notificationEventData = {};
