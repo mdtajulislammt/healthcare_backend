@@ -11,12 +11,15 @@ import { UpdateApplyShiftDto } from './dto/update-apply-shift.dto';
 import { DateHelper } from '../../../../common/helper/date.helper';
 import { DistanceHelper } from '../../../../common/helper/distance.helper';
 import { ActivityLogService } from '../../../../common/service/activity-log.service';
+import { PushNotificationService } from '../../../../common/service/push-notification.service';
+import { NotificationRepository } from '../../../../common/repository/notification/notification.repository';
 
 @Injectable()
 export class ApplyShiftService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogService: ActivityLogService,
+    private readonly pushNotificationService: PushNotificationService,
   ) { }
 
   async create(createApplyShiftDto: CreateApplyShiftDto, user_id: string) {
@@ -53,6 +56,11 @@ export class ApplyShiftService {
           assigned_staff_id: true,
           posting_title: true,
           facility_name: true,
+          service_provider_info: {
+            select: {
+              user_id: true,
+            },
+          },
         },
       });
 
@@ -155,6 +163,29 @@ export class ApplyShiftService {
                 last_name: true,
               },
             },
+          },
+        });
+      }
+
+      // Send push notification to service provider
+      const serviceProviderUserId = shift.service_provider_info?.user_id;
+      if (serviceProviderUserId) {
+        const staffName = application.staff.first_name + ' ' + application.staff.last_name;
+        
+        await NotificationRepository.createNotification({
+          receiver_id: serviceProviderUserId,
+          text: `${staffName} has applied for shift: ${shift.posting_title} at ${shift.facility_name}`,
+          type: 'shift_application',
+          entity_id: shift_id,
+        });
+
+        await this.pushNotificationService.sendToUser(serviceProviderUserId, {
+          title: 'New Shift Application',
+          body: `${staffName} has applied for shift: ${shift.posting_title}`,
+          data: {
+            type: 'shift_application',
+            shiftId: shift_id,
+            applicationId: application.id,
           },
         });
       }

@@ -380,14 +380,15 @@ export class ShiftApplicationService {
           await NotificationRepository.createNotification({
             receiver_id: staffUserId,
             text: `You have been assigned to shift: ${application.shift.posting_title}`,
-            type: 'booking',
+            type: 'shift_assigned',
             entity_id: application.shift.id,
           });
 
           await this.pushNotificationService.sendToUser(staffUserId, {
-            title: 'Shift assigned',
-            body: `You have been assigned to a new shift: ${application.shift.posting_title}`,
+            title: 'Shift Assigned',
+            body: `You have been assigned to shift: ${application.shift.posting_title}`,
             data: {
+              type: 'shift_assigned',
               shiftId: application.shift.id,
             },
           });
@@ -427,6 +428,7 @@ export class ShiftApplicationService {
                 last_name: true,
                 user: {
                   select: {
+                    id: true,
                     email: true,
                   },
                 },
@@ -434,6 +436,26 @@ export class ShiftApplicationService {
             },
           },
         });
+
+        // Notify and push to staff user if user id is available
+        const staffUserId = application.staff.user?.id;
+        if (staffUserId) {
+          await NotificationRepository.createNotification({
+            receiver_id: staffUserId,
+            text: `Your application for shift: ${application.shift.posting_title} has been rejected`,
+            type: 'shift_rejected',
+            entity_id: application.shift.id,
+          });
+
+          await this.pushNotificationService.sendToUser(staffUserId, {
+            title: 'Application Rejected',
+            body: `Your application for shift: ${application.shift.posting_title} has been rejected`,
+            data: {
+              type: 'shift_rejected',
+              shiftId: application.shift.id,
+            },
+          });
+        }
 
         return {
           success: true,

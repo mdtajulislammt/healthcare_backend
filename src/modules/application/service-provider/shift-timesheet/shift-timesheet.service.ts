@@ -14,12 +14,15 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import { PushNotificationService } from 'src/common/service/push-notification.service';
+import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 
 @Injectable()
 export class ShiftTimesheetService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly providerContextHelper: ServiceProviderContextHelper,
+    private readonly pushNotificationService: PushNotificationService,
   ) { }
 
   create(createShiftTimesheetDto: CreateShiftTimesheetDto) {
@@ -216,6 +219,11 @@ export class ShiftTimesheetService {
               id: true,
               first_name: true,
               last_name: true,
+              user: {
+                select: {
+                  id: true,
+                },
+              },
             },
           },
         },
@@ -273,6 +281,34 @@ export class ShiftTimesheetService {
 
         return updated;
       });
+
+      // Send push notification to staff
+      const staffUserId = timesheet.staff.user?.id;
+      if (staffUserId) {
+        const isApproved = status === TimesheetStatus.approved;
+        const notificationType = isApproved ? 'timesheet_approved' : 'timesheet_rejected';
+        const title = isApproved ? 'Timesheet Approved' : 'Timesheet Rejected';
+        const bodyText = isApproved
+          ? `Your timesheet for shift: ${timesheet.shift.posting_title} has been approved`
+          : `Your timesheet for shift: ${timesheet.shift.posting_title} has been rejected`;
+
+        await NotificationRepository.createNotification({
+          receiver_id: staffUserId,
+          text: bodyText,
+          type: notificationType,
+          entity_id: timesheet.shift.id,
+        });
+
+        await this.pushNotificationService.sendToUser(staffUserId, {
+          title: title,
+          body: bodyText,
+          data: {
+            type: notificationType,
+            timesheetId: timesheetId,
+            shiftId: timesheet.shift.id,
+          },
+        });
+      }
 
       return {
         success: true,
