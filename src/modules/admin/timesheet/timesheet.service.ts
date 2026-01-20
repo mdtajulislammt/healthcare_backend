@@ -842,12 +842,14 @@ export class TimesheetService {
                 select: {
                     id: true,
                     xero_invoice_id: true,
+                    staff_id: true,
                 },
             });
 
             const results = {
                 success: 0,
                 failed: 0,
+                staff_paid: 0,
                 errors: [] as string[],
             };
 
@@ -859,6 +861,29 @@ export class TimesheetService {
                         timesheet.xero_invoice_id,
                     );
                     results.success++;
+
+                    // Check if invoice is now paid and mark staff as paid
+                    const updated = await this.prisma.shiftTimesheet.findUnique({
+                        where: { id: timesheet.id },
+                        select: {
+                            id: true,
+                            xero_status: true,
+                            paid_at: true,
+                            staff_pay_status: true,
+                        },
+                    });
+
+                    if (updated && updated.xero_status === 'PAID' && updated.staff_pay_status !== 'paid') {
+                        // Mark staff as paid
+                        await this.prisma.shiftTimesheet.update({
+                            where: { id: timesheet.id },
+                            data: {
+                                staff_pay_status: 'paid',
+                                staff_paid_at: new Date(),
+                            },
+                        });
+                        results.staff_paid++;
+                    }
                 } catch (error) {
                     results.failed++;
                     results.errors.push(
@@ -869,7 +894,7 @@ export class TimesheetService {
 
             return {
                 success: true,
-                message: `Synced ${results.success} invoices. ${results.failed} failed.`,
+                message: `Synced ${results.success} invoices. ${results.failed} failed. ${results.staff_paid} staff marked as paid.`,
                 data: results,
             };
         } catch (error) {
