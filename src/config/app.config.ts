@@ -68,6 +68,7 @@ export default () => ({
       clientId: process.env.XERO_CLIENT_ID,
       clientSecret: process.env.XERO_CLIENT_SECRET,
       redirectUri: process.env.XERO_REDIRECT_URI,
+      frontendRedirectUrl: process.env.XERO_FRONTEND_REDIRECT_URL || 'http://localhost:3000/shift_operations',
     },
   },
 
