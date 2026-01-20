@@ -591,6 +591,11 @@ export class XeroService {
                 staffPaymentNotes += `\n\nNote: Staff bank details not provided.`;
             }
 
+            // Create enhanced description with staff details for line item
+            const enhancedDescription = bankDetails
+                ? `${description}\n\nStaff Bank Details:\nAccount: ${bankDetails.account_holder_name}\nSort Code: ${bankDetails.sort_code}\nAccount No: ${bankDetails.account_number}${bankDetails.bank_name ? `\nBank: ${bankDetails.bank_name}` : ''}`
+                : description;
+
             // Create invoice in Xero
             const invoiceResponse = await this.xeroClient.accountingApi.createInvoices(
                 tenantId,
@@ -605,7 +610,7 @@ export class XeroService {
                             dueDate: dueDate.toISOString().split('T')[0],
                             lineItems: [
                                 {
-                                    description: description,
+                                    description: enhancedDescription,
                                     quantity: timesheet.total_hours,
                                     unitAmount: timesheet.hourly_rate,
                                     accountCode: '200', // Default revenue account (client should configure)
