@@ -17,6 +17,7 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { Request, Response } from 'express';
+import appConfig from 'src/config/app.config';
 
 @ApiTags('Payment - Xero')
 @Controller('payment/xero')
@@ -89,35 +90,28 @@ export class XeroController {
     }
 
     @Get('callback')
-    async callback(@Query('code') code: string, @Query('error') error?: string) {
+    async callback(
+        @Query('code') code: string,
+        @Query('error') error: string,
+        @Res() res: Response,
+    ) {
+        const frontendUrl = appConfig().payment.xero.frontendRedirectUrl;
+
         // Check for OAuth errors from Xero
         if (error) {
-            throw new BadRequestException(
-                `Xero authorization failed: ${error}`,
-            );
+            return res.redirect(`${frontendUrl}?xero_error=${encodeURIComponent(error)}`);
         }
 
         if (!code) {
-            throw new BadRequestException('Authorization code is required');
+            return res.redirect(`${frontendUrl}?xero_error=missing_code`);
         }
 
         try {
             await this.xeroService.handleOAuthCallback(code);
-            return {
-                success: true,
-                message: 'Xero connected successfully',
-            };
+            return res.redirect(`${frontendUrl}?xero_connected=true`);
         } catch (error) {
-            // Re-throw BadRequestException and InternalServerErrorException as-is
-            if (
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw new BadRequestException(
-                `Failed to complete Xero connection: ${error.message}`,
-            );
+            const errorMessage = error?.message || 'connection_failed';
+            return res.redirect(`${frontendUrl}?xero_error=${encodeURIComponent(errorMessage)}`);
         }
     }
 
