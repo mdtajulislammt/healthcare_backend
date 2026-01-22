@@ -14,12 +14,14 @@ import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
+import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
 
 @Injectable()
 export class ShiftApplicationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) { }
 
   create(createShiftApplicationDto: CreateShiftApplicationDto) {
@@ -394,6 +396,36 @@ export class ShiftApplicationService {
           });
         }
 
+        // Notify all admins (websocket + DB)
+        const adminUsers = await this.prisma.user.findMany({
+          where: { type: 'admin' },
+          select: { id: true },
+        });
+
+        const adminTitle = 'Shift Assigned';
+        const adminBody = `Staff ${application.staff.first_name} ${application.staff.last_name} assigned to shift: ${application.shift.posting_title}`;
+
+        for (const admin of adminUsers) {
+          await this.notificationGateway.handleNotification({
+            userId: admin.id,
+            title: adminTitle,
+            body: adminBody,
+            data: {
+              type: 'shift_assigned',
+              shiftId: application.shift.id,
+              staffId: application.staff.id,
+              staffName: `${application.staff.first_name} ${application.staff.last_name}`,
+            },
+          });
+
+          await NotificationRepository.createNotification({
+            receiver_id: admin.id,
+            text: adminBody,
+            type: 'shift_assigned',
+            entity_id: application.shift.id,
+          });
+        }
+
         return {
           success: true,
           message: 'Application accepted successfully. Staff has been assigned to the shift.',
@@ -454,6 +486,36 @@ export class ShiftApplicationService {
               type: 'shift_rejected',
               shiftId: application.shift.id,
             },
+          });
+        }
+
+        // Notify all admins (websocket + DB)
+        const adminUsers = await this.prisma.user.findMany({
+          where: { type: 'admin' },
+          select: { id: true },
+        });
+
+        const adminTitle = 'Shift Application Rejected';
+        const adminBody = `Service provider rejected application for ${application.staff.first_name} ${application.staff.last_name} - shift: ${application.shift.posting_title}`;
+
+        for (const admin of adminUsers) {
+          await this.notificationGateway.handleNotification({
+            userId: admin.id,
+            title: adminTitle,
+            body: adminBody,
+            data: {
+              type: 'shift_rejected',
+              shiftId: application.shift.id,
+              staffId: application.staff.id,
+              staffName: `${application.staff.first_name} ${application.staff.last_name}`,
+            },
+          });
+
+          await NotificationRepository.createNotification({
+            receiver_id: admin.id,
+            text: adminBody,
+            type: 'shift_rejected',
+            entity_id: application.shift.id,
           });
         }
 
