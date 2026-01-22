@@ -16,6 +16,7 @@ import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
+import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
 
 @Injectable()
 export class ShiftTimesheetService {
@@ -23,6 +24,7 @@ export class ShiftTimesheetService {
     private readonly prisma: PrismaService,
     private readonly providerContextHelper: ServiceProviderContextHelper,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) { }
 
   create(createShiftTimesheetDto: CreateShiftTimesheetDto) {
@@ -307,6 +309,45 @@ export class ShiftTimesheetService {
             timesheetId: timesheetId,
             shiftId: timesheet.shift.id,
           },
+        });
+      }
+
+      // Send notification to all admins
+      const staffName = `${timesheet.staff.first_name} ${timesheet.staff.last_name}`;
+      const isApproved = status === TimesheetStatus.approved;
+      const adminNotificationTitle = isApproved
+        ? 'Timesheet Approved by Provider'
+        : 'Timesheet Rejected by Provider';
+      const adminNotificationBody = isApproved
+        ? `Service provider has approved timesheet for ${staffName} - ${timesheet.shift.posting_title}`
+        : `Service provider has rejected timesheet for ${staffName} - ${timesheet.shift.posting_title}`;
+
+      const adminUsers = await this.prisma.user.findMany({
+        where: { type: 'admin' },
+        select: { id: true },
+      });
+
+      for (const admin of adminUsers) {
+        // Send WebSocket notification
+        await this.notificationGateway.handleNotification({
+          userId: admin.id,
+          title: adminNotificationTitle,
+          body: adminNotificationBody,
+          data: {
+            type: isApproved ? 'timesheet_approved' : 'timesheet_rejected',
+            timesheetId: timesheetId,
+            shiftId: timesheet.shift.id,
+            staffName: staffName,
+            approvedBy: 'service_provider',
+          },
+        });
+
+        // Save notification to database
+        await NotificationRepository.createNotification({
+          receiver_id: admin.id,
+          text: adminNotificationBody,
+          type: isApproved ? 'timesheet_approved' : 'timesheet_rejected',
+          entity_id: timesheetId,
         });
       }
 
