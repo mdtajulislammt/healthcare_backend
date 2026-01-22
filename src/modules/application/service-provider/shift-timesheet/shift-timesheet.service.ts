@@ -328,11 +328,20 @@ export class ShiftTimesheetService {
       });
 
       for (const admin of adminUsers) {
-        // Send WebSocket notification
-        await this.notificationGateway.handleNotification({
+        // Save notification to database first
+        const notification = await NotificationRepository.createNotification({
+          receiver_id: admin.id,
+          text: adminNotificationBody,
+          type: isApproved ? 'timesheet_approved' : 'timesheet_rejected',
+          entity_id: timesheetId,
+        });
+
+        // Send WebSocket notification with full object
+        await this.notificationGateway.sendNotificationToUser({
           userId: admin.id,
           title: adminNotificationTitle,
           body: adminNotificationBody,
+          notificationId: notification.id,
           data: {
             type: isApproved ? 'timesheet_approved' : 'timesheet_rejected',
             timesheetId: timesheetId,
@@ -340,14 +349,6 @@ export class ShiftTimesheetService {
             staffName: staffName,
             approvedBy: 'service_provider',
           },
-        });
-
-        // Save notification to database
-        await NotificationRepository.createNotification({
-          receiver_id: admin.id,
-          text: adminNotificationBody,
-          type: isApproved ? 'timesheet_approved' : 'timesheet_rejected',
-          entity_id: timesheetId,
         });
       }
 

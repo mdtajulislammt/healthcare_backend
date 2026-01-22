@@ -406,23 +406,24 @@ export class ShiftApplicationService {
         const adminBody = `Staff ${application.staff.first_name} ${application.staff.last_name} assigned to shift: ${application.shift.posting_title}`;
 
         for (const admin of adminUsers) {
-          await this.notificationGateway.handleNotification({
+          const notification = await NotificationRepository.createNotification({
+            receiver_id: admin.id,
+            text: adminBody,
+            type: 'shift_assigned',
+            entity_id: application.shift.id,
+          });
+
+          await this.notificationGateway.sendNotificationToUser({
             userId: admin.id,
             title: adminTitle,
             body: adminBody,
+            notificationId: notification.id,
             data: {
               type: 'shift_assigned',
               shiftId: application.shift.id,
               staffId: application.staff.id,
               staffName: `${application.staff.first_name} ${application.staff.last_name}`,
             },
-          });
-
-          await NotificationRepository.createNotification({
-            receiver_id: admin.id,
-            text: adminBody,
-            type: 'shift_assigned',
-            entity_id: application.shift.id,
           });
         }
 
@@ -499,23 +500,24 @@ export class ShiftApplicationService {
         const adminBody = `Service provider rejected application for ${application.staff.first_name} ${application.staff.last_name} - shift: ${application.shift.posting_title}`;
 
         for (const admin of adminUsers) {
-          await this.notificationGateway.handleNotification({
+          const notification = await NotificationRepository.createNotification({
+            receiver_id: admin.id,
+            text: adminBody,
+            type: 'shift_rejected',
+            entity_id: application.shift.id,
+          });
+
+          await this.notificationGateway.sendNotificationToUser({
             userId: admin.id,
             title: adminTitle,
             body: adminBody,
+            notificationId: notification.id,
             data: {
               type: 'shift_rejected',
               shiftId: application.shift.id,
               staffId: application.staff.id,
               staffName: `${application.staff.first_name} ${application.staff.last_name}`,
             },
-          });
-
-          await NotificationRepository.createNotification({
-            receiver_id: admin.id,
-            text: adminBody,
-            type: 'shift_rejected',
-            entity_id: application.shift.id,
           });
         }
 

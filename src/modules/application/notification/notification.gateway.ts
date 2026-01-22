@@ -14,6 +14,7 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { OnModuleInit } from '@nestjs/common';
 import appConfig from 'src/config/app.config';
 import Redis from 'ioredis';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @WebSocketGateway({
   cors: {
@@ -36,7 +37,10 @@ export class NotificationGateway
   // Map to store connected clients
   private clients = new Map<string, string>(); // userId -> socketId
 
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   onModuleInit() {
     this.redisPubClient = new Redis({
@@ -51,9 +55,24 @@ export class NotificationGateway
       password: appConfig().redis.password,
     });
 
-    this.redisSubClient.subscribe('notification', (err, message: string) => {
-      const data = JSON.parse(message);
-      this.server.emit('receiveNotification', data);
+    // Subscribe to Redis notification channel
+    this.redisSubClient.on('message', (channel, message) => {
+      if (channel === 'notification') {
+        try {
+          const data = JSON.parse(message);
+          this.server.emit('receiveNotification', data);
+        } catch (error) {
+          console.error('Failed to parse notification data:', error);
+        }
+      }
+    });
+
+    this.redisSubClient.subscribe('notification', (err) => {
+      if (err) {
+        console.error('Failed to subscribe to notification channel:', err);
+      } else {
+        console.log('Successfully subscribed to notification channel');
+      }
     });
   }
 
@@ -101,6 +120,53 @@ export class NotificationGateway
       // console.log(`Notification sent to user ${data.userId}`);
     } else {
       // console.log(`User ${data.userId} not connected`);
+    }
+  }
+
+  // Public method for sending notifications from services/controllers
+  async sendNotificationToUser(payload: {
+    userId: string;
+    title?: string;
+    body?: string;
+    data?: Record<string, any>;
+    notificationId?: string; // Optional: if provided, fetch full notification object
+  }) {
+    try {
+      let notificationData: any;
+
+      // If notificationId is provided, fetch the full notification with relations
+      if (payload.notificationId) {
+        const notification = await this.prisma.notification.findUnique({
+          where: { id: payload.notificationId },
+          include: {
+            notification_event: true,
+            sender: {
+              select: {
+                id: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+        notificationData = notification;
+      } else {
+        // Fallback to simple notification object
+        notificationData = {
+          userId: payload.userId,
+          title: payload.title || 'Notification',
+          body: payload.body || '',
+          data: payload.data || {},
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      console.log(`Sending notification to user ${payload.userId}:`, notificationData);
+      
+      // Publish to Redis for all server instances to receive
+      await this.redisPubClient.publish('notification', JSON.stringify(notificationData));
+    } catch (error) {
+      console.error('Error sending notification:', error);
     }
   }
 }
