@@ -473,11 +473,11 @@ model Conversation {
 
 // Admin Models
 model AdminProfile {
-  id         String   @id @default(cuid())
-  user_id    String   @unique
-  first_name String
-  last_name  String
-  photo_url  String?
+  id            String    @id @default(cuid())
+  user_id       String    @unique
+  first_name    String
+  last_name     String
+  photo_url     String?
   date_of_birth DateTime?
   mobile_code   String?
   mobile_number String?
@@ -489,6 +489,7 @@ model AdminProfile {
 
   @@map("admin_profiles")
 }
+
 // Service Provider Models
 model ServiceProviderInfo {
   id                         String      @id @default(cuid())
@@ -562,18 +563,18 @@ model EmployeePermission {
 
 // Staff Models
 model StaffProfile {
-  id            String   @id @default(cuid())
-  user_id       String   @unique
-  first_name    String
-  last_name     String
-  mobile_code   String?
-  mobile_number String?
-  date_of_birth DateTime
-  photo_url     String?
-  bio           String?
-  experience    String?
-  nmc_pin       String? 
-  agreed_to_terms Boolean @default(false)
+  id              String   @id @default(cuid())
+  user_id         String   @unique
+  first_name      String
+  last_name       String
+  mobile_code     String?
+  mobile_number   String?
+  date_of_birth   DateTime
+  photo_url       String?
+  bio             String?
+  experience      String?
+  nmc_pin         String?
+  agreed_to_terms Boolean  @default(false)
 
   // Step 2: Role & Work Status
   roles                StaffRole[] // additional roles (multi-select)
@@ -615,7 +616,7 @@ model StaffBankDetails {
   sort_code           String // UK: 6 digits (e.g., "12-34-56")
   account_number      String // UK: 8 digits
   bank_name           String?
-  is_verified         Boolean @default(false)
+  is_verified         Boolean @default(true)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
