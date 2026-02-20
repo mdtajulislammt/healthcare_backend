@@ -331,7 +331,8 @@ export class AuthService {
       if (userApproved.approved_at === null) {
         return {
           success: false,
-          message: 'User not approved',
+          message:
+            'Please wait 3 working days for your account to be approved. For any queries please email enroll@vitalhands.co.uk',
         };
       }
 
