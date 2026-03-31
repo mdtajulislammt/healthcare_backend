@@ -169,6 +169,38 @@ export class AuthService {
     }
   }
 
+  async deleteAccount(userId: string) {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: userId,
+          deleted_at: null,
+        },
+      });
+
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      await this.prisma.user.delete({
+        where: { id: userId },
+      });
+
+      return {
+        success: true,
+        message: 'User account deleted successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
   // async updateUser(
   //   userId: string,
   //   updateUserDto: UpdateUserDto,

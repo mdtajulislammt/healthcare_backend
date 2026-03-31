@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
@@ -15,7 +16,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { memoryStorage } from 'multer';
-import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,7 +31,10 @@ import { ResendOtpDto } from './dto/resend-otp.dto';
 import { VerifyEmailCodeDto } from './dto/verify-email-code.dto';
 import { CompleteStaffProfileDto } from './dto/complete-staff-profile.dto';
 import { CompleteServiceProviderProfileDto } from './dto/complete-service-provider-profile.dto';
-import { CreateStaffCertificateDto, CreateStaffCertificatesBulkDto } from './dto/create-staff-certificate.dto';
+import {
+  CreateStaffCertificateDto,
+  CreateStaffCertificatesBulkDto,
+} from './dto/create-staff-certificate.dto';
 import { CreateStaffDbsInfoDto } from './dto/create-staff-dbs-info.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import appConfig from '../../config/app.config';
@@ -36,7 +43,7 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) { }
+  constructor(private authService: AuthService) {}
 
   @ApiOperation({ summary: 'Get user details' })
   @ApiBearerAuth()
@@ -53,6 +60,25 @@ export class AuthController {
       return {
         success: false,
         message: 'Failed to fetch user details',
+      };
+    }
+  }
+
+  @ApiOperation({ summary: 'Delete logged in user account' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete-account')
+  async deleteAccount(@Req() req: Request) {
+    try {
+      const user_id = req.user.userId;
+
+      const response = await this.authService.deleteAccount(user_id);
+
+      return response;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
       };
     }
   }
@@ -316,7 +342,6 @@ export class AuthController {
   //   }
   // }
 
-
   // -------change email address------
   @ApiOperation({ summary: 'request email change' })
   @ApiBearerAuth()
@@ -448,7 +473,10 @@ export class AuthController {
     try {
       const type = data.type;
       if (!type) {
-        throw new HttpException('Account type not provided', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Account type not provided',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       return await this.authService.selectAccountType(type);
     } catch (error) {
@@ -474,7 +502,8 @@ export class AuthController {
       const result = await this.authService.registerEmail(userId, email);
       //! TODO: Remove this code from response after testing
       if (result.success) {
-        const ucode = await this.authService.getRegistrationOtpForTesting(email);
+        const ucode =
+          await this.authService.getRegistrationOtpForTesting(email);
         return {
           ...result,
           test_otp_code: ucode, // For testing purposes only
@@ -504,7 +533,8 @@ export class AuthController {
       const result = await this.authService.resendOtp(userId, email);
       //! TODO: Remove this code from response after testing
       if (result.success) {
-        const ucode = await this.authService.getRegistrationOtpForTesting(email);
+        const ucode =
+          await this.authService.getRegistrationOtpForTesting(email);
         return {
           ...result,
           test_otp_code: ucode, // For testing purposes only
@@ -529,7 +559,10 @@ export class AuthController {
         throw new HttpException('Email not provided', HttpStatus.BAD_REQUEST);
       }
       if (!code) {
-        throw new HttpException('Verification code not provided', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Verification code not provided',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       return await this.authService.verifyEmailCode(email, code);
     } catch (error) {
@@ -540,27 +573,32 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Step 4A: Complete staff profile (with certificates and DBS info)' })
+  @ApiOperation({
+    summary: 'Step 4A: Complete staff profile (with certificates and DBS info)',
+  })
   @Post('complete-staff-profile')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'photo', maxCount: 1 },
-    { name: 'cv', maxCount: 1 },
-    { name: 'care_certificate', maxCount: 1 },
-    { name: 'moving_handling', maxCount: 1 },
-    { name: 'first_aid', maxCount: 1 },
-    { name: 'basic_life_support', maxCount: 1 },
-    { name: 'infection_control', maxCount: 1 },
-    { name: 'safeguarding', maxCount: 1 },
-    { name: 'health_safety', maxCount: 1 },
-    { name: 'equality_diversity', maxCount: 1 },
-    { name: 'coshh', maxCount: 1 },
-    { name: 'medication_training', maxCount: 1 },
-    { name: 'nvq_iii', maxCount: 1 },
-    { name: 'additional_training', maxCount: 1 },
-  ]))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'photo', maxCount: 1 },
+      { name: 'cv', maxCount: 1 },
+      { name: 'care_certificate', maxCount: 1 },
+      { name: 'moving_handling', maxCount: 1 },
+      { name: 'first_aid', maxCount: 1 },
+      { name: 'basic_life_support', maxCount: 1 },
+      { name: 'infection_control', maxCount: 1 },
+      { name: 'safeguarding', maxCount: 1 },
+      { name: 'health_safety', maxCount: 1 },
+      { name: 'equality_diversity', maxCount: 1 },
+      { name: 'coshh', maxCount: 1 },
+      { name: 'medication_training', maxCount: 1 },
+      { name: 'nvq_iii', maxCount: 1 },
+      { name: 'additional_training', maxCount: 1 },
+    ]),
+  )
   async completeStaffProfile(
     @Body() data: CompleteStaffProfileDto & { user_id: string },
-    @UploadedFiles() files?: {
+    @UploadedFiles()
+    files?: {
       photo?: Express.Multer.File[];
       cv?: Express.Multer.File[];
       care_certificate?: Express.Multer.File[];
@@ -606,7 +644,20 @@ export class AuthController {
       // Extract certificate files
       const certificateFiles: { [key: string]: Express.Multer.File[] } = {};
       if (files) {
-        const certFields = ['care_certificate', 'moving_handling', 'first_aid', 'basic_life_support', 'infection_control', 'safeguarding', 'health_safety', 'equality_diversity', 'coshh', 'medication_training', 'nvq_iii', 'additional_training'];
+        const certFields = [
+          'care_certificate',
+          'moving_handling',
+          'first_aid',
+          'basic_life_support',
+          'infection_control',
+          'safeguarding',
+          'health_safety',
+          'equality_diversity',
+          'coshh',
+          'medication_training',
+          'nvq_iii',
+          'additional_training',
+        ];
         for (const field of certFields) {
           if (files[field]) {
             certificateFiles[field] = files[field];
@@ -619,7 +670,7 @@ export class AuthController {
         profileData,
         photo,
         cv,
-        Object.keys(certificateFiles).length > 0 ? certificateFiles : undefined
+        Object.keys(certificateFiles).length > 0 ? certificateFiles : undefined,
       );
     } catch (error) {
       return {
@@ -644,27 +695,42 @@ export class AuthController {
     }
   }
 
-
   @ApiOperation({ summary: 'Add staff certificates (bulk)' })
   @ApiBearerAuth()
   @Post('staff/certificates/bulk')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'care_certificate', maxCount: 1 },
-    { name: 'moving_handling', maxCount: 1 },
-    { name: 'first_aid', maxCount: 1 },
-    { name: 'basic_life_support', maxCount: 1 },
-    { name: 'infection_control', maxCount: 1 },
-    { name: 'safeguarding', maxCount: 1 },
-    { name: 'health_safety', maxCount: 1 },
-    { name: 'equality_diversity', maxCount: 1 },
-    { name: 'coshh', maxCount: 1 },
-    { name: 'medication_training', maxCount: 1 },
-    { name: 'nvq_iii', maxCount: 1 },
-    { name: 'additional_training', maxCount: 1 },
-  ]))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'care_certificate', maxCount: 1 },
+      { name: 'moving_handling', maxCount: 1 },
+      { name: 'first_aid', maxCount: 1 },
+      { name: 'basic_life_support', maxCount: 1 },
+      { name: 'infection_control', maxCount: 1 },
+      { name: 'safeguarding', maxCount: 1 },
+      { name: 'health_safety', maxCount: 1 },
+      { name: 'equality_diversity', maxCount: 1 },
+      { name: 'coshh', maxCount: 1 },
+      { name: 'medication_training', maxCount: 1 },
+      { name: 'nvq_iii', maxCount: 1 },
+      { name: 'additional_training', maxCount: 1 },
+    ]),
+  )
   async addStaffCertificatesBulk(
     @Body() data: CreateStaffCertificatesBulkDto,
-    @UploadedFiles() files?: { care_certificate?: Express.Multer.File[]; moving_handling?: Express.Multer.File[]; first_aid?: Express.Multer.File[]; basic_life_support?: Express.Multer.File[]; infection_control?: Express.Multer.File[]; safeguarding?: Express.Multer.File[]; health_safety?: Express.Multer.File[]; equality_diversity?: Express.Multer.File[]; coshh?: Express.Multer.File[]; medication_training?: Express.Multer.File[]; nvq_iii?: Express.Multer.File[]; additional_training?: Express.Multer.File[] },
+    @UploadedFiles()
+    files?: {
+      care_certificate?: Express.Multer.File[];
+      moving_handling?: Express.Multer.File[];
+      first_aid?: Express.Multer.File[];
+      basic_life_support?: Express.Multer.File[];
+      infection_control?: Express.Multer.File[];
+      safeguarding?: Express.Multer.File[];
+      health_safety?: Express.Multer.File[];
+      equality_diversity?: Express.Multer.File[];
+      coshh?: Express.Multer.File[];
+      medication_training?: Express.Multer.File[];
+      nvq_iii?: Express.Multer.File[];
+      additional_training?: Express.Multer.File[];
+    },
   ) {
     try {
       return await this.authService.addStaffCertificatesBulk(data, files);
@@ -712,7 +778,11 @@ export class AuthController {
         password: data.password,
         agreed_to_terms: data.agreed_to_terms,
       };
-      return await this.authService.completeServiceProviderProfile(userId, profileData, brand_logo);
+      return await this.authService.completeServiceProviderProfile(
+        userId,
+        profileData,
+        brand_logo,
+      );
     } catch (error) {
       return {
         success: false,
