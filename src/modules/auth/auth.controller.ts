@@ -165,6 +165,34 @@ export class AuthController {
     }
   }
 
+  @ApiOperation({ summary: 'Verify forgot password code' })
+  @Post('verify-code')
+  async verifyForgotPasswordCode(
+    @Body() data: { email: string; token: string },
+  ) {
+    try {
+      const email = data.email;
+      const token = data.token;
+
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+      }
+      if (!token) {
+        throw new HttpException('Token not provided', HttpStatus.UNAUTHORIZED);
+      }
+
+      return await this.authService.verifyForgotPasswordCode({
+        email,
+        token,
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Something went wrong',
+      };
+    }
+  }
+
   // verify email to verify the email
   @ApiOperation({ summary: 'Verify email' })
   @Post('verify-email')
