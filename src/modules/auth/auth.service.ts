@@ -596,6 +596,50 @@ export class AuthService {
     }
   }
 
+  async verifyForgotPasswordCode({
+    email,
+    token,
+  }: {
+    email: string;
+    token: string;
+  }) {
+    try {
+      const user = await UserRepository.exist({
+        field: 'email',
+        value: email,
+      });
+
+      if (!user) {
+        return {
+          success: false,
+          message: 'Email not found',
+        };
+      }
+
+      const isValid = await UcodeRepository.validateToken({
+        email: email,
+        token: token,
+      });
+
+      if (!isValid) {
+        return {
+          success: false,
+          message: 'Invalid or expired code',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Code verified successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
   async resetPassword({ email, token, password }) {
     try {
       const user = await UserRepository.exist({
