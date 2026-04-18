@@ -29,6 +29,7 @@ enum StaffRole {
   senior_hca
   hca_carer
   support_worker
+  other
 }
 
 enum ComplianceStatus {
@@ -471,6 +472,21 @@ model Conversation {
 
 // --------- Care Home Staffing App Models ---------
 
+// Pay Rate By Role Model
+model ProviderPayRateByRole {
+  id                  String    @id @default(cuid())
+  service_provider_id String
+  profession_role     ProfessionRole
+  pay_rate_hourly     Float     // Min 0.01
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  service_provider ServiceProviderInfo @relation(fields: [service_provider_id], references: [id], onDelete: Cascade)
+
+  @@unique([service_provider_id, profession_role]) // One rate per role per provider
+  @@map("provider_pay_rates_by_role")
+}
+
 // Admin Models
 model AdminProfile {
   id            String    @id @default(cuid())
@@ -515,11 +531,12 @@ model ServiceProviderInfo {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  user              User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  employees         Employee[]
-  shifts            Shift[]
-  staff_preferences ProviderStaffPreference[]
-  staff_reviews     StaffPerformanceReview[]
+  user                User                        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  employees           Employee[]
+  shifts              Shift[]
+  staff_preferences   ProviderStaffPreference[]
+  staff_reviews       StaffPerformanceReview[]
+  pay_rates_by_role   ProviderPayRateByRole[]
 
   @@map("service_provider_infos")
 }
