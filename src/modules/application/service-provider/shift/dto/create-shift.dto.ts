@@ -59,11 +59,6 @@ export class CreateShiftDto {
     @IsString()
     full_address: string;
 
-    @Type(() => Number)
-    @IsNumber({ allowInfinity: false, allowNaN: false })
-    @Min(0)
-    pay_rate_hourly: number;
-
     @IsOptional()
     @Type(() => Number)
     @IsNumber({ allowInfinity: false, allowNaN: false })

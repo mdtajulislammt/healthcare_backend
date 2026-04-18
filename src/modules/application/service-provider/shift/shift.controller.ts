@@ -27,7 +27,7 @@ import { Request } from 'express';
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class ShiftController {
-  constructor(private readonly shiftService: ShiftService) { }
+  constructor(private readonly shiftService: ShiftService) {}
 
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
@@ -61,10 +61,24 @@ export class ShiftController {
     });
   }
 
-  @Get('bonus-options/:service_provider_id')
+  @Get('bonus-options')
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
-  getEmergencyBonusOptions(@Param('service_provider_id') serviceProviderId: string) {
-    return this.shiftService.getEmergencyBonusOptions(serviceProviderId);
+  getEmergencyBonusOptions(@Req() req: Request) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.getEmergencyBonusOptions(userId);
+  }
+
+  @Get('pay-rates-by-role')
+  @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
+  getPayRatesByRole(@Req() req: Request, @Query('role') role?: string) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.getPayRatesByRole(userId, role);
   }
 
   @Get(':id')

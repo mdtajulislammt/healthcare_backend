@@ -7,6 +7,7 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
+import { UpdatePayRateByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rate-by-role.dto';
 
 @Controller('admin/service-provider')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -67,5 +68,21 @@ export class ServiceProviderController {
     @Body() updateEmergencyBonusDto: UpdateEmergencyBonusDto,
   ) {
     return this.serviceProviderService.updateEmergencyBonus(id, updateEmergencyBonusDto);
+  }
+
+  @Get(':id/pay-rate-by-role')
+  getPayRatesByRole(
+    @Param('id') id: string,
+    @Query('role') role?: string,
+  ) {
+    return this.serviceProviderService.getPayRatesByRole(id, role);
+  }
+
+  @Patch(':id/pay-rate-by-role')
+  updatePayRateByRole(
+    @Param('id') id: string,
+    @Body() updatePayRateByRoleDto: UpdatePayRateByRoleDto,
+  ) {
+    return this.serviceProviderService.updatePayRateByRole(id, updatePayRateByRoleDto);
   }
 }

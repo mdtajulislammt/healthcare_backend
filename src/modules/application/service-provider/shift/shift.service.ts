@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateShiftDto } from './dto/create-shift.dto';
-import { Prisma, ShiftApplicationStatus } from '@prisma/client';
+import { Prisma, ProfessionRole, ShiftApplicationStatus } from '@prisma/client';
 import { UpdateShiftDto } from './dto/update-shift.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -20,7 +20,7 @@ export class ShiftService {
     private readonly prisma: PrismaService,
     private readonly activityLogService: ActivityLogService,
     private readonly providerContextHelper: ServiceProviderContextHelper,
-  ) { }
+  ) {}
 
   async create(createShiftDto: CreateShiftDto, requestingUserId: string) {
     try {
@@ -37,7 +37,6 @@ export class ShiftService {
         end_time,
         facility_name,
         full_address,
-        pay_rate_hourly,
         signing_bonus,
         internal_po_number,
         emergency_bonus,
@@ -45,10 +44,8 @@ export class ShiftService {
         status,
       } = createShiftDto;
 
-      const {
-        serviceProviderId,
-        employeeId: requesterEmployeeId,
-      } = await this.providerContextHelper.resolveFromUser(requestingUserId);
+      const { serviceProviderId, employeeId: requesterEmployeeId } =
+        await this.providerContextHelper.resolveFromUser(requestingUserId);
 
       const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
         where: { id: serviceProviderId },
@@ -56,6 +53,32 @@ export class ShiftService {
       });
       if (!serviceProvider) {
         throw new NotFoundException('Service provider not found');
+      }
+
+      const rolePayRate = await (
+        this.prisma as any
+      ).providerPayRateByRole.findUnique({
+        where: {
+          service_provider_id_profession_role: {
+            service_provider_id: serviceProviderId,
+            profession_role: profession_role,
+          },
+        },
+        select: { pay_rate_hourly: true },
+      });
+
+      const providerPayRateHourly = rolePayRate
+        ? Number(rolePayRate.pay_rate_hourly)
+        : null;
+      if (
+        providerPayRateHourly === null ||
+        providerPayRateHourly === undefined ||
+        Number.isNaN(providerPayRateHourly) ||
+        providerPayRateHourly <= 0
+      ) {
+        throw new BadRequestException(
+          `Admin has not set pay rate for ${profession_role} role for this service provider`,
+        );
       }
 
       const bonusOptions = this.normalizeBonusOptions(
@@ -68,7 +91,9 @@ export class ShiftService {
           : 0;
 
       if (Number.isNaN(selectedEmergencyBonus) || selectedEmergencyBonus < 0) {
-        throw new BadRequestException('Emergency bonus must be a non-negative number');
+        throw new BadRequestException(
+          'Emergency bonus must be a non-negative number',
+        );
       }
 
       if (
@@ -81,14 +106,17 @@ export class ShiftService {
         );
       }
 
-      let finalCreatorEmployeeId = created_by_employee_id || requesterEmployeeId || null;
+      let finalCreatorEmployeeId =
+        created_by_employee_id || requesterEmployeeId || null;
       if (finalCreatorEmployeeId) {
         const creator = await this.prisma.employee.findUnique({
           where: { id: finalCreatorEmployeeId },
           select: { id: true, service_provider_id: true },
         });
         if (!creator || creator.service_provider_id !== serviceProviderId) {
-          throw new BadRequestException('Creator employee is invalid for this service provider');
+          throw new BadRequestException(
+            'Creator employee is invalid for this service provider',
+          );
         }
         finalCreatorEmployeeId = creator.id;
       }
@@ -109,7 +137,8 @@ export class ShiftService {
 
       if (full_address) {
         try {
-          const geocodeResult = await GoogleMapsService.geocodeAddress(full_address);
+          const geocodeResult =
+            await GoogleMapsService.geocodeAddress(full_address);
           console.log('geocodeResult', geocodeResult);
           if (geocodeResult) {
             latitude = geocodeResult.latitude;
@@ -117,7 +146,12 @@ export class ShiftService {
           }
         } catch (error) {
           // Log error but continue without coordinates
-          console.error('Failed to geocode address for shift:', error.message);
+          const geocodeErrorMessage =
+            error instanceof Error ? error.message : 'Unknown geocode error';
+          console.error(
+            'Failed to geocode address for shift:',
+            geocodeErrorMessage,
+          );
         }
       }
 
@@ -141,7 +175,7 @@ export class ShiftService {
           full_address,
           latitude,
           longitude,
-          pay_rate_hourly,
+          pay_rate_hourly: providerPayRateHourly,
           signing_bonus,
           internal_po_number,
           emergency_bonus: selectedEmergencyBonus,
@@ -187,12 +221,15 @@ export class ShiftService {
 
   async findAll(
     requestingUserId: string,
-    { page = 1, limit = 10, search = '' }: { page?: number; limit?: number; search?: string } = {},
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+    }: { page?: number; limit?: number; search?: string } = {},
   ) {
     try {
-      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(
-        requestingUserId,
-      );
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(requestingUserId);
 
       const currentPage = Math.max(Number(page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
@@ -203,12 +240,27 @@ export class ShiftService {
 
       const searchCondition = search
         ? {
-          OR: [
-            { posting_title: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
-            { facility_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
-            { full_address: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
-          ],
-        }
+            OR: [
+              {
+                posting_title: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+              {
+                facility_name: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+              {
+                full_address: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+            ],
+          }
         : undefined;
 
       const where: Prisma.ShiftWhereInput = {
@@ -236,15 +288,15 @@ export class ShiftService {
             status: true,
             notes: true,
             created_at: true,
-            assigned_staff: { 
-              select: { 
-                id: true, 
-                first_name: true, 
+            assigned_staff: {
+              select: {
+                id: true,
+                first_name: true,
                 last_name: true,
                 reviews: {
-                  select: { rating: true }
-                }
-              } 
+                  select: { rating: true },
+                },
+              },
             },
             _count: { select: { applications: true } },
           },
@@ -256,17 +308,20 @@ export class ShiftService {
 
       const items = itemsRaw.map((s) => {
         const avgRating = s.assigned_staff?.reviews?.length
-          ? s.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) / s.assigned_staff.reviews.length
+          ? s.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) /
+            s.assigned_staff.reviews.length
           : null;
 
         return {
           ...s,
-          assigned_staff: s.assigned_staff ? {
-            id: s.assigned_staff.id,
-            first_name: s.assigned_staff.first_name,
-            last_name: s.assigned_staff.last_name,
-            avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
-          } : null,
+          assigned_staff: s.assigned_staff
+            ? {
+                id: s.assigned_staff.id,
+                first_name: s.assigned_staff.first_name,
+                last_name: s.assigned_staff.last_name,
+                avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+              }
+            : null,
           applications_count: s._count?.applications ?? 0,
           _count: undefined,
         };
@@ -312,7 +367,9 @@ export class ShiftService {
         }
       }
       const applicationsWhere: Prisma.ShiftApplicationWhereInput | undefined =
-        applicationStatusFilter ? { status: applicationStatusFilter } : undefined;
+        applicationStatusFilter
+          ? { status: applicationStatusFilter }
+          : undefined;
       const requestedOrder = filters.dateOrder?.toString().toLowerCase();
       const applicationsOrder: Prisma.SortOrder =
         requestedOrder === 'asc' ? 'asc' : 'desc';
@@ -324,19 +381,25 @@ export class ShiftService {
             select: { id: true, organization_name: true, user_id: true },
           },
           created_by_employee: {
-            select: { id: true, first_name: true, last_name: true, email: true, employee_role: true },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+              employee_role: true,
+            },
           },
           assigned_staff: {
-            select: { 
-              id: true, 
-              first_name: true, 
-              last_name: true, 
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
               roles: true,
-              bio:true,
+              bio: true,
               photo_url: true,
               reviews: {
-                select: { rating: true }
-              }
+                select: { rating: true },
+              },
             },
           },
           applications: {
@@ -346,17 +409,18 @@ export class ShiftService {
               status: true,
               applied_at: true,
               staff: {
-                select: { 
-                  id: true, 
-                  first_name: true, 
+                select: {
+                  id: true,
+                  first_name: true,
                   last_name: true,
-                  mobile_code: true, 
+                  mobile_code: true,
                   mobile_number: true,
-                  photo_url: true , 
+                  photo_url: true,
                   nmc_pin: true,
                   roles: true,
                   right_to_work_status: true,
-                  user: { select: { email: true } } },
+                  user: { select: { email: true } },
+                },
               },
             },
             orderBy: { applied_at: applicationsOrder },
@@ -364,7 +428,12 @@ export class ShiftService {
           attendance: true,
           timesheet: true,
           reviews: {
-            select: { id: true, rating: true, feedback: true, created_at: true },
+            select: {
+              id: true,
+              rating: true,
+              feedback: true,
+              created_at: true,
+            },
             orderBy: { created_at: 'desc' },
           },
           _count: { select: { applications: true } },
@@ -374,7 +443,7 @@ export class ShiftService {
       if (!shift) throw new NotFoundException('Shift not found');
 
       // Get service provider preferences for all staff in applications
-      const staffIds = shift.applications.map(app => app.staff.id);
+      const staffIds = shift.applications.map((app) => app.staff.id);
       const preferences = await this.prisma.providerStaffPreference.findMany({
         where: {
           provider_id: shift.service_provider_id,
@@ -389,13 +458,13 @@ export class ShiftService {
       // Create lookup maps for quick access
       const favoriteMap = new Map(
         preferences
-          .filter(p => p.preference_type === 'favorite')
-          .map(p => [p.staff_id, true])
+          .filter((p) => p.preference_type === 'favorite')
+          .map((p) => [p.staff_id, true]),
       );
       const blockedMap = new Map(
         preferences
-          .filter(p => p.preference_type === 'blocked')
-          .map(p => [p.staff_id, true])
+          .filter((p) => p.preference_type === 'blocked')
+          .map((p) => [p.staff_id, true]),
       );
 
       if (shift.applications && shift.applications.length) {
@@ -406,8 +475,10 @@ export class ShiftService {
             );
           }
           // Add preference flags
-          (application.staff as any).is_favorite = favoriteMap.has(application.staff.id) || false;
-          (application.staff as any).is_blocked = blockedMap.has(application.staff.id) || false;
+          (application.staff as any).is_favorite =
+            favoriteMap.has(application.staff.id) || false;
+          (application.staff as any).is_blocked =
+            blockedMap.has(application.staff.id) || false;
         }
       }
 
@@ -422,9 +493,10 @@ export class ShiftService {
       let assignedStaffWithRating = null;
       if (shift.assigned_staff) {
         const avgRating = shift.assigned_staff.reviews?.length
-          ? shift.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) / shift.assigned_staff.reviews.length
+          ? shift.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) /
+            shift.assigned_staff.reviews.length
           : null;
-        
+
         assignedStaffWithRating = {
           id: shift.assigned_staff.id,
           first_name: shift.assigned_staff.first_name,
@@ -444,7 +516,11 @@ export class ShiftService {
         is_reviewed: reviews && reviews.length > 0,
       };
 
-      return { success: true, message: 'Shift fetched successfully', data: formatted };
+      return {
+        success: true,
+        message: 'Shift fetched successfully',
+        data: formatted,
+      };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('Failed to fetch shift');
@@ -459,10 +535,62 @@ export class ShiftService {
     return `This action removes a #${id} shift`;
   }
 
-  async getEmergencyBonusOptions(service_provider_id: string) {
+  async getPayRatesByRole(requestingUserId: string, role?: string) {
     try {
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(requestingUserId);
+
+      const where: Prisma.ProviderPayRateByRoleWhereInput = {
+        service_provider_id: serviceProviderId,
+      };
+
+      if (role) {
+        const normalizedRole = role.trim().toLowerCase();
+        const validRoles = Object.values(ProfessionRole);
+
+        if (!validRoles.includes(normalizedRole as ProfessionRole)) {
+          throw new BadRequestException('Invalid role filter');
+        }
+
+        where.profession_role = normalizedRole as ProfessionRole;
+      }
+
+      const payRates = await this.prisma.providerPayRateByRole.findMany({
+        where,
+        select: {
+          id: true,
+          profession_role: true,
+          pay_rate_hourly: true,
+          updated_at: true,
+        },
+        orderBy: { profession_role: 'asc' },
+      });
+
+      return {
+        success: true,
+        message: 'Pay rates fetched successfully',
+        data: payRates,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to fetch pay rates by role',
+      );
+    }
+  }
+
+  async getEmergencyBonusOptions(requestingUserId: string) {
+    try {
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(requestingUserId);
+
       const provider = await this.prisma.serviceProviderInfo.findUnique({
-        where: { id: service_provider_id },
+        where: { id: serviceProviderId },
         select: { emergency_bonus_increments: true },
       });
 
@@ -483,7 +611,9 @@ export class ShiftService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to fetch emergency bonus options');
+      throw new InternalServerErrorException(
+        'Failed to fetch emergency bonus options',
+      );
     }
   }
 
@@ -502,5 +632,4 @@ export class ShiftService {
       ),
     ).sort((a, b) => a - b);
   }
-
 }
