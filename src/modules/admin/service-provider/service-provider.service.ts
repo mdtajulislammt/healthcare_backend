@@ -12,6 +12,7 @@ import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdatePayRateByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rate-by-role.dto';
+import { UpdatePayRatesByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rates-by-role.dto';
 
 @Injectable()
 export class ServiceProviderService {
@@ -342,6 +343,78 @@ export class ServiceProviderService {
         throw error;
       throw new InternalServerErrorException(
         'Failed to update pay rate for role',
+      );
+    }
+  }
+
+  async updatePayRatesByRole(id: string, dto: UpdatePayRatesByRoleDto) {
+    try {
+      const provider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+
+      if (!provider) throw new NotFoundException('Service provider not found');
+
+      const seenRoles = new Set<string>();
+      for (const item of dto.pay_rates) {
+        const roleKey = String(item.profession_role);
+        if (seenRoles.has(roleKey)) {
+          throw new BadRequestException(
+            `Duplicate role in payload: ${roleKey}`,
+          );
+        }
+        seenRoles.add(roleKey);
+      }
+
+      const results = await this.prisma.$transaction(
+        dto.pay_rates.map((item) => {
+          const payRate = Number(item.pay_rate_hourly);
+          if (Number.isNaN(payRate) || payRate <= 0) {
+            throw new BadRequestException(
+              'Pay rate hourly must be greater than 0',
+            );
+          }
+
+          return (this.prisma as any).providerPayRateByRole.upsert({
+            where: {
+              service_provider_id_profession_role: {
+                service_provider_id: id,
+                profession_role: item.profession_role,
+              },
+            },
+            update: {
+              pay_rate_hourly: payRate,
+            },
+            create: {
+              service_provider_id: id,
+              profession_role: item.profession_role,
+              pay_rate_hourly: payRate,
+            },
+            select: {
+              id: true,
+              profession_role: true,
+              pay_rate_hourly: true,
+              updated_at: true,
+            },
+          });
+        }),
+      );
+
+      return {
+        success: true,
+        message: 'Pay rates for roles updated successfully',
+        data: results,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to update pay rates for roles',
       );
     }
   }
