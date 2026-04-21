@@ -68,5 +68,40 @@ export class CompleteStaffProfileDto {
     @IsOptional()
     @ApiProperty({ description: 'Is registered on DBS update service', required: false })
     dbs_is_registered_on_update?: boolean | string | number;
+
+    // Optional: Referee Info
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'Referee name', required: false })
+    referee_name?: string;
+
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'Referee mobile code', required: false })
+    referee_mobile_code?: string;
+
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'Referee mobile number', required: false })
+    referee_mobile_number?: string;
+
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'Referee email', required: false })
+    referee_email?: string;
+
+    @IsOptional()
+    @IsString()
+    @ApiProperty({ description: 'Referee role', required: false })
+    referee_role?: string;
+
+    @IsOptional()
+    @IsDateString()
+    @ApiProperty({ description: 'Referee date of employment', required: false })
+    referee_date_of_employment?: string;
+
+    @IsOptional()
+    @ApiProperty({ description: 'Referee consent to contact', required: false })
+    referee_consent_to_contact?: boolean | string | number;
 }
 
