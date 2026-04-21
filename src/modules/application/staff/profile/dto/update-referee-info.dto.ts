@@ -1,0 +1,61 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import {
+  IsDateString,
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsBoolean,
+} from 'class-validator';
+
+export class UpdateRefereeInfoDto {
+  @IsOptional()
+  @IsString()
+  @ApiProperty({ description: 'Referee full name', required: false })
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({ description: 'Referee mobile code', required: false })
+  mobile_code?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({ description: 'Referee mobile number', required: false })
+  mobile_number?: string;
+
+  @IsOptional()
+  @IsEmail()
+  @ApiProperty({ description: 'Referee email', required: false })
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({
+    description: 'Referee role (e.g. former manager)',
+    required: false,
+  })
+  role?: string;
+
+  @IsOptional()
+  @IsDateString()
+  @ApiProperty({
+    description: 'Referee employment date (YYYY-MM-DD)',
+    required: false,
+  })
+  date_of_employment?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase();
+      return v === 'true' || v === '1' || v === 'yes';
+    }
+    return false;
+  })
+  @ApiProperty({ description: 'Consent to contact referee', required: false })
+  consent_to_contact?: boolean;
+}

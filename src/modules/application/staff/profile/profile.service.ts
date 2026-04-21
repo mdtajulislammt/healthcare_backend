@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -6,6 +10,7 @@ import { UpdateStaffProfileDto } from './dto/update-staff-profile.dto';
 import { CreateUpdateEducationDto } from './dto/create-update-education.dto';
 import { CreateUpdateCertificateDto } from './dto/create-update-certificate.dto';
 import { UpdateDbsInfoDto } from './dto/update-dbs-info.dto';
+import { UpdateRefereeInfoDto } from './dto/update-referee-info.dto';
 import { SojebStorage } from '../../../../common/lib/Disk/SojebStorage';
 import appConfig from '../../../../config/app.config';
 import { StringHelper } from '../../../../common/helper/string.helper';
@@ -13,28 +18,32 @@ import { calculateStaffProfileCompletion } from '../../../../common/helper/profi
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Recalculate and update profile completion for a staff member
    * @param staff_id - The staff profile ID
    */
   private async recalculateProfileCompletion(staff_id: string) {
-    const staffProfileWithRelations = await this.prisma.staffProfile.findUnique({
-      where: { id: staff_id },
-      include: {
-        certificates: true,
-        dbs_info: true,
-        emergency_contacts: true,
-        current_address: true,
-        previous_address: true,
-        educations: true,
-        bank_details: true,
+    const staffProfileWithRelations = await this.prisma.staffProfile.findUnique(
+      {
+        where: { id: staff_id },
+        include: {
+          certificates: true,
+          dbs_info: true,
+          emergency_contacts: true,
+          current_address: true,
+          previous_address: true,
+          educations: true,
+          bank_details: true,
+        },
       },
-    });
+    );
 
     if (staffProfileWithRelations) {
-      const completionResult = calculateStaffProfileCompletion(staffProfileWithRelations);
+      const completionResult = calculateStaffProfileCompletion(
+        staffProfileWithRelations,
+      );
       await this.prisma.staffProfile.update({
         where: { id: staff_id },
         data: {
@@ -83,7 +92,6 @@ export class ProfileService {
     currentAddressEvidenceFile?: Express.Multer.File,
   ) {
     try {
-
       // Verify user exists and get staff profile
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -101,7 +109,9 @@ export class ProfileService {
       }
 
       if (!user.staff_profile) {
-        throw new NotFoundException('Staff profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
       }
 
       const staff_id = user.staff_profile.id;
@@ -109,9 +119,10 @@ export class ProfileService {
       const existingCvUrl = user.staff_profile.cv_url;
 
       // Get existing current address to check for old evidence file
-      const existingCurrentAddress = await this.prisma.staffCurrentAddress.findUnique({
-        where: { staff_id },
-      });
+      const existingCurrentAddress =
+        await this.prisma.staffCurrentAddress.findUnique({
+          where: { staff_id },
+        });
       const existingEvidenceUrl = existingCurrentAddress?.evidence_file_url;
 
       // Upload files first (external operations - can't rollback)
@@ -120,7 +131,9 @@ export class ProfileService {
         // Delete old photo if exists
         if (existingPhotoUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.staff + existingPhotoUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.staff + existingPhotoUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
             console.error('Failed to delete old photo:', error);
@@ -139,7 +152,9 @@ export class ProfileService {
         // Delete old CV if exists
         if (existingCvUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.cv + existingCvUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.cv + existingCvUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
             console.error('Failed to delete old CV:', error);
@@ -159,10 +174,15 @@ export class ProfileService {
         // Delete old evidence file if exists
         if (existingEvidenceUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.certificate + existingEvidenceUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate + existingEvidenceUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
-            console.error('Failed to delete old current address evidence:', error);
+            console.error(
+              'Failed to delete old current address evidence:',
+              error,
+            );
           }
         }
         // Upload new evidence file
@@ -217,9 +237,18 @@ export class ProfileService {
       // Handle roles update
       if (updateData.roles !== undefined) {
         // Validate roles - roles should already be an array from DTO
-        const rolesArray = Array.isArray(updateData.roles) ? updateData.roles : [];
-        const allowedRoles = ['nurse', 'senior_hca', 'hca_carer', 'support_worker'];
-        const validRoles = rolesArray.filter((role: string) => allowedRoles.includes(role));
+        const rolesArray = Array.isArray(updateData.roles)
+          ? updateData.roles
+          : [];
+        const allowedRoles = [
+          'nurse',
+          'senior_hca',
+          'hca_carer',
+          'support_worker',
+        ];
+        const validRoles = rolesArray.filter((role: string) =>
+          allowedRoles.includes(role),
+        );
 
         // Allow empty array to clear roles or set valid roles
         updatePayload.roles = validRoles as any;
@@ -254,8 +283,13 @@ export class ProfileService {
           const emergencyData = updateData.emergency_contact;
 
           // Validate required fields for emergency contact
-          if (emergencyData.mobile_code === undefined || emergencyData.mobile_number === undefined) {
-            throw new BadRequestException('Emergency contact mobile_code and mobile_number are required');
+          if (
+            emergencyData.mobile_code === undefined ||
+            emergencyData.mobile_number === undefined
+          ) {
+            throw new BadRequestException(
+              'Emergency contact mobile_code and mobile_number are required',
+            );
           }
 
           emergencyContact = await tx.staffEmergencyContact.upsert({
@@ -292,13 +326,18 @@ export class ProfileService {
             state: addressData.state ?? undefined,
             zip: addressData.zip ?? undefined,
             country: addressData.country ?? undefined,
-            from_date: addressData.from_date ? new Date(addressData.from_date) : undefined,
-            to_date: addressData.to_date ? new Date(addressData.to_date) : undefined,
+            from_date: addressData.from_date
+              ? new Date(addressData.from_date)
+              : undefined,
+            to_date: addressData.to_date
+              ? new Date(addressData.to_date)
+              : undefined,
           };
 
           // Update evidence_file_url if new file uploaded
           if (currentAddressEvidenceFileName !== undefined) {
-            currentAddressUpdateData.evidence_file_url = currentAddressEvidenceFileName;
+            currentAddressUpdateData.evidence_file_url =
+              currentAddressEvidenceFileName;
           }
 
           currentAddress = await tx.staffCurrentAddress.upsert({
@@ -311,8 +350,12 @@ export class ProfileService {
               state: addressData.state ?? null,
               zip: addressData.zip ?? null,
               country: addressData.country ?? null,
-              from_date: addressData.from_date ? new Date(addressData.from_date) : null,
-              to_date: addressData.to_date ? new Date(addressData.to_date) : null,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : null,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : null,
               evidence_file_url: currentAddressEvidenceFileName ?? null,
             },
           });
@@ -326,7 +369,9 @@ export class ProfileService {
               },
             });
           } else {
-            throw new BadRequestException('Current address must be provided before uploading evidence file');
+            throw new BadRequestException(
+              'Current address must be provided before uploading evidence file',
+            );
           }
         }
 
@@ -348,8 +393,12 @@ export class ProfileService {
               state: addressData.state ?? undefined,
               zip: addressData.zip ?? undefined,
               country: addressData.country ?? undefined,
-              from_date: addressData.from_date ? new Date(addressData.from_date) : undefined,
-              to_date: addressData.to_date ? new Date(addressData.to_date) : undefined,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : undefined,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : undefined,
             },
             create: {
               staff_id,
@@ -358,8 +407,12 @@ export class ProfileService {
               state: addressData.state ?? null,
               zip: addressData.zip ?? null,
               country: addressData.country ?? null,
-              from_date: addressData.from_date ? new Date(addressData.from_date) : null,
-              to_date: addressData.to_date ? new Date(addressData.to_date) : null,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : null,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : null,
             },
           });
         }
@@ -408,10 +461,15 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to update staff profile: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to update staff profile: ${error.message}`,
+      );
     }
   }
 
@@ -420,7 +478,10 @@ export class ProfileService {
    * @param userId - The user ID from the authenticated request
    * @param educationData - The education data
    */
-  async createOrUpdateEducation(userId: string, educationData: CreateUpdateEducationDto) {
+  async createOrUpdateEducation(
+    userId: string,
+    educationData: CreateUpdateEducationDto,
+  ) {
     try {
       // Verify user exists and get staff profile
       const user = await this.prisma.user.findUnique({
@@ -439,14 +500,18 @@ export class ProfileService {
       }
 
       if (!user.staff_profile) {
-        throw new NotFoundException('Staff profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
       }
 
       const staff_id = user.staff_profile.id;
 
       // Validate required fields
       if (!educationData.institution_name || !educationData.degree) {
-        throw new BadRequestException('Institution name and degree are required');
+        throw new BadRequestException(
+          'Institution name and degree are required',
+        );
       }
 
       // Prepare education data
@@ -455,8 +520,12 @@ export class ProfileService {
         institution_name: educationData.institution_name,
         degree: educationData.degree,
         field_of_study: educationData.field_of_study ?? null,
-        start_date: educationData.start_date ? new Date(educationData.start_date) : null,
-        end_date: educationData.end_date ? new Date(educationData.end_date) : null,
+        start_date: educationData.start_date
+          ? new Date(educationData.start_date)
+          : null,
+        end_date: educationData.end_date
+          ? new Date(educationData.end_date)
+          : null,
       };
 
       let education;
@@ -473,7 +542,9 @@ export class ProfileService {
         }
 
         if (existingEducation.staff_id !== staff_id) {
-          throw new BadRequestException('This education record does not belong to you');
+          throw new BadRequestException(
+            'This education record does not belong to you',
+          );
         }
 
         // Update existing education
@@ -493,14 +564,21 @@ export class ProfileService {
 
       return {
         success: true,
-        message: educationData.id ? 'Education updated successfully' : 'Education created successfully',
+        message: educationData.id
+          ? 'Education updated successfully'
+          : 'Education created successfully',
         data: education,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to ${educationData.id ? 'update' : 'create'} education: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to ${educationData.id ? 'update' : 'create'} education: ${error.message}`,
+      );
     }
   }
 
@@ -533,7 +611,9 @@ export class ProfileService {
       }
 
       if (!user.staff_profile) {
-        throw new NotFoundException('Staff profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
       }
 
       const staff_id = user.staff_profile.id;
@@ -573,13 +653,17 @@ export class ProfileService {
         }
 
         if (existingCertificate.staff_id !== staff_id) {
-          throw new BadRequestException('This certificate does not belong to you');
+          throw new BadRequestException(
+            'This certificate does not belong to you',
+          );
         }
 
         // Delete old file if new file is uploaded
         if (certificateFile && existingCertificate.file_url) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.certificate + existingCertificate.file_url);
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate + existingCertificate.file_url,
+            );
           } catch (error) {
             console.error('Failed to delete old certificate file:', error);
           }
@@ -594,9 +678,15 @@ export class ProfileService {
         });
 
         // If exists and file is being uploaded, delete old file
-        if (existingCertificate && certificateFile && existingCertificate.file_url) {
+        if (
+          existingCertificate &&
+          certificateFile &&
+          existingCertificate.file_url
+        ) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.certificate + existingCertificate.file_url);
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate + existingCertificate.file_url,
+            );
           } catch (error) {
             console.error('Failed to delete old certificate file:', error);
           }
@@ -651,14 +741,21 @@ export class ProfileService {
 
       return {
         success: true,
-        message: existingCertificate ? 'Certificate updated successfully' : 'Certificate created successfully',
+        message: existingCertificate
+          ? 'Certificate updated successfully'
+          : 'Certificate created successfully',
         data: certificate,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to ${certificateData.id || 'update'} certificate: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to ${certificateData.id || 'update'} certificate: ${error.message}`,
+      );
     }
   }
 
@@ -686,7 +783,9 @@ export class ProfileService {
       }
 
       if (!user.staff_profile) {
-        throw new NotFoundException('Staff profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
       }
 
       const staff_id = user.staff_profile.id;
@@ -697,7 +796,9 @@ export class ProfileService {
       });
 
       if (!existingDbsInfo) {
-        throw new NotFoundException('DBS info not found. Please create DBS info first.');
+        throw new NotFoundException(
+          'DBS info not found. Please create DBS info first.',
+        );
       }
 
       // Prepare update data
@@ -714,23 +815,35 @@ export class ProfileService {
       if (dbsData.date_of_birth_on_cert !== undefined) {
         const dobString = String(dbsData.date_of_birth_on_cert).trim();
         if (!dobString || dobString === 'undefined' || dobString === 'null') {
-          throw new BadRequestException('date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.');
+          throw new BadRequestException(
+            'date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
+          );
         }
         const dobDate = new Date(dobString);
         if (isNaN(dobDate.getTime())) {
-          throw new BadRequestException(`Invalid date format for date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format (e.g., 1990-01-01).`);
+          throw new BadRequestException(
+            `Invalid date format for date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format (e.g., 1990-01-01).`,
+          );
         }
         updatePayload.date_of_birth_on_cert = dobDate;
       }
 
       if (dbsData.certificate_print_date !== undefined) {
         const printString = String(dbsData.certificate_print_date).trim();
-        if (!printString || printString === 'undefined' || printString === 'null') {
-          throw new BadRequestException('certificate_print_date is required and must be a valid date in YYYY-MM-DD format.');
+        if (
+          !printString ||
+          printString === 'undefined' ||
+          printString === 'null'
+        ) {
+          throw new BadRequestException(
+            'certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
+          );
         }
         const printDate = new Date(printString);
         if (isNaN(printDate.getTime())) {
-          throw new BadRequestException(`Invalid date format for certificate_print_date: "${printString}". Please use YYYY-MM-DD format (e.g., 2024-01-15).`);
+          throw new BadRequestException(
+            `Invalid date format for certificate_print_date: "${printString}". Please use YYYY-MM-DD format (e.g., 2024-01-15).`,
+          );
         }
         updatePayload.certificate_print_date = printDate;
       }
@@ -743,7 +856,9 @@ export class ProfileService {
         } else if (typeof dbsData.is_registered_on_update === 'number') {
           isRegistered = dbsData.is_registered_on_update === 1;
         } else if (typeof dbsData.is_registered_on_update === 'string') {
-          const value = String(dbsData.is_registered_on_update).trim().toLowerCase();
+          const value = String(dbsData.is_registered_on_update)
+            .trim()
+            .toLowerCase();
           isRegistered = ['true', '1', 'yes'].includes(value);
         }
         updatePayload.is_registered_on_update = isRegistered;
@@ -764,10 +879,153 @@ export class ProfileService {
         data: updatedDbsInfo,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to update DBS info: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to update DBS info: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Create or update staff referee info
+   * @param userId - The user ID from the authenticated request
+   * @param refereeData - The referee data to create/update
+   */
+  async updateRefereeInfo(userId: string, refereeData: UpdateRefereeInfoDto) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          staff_profile: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.type !== 'staff') {
+        throw new BadRequestException('User is not a staff member');
+      }
+
+      if (!user.staff_profile) {
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
+      }
+
+      const staff_id = user.staff_profile.id;
+
+      const existingReferee = await this.prisma.staffReferee.findUnique({
+        where: { staff_id },
+      });
+
+      const updatePayload: any = {};
+
+      if (refereeData.name !== undefined) {
+        updatePayload.name = refereeData.name;
+      }
+
+      if (refereeData.mobile_code !== undefined) {
+        updatePayload.mobile_code = refereeData.mobile_code;
+      }
+
+      if (refereeData.mobile_number !== undefined) {
+        updatePayload.mobile_number = refereeData.mobile_number;
+      }
+
+      if (refereeData.email !== undefined) {
+        updatePayload.email = refereeData.email;
+      }
+
+      if (refereeData.role !== undefined) {
+        updatePayload.role = refereeData.role;
+      }
+
+      if (refereeData.date_of_employment !== undefined) {
+        const employmentDateString = String(
+          refereeData.date_of_employment,
+        ).trim();
+        if (
+          !employmentDateString ||
+          employmentDateString === 'undefined' ||
+          employmentDateString === 'null'
+        ) {
+          throw new BadRequestException(
+            'date_of_employment must be a valid date in YYYY-MM-DD format.',
+          );
+        }
+
+        const parsedEmploymentDate = new Date(employmentDateString);
+        if (isNaN(parsedEmploymentDate.getTime())) {
+          throw new BadRequestException(
+            `Invalid date format for date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
+          );
+        }
+        updatePayload.date_of_employment = parsedEmploymentDate;
+      }
+
+      if (refereeData.consent_to_contact !== undefined) {
+        updatePayload.consent_to_contact = refereeData.consent_to_contact;
+      }
+
+      let savedReferee;
+      if (existingReferee) {
+        if (Object.keys(updatePayload).length === 0) {
+          throw new BadRequestException(
+            'No referee fields provided for update',
+          );
+        }
+
+        savedReferee = await this.prisma.staffReferee.update({
+          where: { staff_id },
+          data: updatePayload,
+        });
+      } else {
+        const createPayload = {
+          ...updatePayload,
+          staff_id,
+        };
+
+        if (
+          !createPayload.name ||
+          !createPayload.mobile_code ||
+          !createPayload.mobile_number
+        ) {
+          throw new BadRequestException(
+            'name, mobile_code and mobile_number are required to create referee info',
+          );
+        }
+
+        savedReferee = await this.prisma.staffReferee.create({
+          data: createPayload,
+        });
+      }
+
+      await this.recalculateProfileCompletion(staff_id);
+
+      return {
+        success: true,
+        message: existingReferee
+          ? 'Referee info updated successfully'
+          : 'Referee info created successfully',
+        data: savedReferee,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to update referee info: ${error.message}`,
+      );
     }
   }
 
@@ -790,6 +1048,7 @@ export class ProfileService {
               emergency_contacts: true,
               current_address: true,
               previous_address: true,
+              referees: true,
               educations: {
                 orderBy: { created_at: 'desc' },
               },
@@ -808,7 +1067,9 @@ export class ProfileService {
       }
 
       if (!user.staff_profile) {
-        throw new NotFoundException('Staff profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Staff profile not found. Please complete your profile first.',
+        );
       }
 
       const profile = user.staff_profile;
@@ -838,16 +1099,21 @@ export class ProfileService {
       }
 
       // Format current address evidence file URL
-      if (profile.current_address && profile.current_address.evidence_file_url) {
+      if (
+        profile.current_address &&
+        profile.current_address.evidence_file_url
+      ) {
         profile.current_address.evidence_file_url = SojebStorage.url(
-          appConfig().storageUrl.certificate + profile.current_address.evidence_file_url,
+          appConfig().storageUrl.certificate +
+            profile.current_address.evidence_file_url,
         );
       }
 
       // Mask bank account number for security
       if (profile.bank_details && profile.bank_details.account_number) {
         const accountNumber = profile.bank_details.account_number;
-        (profile.bank_details as any).account_number = '****' + accountNumber.slice(-4);
+        (profile.bank_details as any).account_number =
+          '****' + accountNumber.slice(-4);
       }
 
       // Include user info (without sensitive data)
@@ -869,10 +1135,15 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to fetch staff profile: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to fetch staff profile: ${error.message}`,
+      );
     }
   }
 }

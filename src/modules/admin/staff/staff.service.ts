@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -9,10 +14,23 @@ import { CertificateVerificationStatus } from '@prisma/client';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-
-  async findAll({ page = 1, limit = 10, search = '', status, right_to_work_status, roles }: { page?: number; limit?: number; search?: string; status?: string; right_to_work_status?: string; roles?: string } = {}) {
+  async findAll({
+    page = 1,
+    limit = 10,
+    search = '',
+    status,
+    right_to_work_status,
+    roles,
+  }: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    right_to_work_status?: string;
+    roles?: string;
+  } = {}) {
     try {
       const currentPage = Math.max(Number(page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
@@ -28,9 +46,26 @@ export class StaffService {
       if (search) {
         andConditions.push({
           OR: [
-            { first_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
-            { last_name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
-            { user: { email: { contains: search, mode: 'insensitive' as Prisma.QueryMode } } },
+            {
+              first_name: {
+                contains: search,
+                mode: 'insensitive' as Prisma.QueryMode,
+              },
+            },
+            {
+              last_name: {
+                contains: search,
+                mode: 'insensitive' as Prisma.QueryMode,
+              },
+            },
+            {
+              user: {
+                email: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+            },
           ],
         });
       }
@@ -61,17 +96,21 @@ export class StaffService {
 
       // Roles filter (can be comma-separated for multiple roles)
       if (roles) {
-        const roleList = roles.split(',').map(r => r.trim()).filter(r => r.length > 0);
+        const roleList = roles
+          .split(',')
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0);
         if (roleList.length > 0) {
           andConditions.push({
-            OR: roleList.map(role => ({
+            OR: roleList.map((role) => ({
               roles: { has: role },
             })),
           });
         }
       }
 
-      const where = andConditions.length > 0 ? { AND: andConditions } : undefined;
+      const where =
+        andConditions.length > 0 ? { AND: andConditions } : undefined;
 
       const [total, staff] = await this.prisma.$transaction([
         this.prisma.staffProfile.count({ where }),
@@ -90,7 +129,7 @@ export class StaffService {
             roles: true,
             right_to_work_status: true,
             created_at: true,
-            updated_at: true,   
+            updated_at: true,
             dbs_info: {
               select: {
                 id: true,
@@ -120,9 +159,7 @@ export class StaffService {
           );
         }
         if (s.cv_url) {
-          s.cv_url = SojebStorage.url(
-            appConfig().storageUrl.cv + s.cv_url,
-          );
+          s.cv_url = SojebStorage.url(appConfig().storageUrl.cv + s.cv_url);
         }
       }
 
@@ -172,6 +209,8 @@ export class StaffService {
             orderBy: { uploaded_at: 'desc' },
           },
           dbs_info: true,
+          referees: true,
+          reviews: true,
         },
       });
 
@@ -202,16 +241,19 @@ export class StaffService {
         where: { staff_id: id },
         select: { rating: true },
       });
-      const avgRating = reviews.length > 0
-        ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(2)
-        : 0;
+      const avgRating =
+        reviews.length > 0
+          ? (
+              reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            ).toFixed(2)
+          : 0;
 
       // Calculate max hours per week
       const timesheets = await this.prisma.shiftTimesheet.findMany({
         where: { staff_id: id },
         select: { total_hours: true, shift: { select: { start_date: true } } },
       });
-      
+
       let maxHoursPerWeek = 0;
       if (timesheets.length > 0) {
         const hoursPerWeek = new Map<string, number>();
@@ -219,7 +261,10 @@ export class StaffService {
           if (ts.total_hours && ts.shift?.start_date) {
             const weekNumber = Math.ceil(ts.shift.start_date.getDate() / 7);
             const yearWeek = `${ts.shift.start_date.getFullYear()}-W${weekNumber}`;
-            hoursPerWeek.set(yearWeek, (hoursPerWeek.get(yearWeek) || 0) + ts.total_hours);
+            hoursPerWeek.set(
+              yearWeek,
+              (hoursPerWeek.get(yearWeek) || 0) + ts.total_hours,
+            );
           }
         }
         maxHoursPerWeek = Math.max(...Array.from(hoursPerWeek.values()));
@@ -252,7 +297,9 @@ export class StaffService {
     try {
       const allowed = new Set([0, 1, 2]);
       if (!allowed.has(Number(status))) {
-        throw new BadRequestException('Invalid status. Allowed: 0=pending, 1=active, 2=suspended');
+        throw new BadRequestException(
+          'Invalid status. Allowed: 0=pending, 1=active, 2=suspended',
+        );
       }
 
       const staff = await this.prisma.staffProfile.findUnique({
@@ -275,17 +322,34 @@ export class StaffService {
       const updatedUser = await this.prisma.user.update({
         where: { id: staff.user_id },
         data: updateData,
-        select: { id: true, email: true, status: true, approved_at: true, updated_at: true },
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          approved_at: true,
+          updated_at: true,
+        },
       });
 
-      return { success: true, message: 'Staff status updated successfully', data: updatedUser };
+      return {
+        success: true,
+        message: 'Staff status updated successfully',
+        data: updatedUser,
+      };
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      )
+        throw error;
       throw new InternalServerErrorException('Failed to update staff status');
     }
   }
 
-  async updateCertificateStatus(certificateId: string, verified_status: 'pending' | 'verified' | 'rejected') {
+  async updateCertificateStatus(
+    certificateId: string,
+    verified_status: 'pending' | 'verified' | 'rejected',
+  ) {
     try {
       const allowed = new Set<CertificateVerificationStatus>([
         'pending',
@@ -306,7 +370,9 @@ export class StaffService {
 
       const updated = await this.prisma.staffCertificate.update({
         where: { id: certificateId },
-        data: { verified_status: verified_status as CertificateVerificationStatus },
+        data: {
+          verified_status: verified_status as CertificateVerificationStatus,
+        },
         select: {
           id: true,
           certificate_type: true,
@@ -316,21 +382,32 @@ export class StaffService {
         },
       });
 
-      return { success: true, message: 'Certificate status updated', data: updated };
+      return {
+        success: true,
+        message: 'Certificate status updated',
+        data: updated,
+      };
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to update certificate status');
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      )
+        throw error;
+      throw new InternalServerErrorException(
+        'Failed to update certificate status',
+      );
     }
   }
 
   async getStats() {
     try {
-      const [total, pending, active, suspended] = await this.prisma.$transaction([
-        this.prisma.staffProfile.count(),
-        this.prisma.staffProfile.count({ where: { user: { status: 0 } } }),
-        this.prisma.staffProfile.count({ where: { user: { status: 1 } } }),
-        this.prisma.staffProfile.count({ where: { user: { status: 2 } } }),
-      ]);
+      const [total, pending, active, suspended] =
+        await this.prisma.$transaction([
+          this.prisma.staffProfile.count(),
+          this.prisma.staffProfile.count({ where: { user: { status: 0 } } }),
+          this.prisma.staffProfile.count({ where: { user: { status: 1 } } }),
+          this.prisma.staffProfile.count({ where: { user: { status: 2 } } }),
+        ]);
 
       return {
         success: true,
@@ -338,7 +415,9 @@ export class StaffService {
         data: { total, pending, active, suspended },
       };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to fetch staff statistics');
+      throw new InternalServerErrorException(
+        'Failed to fetch staff statistics',
+      );
     }
   }
 }
