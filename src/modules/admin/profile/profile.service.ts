@@ -89,8 +89,8 @@ export class ProfileService {
     // Build profile update payload
     if (updateData.name !== undefined) {
       const parts = updateData.name.trim().split(' ');
-      updateProfilePayload.first_name = parts.shift() || existingProfile.first_name;
-      updateProfilePayload.last_name = parts.join(' ') || existingProfile.last_name;
+      updateProfilePayload.first_name = parts.shift() 
+      updateProfilePayload.last_name = parts.join(' ') 
     }
 
     if (updateData.phone_number !== undefined) {
