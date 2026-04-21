@@ -1482,6 +1482,48 @@ export class AuthService {
         };
       }
 
+      // Prepare referee data if minimum required fields are provided
+      let refereeData = null;
+      if (profileData.referee_name && profileData.email) {
+        let consentToContact = false;
+        const consentValue = profileData.referee_consent_to_contact;
+        if (typeof consentValue === 'boolean') {
+          consentToContact = consentValue;
+        } else if (typeof consentValue === 'number') {
+          consentToContact = consentValue === 1;
+        } else if (typeof consentValue === 'string') {
+          const value = consentValue.trim().toLowerCase();
+          consentToContact = ['true', '1', 'yes'].includes(value);
+        }
+
+        let refereeEmploymentDate: Date | undefined;
+        if (profileData.referee_date_of_employment) {
+          const employmentDateString = String(
+            profileData.referee_date_of_employment,
+          ).trim();
+          const parsedEmploymentDate = new Date(employmentDateString);
+          if (isNaN(parsedEmploymentDate.getTime())) {
+            return {
+              success: false,
+              message: `Invalid date format for referee_date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
+            };
+          }
+          refereeEmploymentDate = parsedEmploymentDate;
+        }
+
+        refereeData = {
+          name: profileData.referee_name,
+          mobile_code: profileData.referee_mobile_code,
+          mobile_number: profileData.referee_mobile_number,
+          email: profileData.referee_email,
+          role: profileData.referee_role,
+          consent_to_contact: consentToContact,
+          ...(refereeEmploymentDate
+            ? { date_of_employment: refereeEmploymentDate }
+            : {}),
+        };
+      }
+
       // Get staff role
       const role = await this.prisma.role.findFirst({
         where: { name: 'staff' },
@@ -1554,11 +1596,23 @@ export class AuthService {
           });
         }
 
+        // Create referee if provided
+        let refereeInfo = null;
+        if (refereeData) {
+          refereeInfo = await tx.staffReferee.create({
+            data: {
+              staff_id: staffProfile.id,
+              ...refereeData,
+            },
+          });
+        }
+
         return {
           staffProfile,
           roleUser,
           certificatesCreated,
           dbsInfo,
+          refereeInfo,
         };
       });
 
@@ -1591,6 +1645,7 @@ export class AuthService {
             current_address: true,
             previous_address: true,
             educations: true,
+            referees: true,
           },
         });
 
@@ -1615,6 +1670,7 @@ export class AuthService {
           onboarding_step: 'completed',
           certificates_created: result.certificatesCreated.length,
           dbs_info_created: !!result.dbsInfo,
+          referee_created: !!result.refereeInfo,
         },
       };
     } catch (error) {

@@ -474,12 +474,12 @@ model Conversation {
 
 // Pay Rate By Role Model
 model ProviderPayRateByRole {
-  id                  String    @id @default(cuid())
+  id                  String         @id @default(cuid())
   service_provider_id String
   profession_role     ProfessionRole
-  pay_rate_hourly     Float     // Min 0.01
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
+  pay_rate_hourly     Float // Min 0.01
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
 
   service_provider ServiceProviderInfo @relation(fields: [service_provider_id], references: [id], onDelete: Cascade)
 
@@ -531,12 +531,12 @@ model ServiceProviderInfo {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  user                User                        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  employees           Employee[]
-  shifts              Shift[]
-  staff_preferences   ProviderStaffPreference[]
-  staff_reviews       StaffPerformanceReview[]
-  pay_rates_by_role   ProviderPayRateByRole[]
+  user              User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  employees         Employee[]
+  shifts            Shift[]
+  staff_preferences ProviderStaffPreference[]
+  staff_reviews     StaffPerformanceReview[]
+  pay_rates_by_role ProviderPayRateByRole[]
 
   @@map("service_provider_infos")
 }
@@ -606,6 +606,7 @@ model StaffProfile {
   emergency_contacts StaffEmergencyContact?
   current_address    StaffCurrentAddress?
   previous_address   StaffPreviousAddress?
+  referees           StaffReferee?
   educations         StaffEducation[]
 
   profile_completion  Int     @default(0) // percentage (0–100)
@@ -735,6 +736,22 @@ model StaffPreviousAddress {
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
+  staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+}
+
+model StaffReferee {
+  id                 String    @id @default(cuid())
+  staff_id           String    @unique
+  name               String
+  mobile_code        String?
+  mobile_number      String?
+  email              String?
+  role               String? // e.g. "former manager", "colleague", etc.
+  date_of_employment DateTime?
+  consent_to_contact Boolean   @default(false)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
   staff StaffProfile @relation(fields: [staff_id], references: [id], onDelete: Cascade)
 }
