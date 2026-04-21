@@ -26,6 +26,7 @@ import { UpdateStaffProfileDto } from './dto/update-staff-profile.dto';
 import { CreateUpdateEducationDto } from './dto/create-update-education.dto';
 import { CreateUpdateCertificateDto } from './dto/create-update-certificate.dto';
 import { UpdateDbsInfoDto } from './dto/update-dbs-info.dto';
+import { UpdateRefereeInfoDto } from './dto/update-referee-info.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
@@ -40,7 +41,7 @@ export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly activityLogService: ActivityLogService,
-  ) { }
+  ) {}
 
   @ApiOperation({ summary: 'Update staff personal info and roles' })
   @ApiBearerAuth()
@@ -63,7 +64,8 @@ export class ProfileController {
   async updateStaffProfile(
     @Req() req: Request,
     @Body() updateStaffProfileDto: UpdateStaffProfileDto,
-    @UploadedFiles() files?: {
+    @UploadedFiles()
+    files?: {
       photo?: Express.Multer.File[];
       cv?: Express.Multer.File[];
       current_address_evidence?: Express.Multer.File[];
@@ -102,7 +104,10 @@ export class ProfileController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.profileService.createOrUpdateEducation(user_id, createUpdateEducationDto);
+    return this.profileService.createOrUpdateEducation(
+      user_id,
+      createUpdateEducationDto,
+    );
   }
 
   @ApiOperation({ summary: 'Create or update staff certificate' })
@@ -126,7 +131,11 @@ export class ProfileController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.profileService.createOrUpdateCertificate(user_id, createUpdateCertificateDto, file);
+    return this.profileService.createOrUpdateCertificate(
+      user_id,
+      createUpdateCertificateDto,
+      file,
+    );
   }
 
   @ApiOperation({ summary: 'Update staff DBS info' })
@@ -145,6 +154,24 @@ export class ProfileController {
     }
 
     return this.profileService.updateDbsInfo(user_id, updateDbsInfoDto);
+  }
+
+  @ApiOperation({ summary: 'Create or update staff referee info' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STAFF)
+  @Patch('referee-info')
+  @HttpCode(HttpStatus.OK)
+  async updateRefereeInfo(
+    @Req() req: Request,
+    @Body() updateRefereeInfoDto: UpdateRefereeInfoDto,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.profileService.updateRefereeInfo(user_id, updateRefereeInfoDto);
   }
 
   @ApiOperation({ summary: 'Get staff profile with all related data' })
