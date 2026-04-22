@@ -34,6 +34,7 @@ export class ProfileService {
           emergency_contacts: true,
           current_address: true,
           previous_address: true,
+          referees: true,
           educations: true,
           bank_details: true,
         },
@@ -417,11 +418,86 @@ export class ProfileService {
           });
         }
 
+        // Handle Referee - upsert
+        let referee = null;
+        if (updateData.referee_info) {
+          const refereeData = updateData.referee_info;
+
+          if (
+            refereeData.name === undefined ||
+            refereeData.email === undefined
+          ) {
+            throw new BadRequestException(
+              'Referee name and email are required',
+            );
+          }
+
+          const refereeUpdateData: any = {
+            name: refereeData.name,
+            mobile_code: refereeData.mobile_code,
+            mobile_number: refereeData.mobile_number,
+            email: refereeData.email ?? undefined,
+            role: refereeData.role ?? undefined,
+            consent_to_contact:
+              refereeData.consent_to_contact === undefined
+                ? undefined
+                : typeof refereeData.consent_to_contact === 'boolean'
+                  ? refereeData.consent_to_contact
+                  : typeof refereeData.consent_to_contact === 'number'
+                    ? refereeData.consent_to_contact === 1
+                    : ['true', '1', 'yes'].includes(
+                        String(refereeData.consent_to_contact)
+                          .trim()
+                          .toLowerCase(),
+                      ),
+          };
+
+          if (refereeData.date_of_employment !== undefined) {
+            const employmentDateString = String(
+              refereeData.date_of_employment,
+            ).trim();
+            if (
+              !employmentDateString ||
+              employmentDateString === 'undefined' ||
+              employmentDateString === 'null'
+            ) {
+              throw new BadRequestException(
+                'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
+              );
+            }
+
+            const employmentDate = new Date(employmentDateString);
+            if (isNaN(employmentDate.getTime())) {
+              throw new BadRequestException(
+                `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
+              );
+            }
+
+            refereeUpdateData.date_of_employment = employmentDate;
+          }
+
+          referee = await tx.staffReferee.upsert({
+            where: { staff_id },
+            update: refereeUpdateData,
+            create: {
+              staff_id,
+              name: refereeUpdateData.name,
+              mobile_code: refereeUpdateData.mobile_code,
+              mobile_number: refereeUpdateData.mobile_number,
+              email: refereeUpdateData.email ?? null,
+              role: refereeUpdateData.role ?? null,
+              consent_to_contact: refereeUpdateData.consent_to_contact ?? false,
+              date_of_employment: refereeUpdateData.date_of_employment ?? null,
+            },
+          });
+        }
+
         return {
           profile: updatedProfile,
           emergencyContact,
           currentAddress,
           previousAddress,
+          referee,
         };
       });
 
@@ -458,6 +534,7 @@ export class ProfileService {
           emergency_contact: result.emergencyContact,
           current_address: result.currentAddress,
           previous_address: result.previousAddress,
+          referee: result.referee,
         },
       };
     } catch (error) {
