@@ -1291,6 +1291,8 @@ export class AuthService {
     certificateFiles?: { [key: string]: Express.Multer.File[] },
   ) {
     try {
+
+     
       // Get user to verify
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -1484,7 +1486,7 @@ export class AuthService {
 
       // Prepare referee data if minimum required fields are provided
       let refereeData = null;
-      if (profileData.referee_name && profileData.email) {
+      if (profileData.referee_name && profileData.referee_email) {
         let consentToContact = false;
         const consentValue = profileData.referee_consent_to_contact;
         if (typeof consentValue === 'boolean') {
