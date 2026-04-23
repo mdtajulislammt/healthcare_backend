@@ -418,78 +418,82 @@ export class ProfileService {
           });
         }
 
-        // Handle Referee - upsert
-        let referee = null;
-        if (updateData.referee_info) {
-          const refereeData = updateData.referee_info;
+        // Handle Referees - Multiple referees (delete old, create new)
+        let referees: any[] = [];
+        if (updateData.referees && Array.isArray(updateData.referees)) {
+          // Delete existing referees for this staff
+          await tx.staffReferee.deleteMany({
+            where: { staff_id },
+          });
 
-          if (
-            refereeData.name === undefined ||
-            refereeData.email === undefined
-          ) {
-            throw new BadRequestException(
-              'Referee name and email are required',
-            );
-          }
-
-          const refereeUpdateData: any = {
-            name: refereeData.name,
-            mobile_code: refereeData.mobile_code,
-            mobile_number: refereeData.mobile_number,
-            email: refereeData.email ?? undefined,
-            role: refereeData.role ?? undefined,
-            consent_to_contact:
-              refereeData.consent_to_contact === undefined
-                ? undefined
-                : typeof refereeData.consent_to_contact === 'boolean'
-                  ? refereeData.consent_to_contact
-                  : typeof refereeData.consent_to_contact === 'number'
-                    ? refereeData.consent_to_contact === 1
-                    : ['true', '1', 'yes'].includes(
-                        String(refereeData.consent_to_contact)
-                          .trim()
-                          .toLowerCase(),
-                      ),
-          };
-
-          if (refereeData.date_of_employment !== undefined) {
-            const employmentDateString = String(
-              refereeData.date_of_employment,
-            ).trim();
+          // Create new referees from the provided array
+          const refereesData: any[] = [];
+          for (const refereeData of updateData.referees) {
             if (
-              !employmentDateString ||
-              employmentDateString === 'undefined' ||
-              employmentDateString === 'null'
+              !refereeData.name ||
+              !refereeData.mobile_code ||
+              !refereeData.mobile_number
             ) {
               throw new BadRequestException(
-                'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
+                'Each referee must have name, mobile_code and mobile_number',
               );
             }
 
-            const employmentDate = new Date(employmentDateString);
-            if (isNaN(employmentDate.getTime())) {
-              throw new BadRequestException(
-                `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
-              );
+            const refereePayload: any = {
+              name: refereeData.name,
+              mobile_code: refereeData.mobile_code,
+              mobile_number: refereeData.mobile_number,
+              email: refereeData.email ?? null,
+              role: refereeData.role ?? null,
+              consent_to_contact:
+                refereeData.consent_to_contact === undefined
+                  ? false
+                  : typeof refereeData.consent_to_contact === 'boolean'
+                    ? refereeData.consent_to_contact
+                    : typeof refereeData.consent_to_contact === 'number'
+                      ? refereeData.consent_to_contact === 1
+                      : ['true', '1', 'yes'].includes(
+                          String(refereeData.consent_to_contact)
+                            .trim()
+                            .toLowerCase(),
+                        ),
+            };
+
+            if (refereeData.date_of_employment !== undefined) {
+              const employmentDateString = String(
+                refereeData.date_of_employment,
+              ).trim();
+              if (
+                !employmentDateString ||
+                employmentDateString === 'undefined' ||
+                employmentDateString === 'null'
+              ) {
+                throw new BadRequestException(
+                  'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
+                );
+              }
+
+              const employmentDate = new Date(employmentDateString);
+              if (isNaN(employmentDate.getTime())) {
+                throw new BadRequestException(
+                  `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
+                );
+              }
+              refereePayload.date_of_employment = employmentDate;
             }
 
-            refereeUpdateData.date_of_employment = employmentDate;
+            refereesData.push(refereePayload);
           }
 
-          referee = await tx.staffReferee.upsert({
-            where: { staff_id },
-            update: refereeUpdateData,
-            create: {
-              staff_id,
-              name: refereeUpdateData.name,
-              mobile_code: refereeUpdateData.mobile_code,
-              mobile_number: refereeUpdateData.mobile_number,
-              email: refereeUpdateData.email ?? null,
-              role: refereeUpdateData.role ?? null,
-              consent_to_contact: refereeUpdateData.consent_to_contact ?? false,
-              date_of_employment: refereeUpdateData.date_of_employment ?? null,
-            },
-          });
+          // Create all referees
+          if (refereesData.length > 0) {
+            const created = await tx.staffReferee.createMany({
+              data: refereesData.map((ref) => ({
+                ...ref,
+                staff_id,
+              })),
+            });
+          }
         }
 
         return {
@@ -497,7 +501,7 @@ export class ProfileService {
           emergencyContact,
           currentAddress,
           previousAddress,
-          referee,
+          referees,
         };
       });
 
@@ -534,7 +538,7 @@ export class ProfileService {
           emergency_contact: result.emergencyContact,
           current_address: result.currentAddress,
           previous_address: result.previousAddress,
-          referee: result.referee,
+          referees: result.referees,
         },
       };
     } catch (error) {

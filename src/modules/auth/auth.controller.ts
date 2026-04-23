@@ -665,13 +665,7 @@ export class AuthController {
         dbs_date_of_birth_on_cert: data.dbs_date_of_birth_on_cert,
         dbs_certificate_print_date: data.dbs_certificate_print_date,
         dbs_is_registered_on_update: data.dbs_is_registered_on_update,
-        referee_name: data.referee_name,
-        referee_mobile_code: data.referee_mobile_code,
-        referee_mobile_number: data.referee_mobile_number,
-        referee_email: data.referee_email,
-        referee_role: data.referee_role,
-        referee_date_of_employment: data.referee_date_of_employment,
-        referee_consent_to_contact: data.referee_consent_to_contact,
+        referees: data.referees,
       };
       const photo = files?.photo?.[0];
       const cv = files?.cv?.[0];

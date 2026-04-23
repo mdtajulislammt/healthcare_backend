@@ -606,7 +606,7 @@ model StaffProfile {
   emergency_contacts StaffEmergencyContact?
   current_address    StaffCurrentAddress?
   previous_address   StaffPreviousAddress?
-  referees           StaffReferee?
+  referees           StaffReferee[]
   educations         StaffEducation[]
 
   profile_completion  Int     @default(0) // percentage (0–100)
@@ -742,7 +742,7 @@ model StaffPreviousAddress {
 
 model StaffReferee {
   id                 String    @id @default(cuid())
-  staff_id           String    @unique
+  staff_id           String
   name               String
   mobile_code        String?
   mobile_number      String?
