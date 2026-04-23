@@ -418,82 +418,123 @@ export class ProfileService {
           });
         }
 
-        // Handle Referees - Multiple referees (delete old, create new)
-        let referees: any[] = [];
-        if (updateData.referees && Array.isArray(updateData.referees)) {
-          // Delete existing referees for this staff
-          await tx.staffReferee.deleteMany({
-            where: { staff_id },
+        // Handle Referees - Update by id only
+        // Support multipart/form-data where referees may come as a JSON string.
+        let refereesSource: any[] = [];
+        if (Array.isArray(updateData.referees)) {
+          refereesSource = updateData.referees;
+        } else if (typeof updateData.referees === 'string') {
+          const normalizeJsonString = (input: string) =>
+            input.trim().replace(/,\s*([}\]])/g, '$1');
+
+          try {
+            const parsed = JSON.parse(updateData.referees);
+            refereesSource = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            try {
+              const parsed = JSON.parse(
+                normalizeJsonString(updateData.referees),
+              );
+              refereesSource = Array.isArray(parsed) ? parsed : [];
+            } catch {
+              throw new BadRequestException(
+                'Invalid JSON format for referees field. Please send a valid JSON array.',
+              );
+            }
+          }
+        }
+
+        const referees: any[] = [];
+        for (const refereeData of refereesSource) {
+          if (!refereeData?.id) {
+            throw new BadRequestException(
+              'Each referee update must include id',
+            );
+          }
+
+          const existingReferee = await tx.staffReferee.findFirst({
+            where: {
+              id: refereeData.id,
+              staff_id,
+            },
           });
 
-          // Create new referees from the provided array
-          const refereesData: any[] = [];
-          for (const refereeData of updateData.referees) {
+          if (!existingReferee) {
+            throw new BadRequestException(
+              `Referee with id "${refereeData.id}" not found for this staff`,
+            );
+          }
+
+          const updateRefereePayload: any = {};
+
+          if (refereeData.name !== undefined) {
+            updateRefereePayload.name = refereeData.name;
+          }
+
+          if (refereeData.mobile_code !== undefined) {
+            updateRefereePayload.mobile_code = refereeData.mobile_code;
+          }
+
+          if (refereeData.mobile_number !== undefined) {
+            updateRefereePayload.mobile_number = refereeData.mobile_number;
+          }
+
+          if (refereeData.email !== undefined) {
+            updateRefereePayload.email = refereeData.email;
+          }
+
+          if (refereeData.role !== undefined) {
+            updateRefereePayload.role = refereeData.role;
+          }
+
+          if (refereeData.consent_to_contact !== undefined) {
+            updateRefereePayload.consent_to_contact =
+              typeof refereeData.consent_to_contact === 'boolean'
+                ? refereeData.consent_to_contact
+                : typeof refereeData.consent_to_contact === 'number'
+                  ? refereeData.consent_to_contact === 1
+                  : ['true', '1', 'yes'].includes(
+                      String(refereeData.consent_to_contact)
+                        .trim()
+                        .toLowerCase(),
+                    );
+          }
+
+          if (refereeData.date_of_employment !== undefined) {
+            const employmentDateString = String(
+              refereeData.date_of_employment,
+            ).trim();
             if (
-              !refereeData.name ||
-              !refereeData.mobile_code ||
-              !refereeData.mobile_number
+              !employmentDateString ||
+              employmentDateString === 'undefined' ||
+              employmentDateString === 'null'
             ) {
               throw new BadRequestException(
-                'Each referee must have name, mobile_code and mobile_number',
+                'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
               );
             }
 
-            const refereePayload: any = {
-              name: refereeData.name,
-              mobile_code: refereeData.mobile_code,
-              mobile_number: refereeData.mobile_number,
-              email: refereeData.email ?? null,
-              role: refereeData.role ?? null,
-              consent_to_contact:
-                refereeData.consent_to_contact === undefined
-                  ? false
-                  : typeof refereeData.consent_to_contact === 'boolean'
-                    ? refereeData.consent_to_contact
-                    : typeof refereeData.consent_to_contact === 'number'
-                      ? refereeData.consent_to_contact === 1
-                      : ['true', '1', 'yes'].includes(
-                          String(refereeData.consent_to_contact)
-                            .trim()
-                            .toLowerCase(),
-                        ),
-            };
-
-            if (refereeData.date_of_employment !== undefined) {
-              const employmentDateString = String(
-                refereeData.date_of_employment,
-              ).trim();
-              if (
-                !employmentDateString ||
-                employmentDateString === 'undefined' ||
-                employmentDateString === 'null'
-              ) {
-                throw new BadRequestException(
-                  'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
-                );
-              }
-
-              const employmentDate = new Date(employmentDateString);
-              if (isNaN(employmentDate.getTime())) {
-                throw new BadRequestException(
-                  `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
-                );
-              }
-              refereePayload.date_of_employment = employmentDate;
+            const employmentDate = new Date(employmentDateString);
+            if (isNaN(employmentDate.getTime())) {
+              throw new BadRequestException(
+                `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
+              );
             }
-
-            refereesData.push(refereePayload);
+            updateRefereePayload.date_of_employment = employmentDate;
           }
 
-          // Create all referees
-          if (refereesData.length > 0) {
-            const created = await tx.staffReferee.createMany({
-              data: refereesData.map((ref) => ({
-                ...ref,
-                staff_id,
-              })),
-            });
+          if (Object.keys(updateRefereePayload).length === 0) {
+            throw new BadRequestException(
+              `No update fields provided for referee id "${refereeData.id}"`,
+            );
           }
+
+          const updatedReferee = await tx.staffReferee.update({
+            where: { id: refereeData.id },
+            data: updateRefereePayload,
+          });
+
+          referees.push(updatedReferee);
         }
 
         return {
@@ -1002,9 +1043,18 @@ export class ProfileService {
 
       const staff_id = user.staff_profile.id;
 
-      const existingReferee = await this.prisma.staffReferee.findUnique({
-        where: { staff_id },
+      const existingReferee = await this.prisma.staffReferee.findFirst({
+        where: {
+          id: refereeData.id,
+          staff_id,
+        },
       });
+
+      if (!existingReferee) {
+        throw new NotFoundException(
+          `Referee with id "${refereeData.id}" not found`,
+        );
+      }
 
       const updatePayload: any = {};
 
@@ -1055,46 +1105,20 @@ export class ProfileService {
         updatePayload.consent_to_contact = refereeData.consent_to_contact;
       }
 
-      let savedReferee;
-      if (existingReferee) {
-        if (Object.keys(updatePayload).length === 0) {
-          throw new BadRequestException(
-            'No referee fields provided for update',
-          );
-        }
-
-        savedReferee = await this.prisma.staffReferee.update({
-          where: { staff_id },
-          data: updatePayload,
-        });
-      } else {
-        const createPayload = {
-          ...updatePayload,
-          staff_id,
-        };
-
-        if (
-          !createPayload.name ||
-          !createPayload.mobile_code ||
-          !createPayload.mobile_number
-        ) {
-          throw new BadRequestException(
-            'name, mobile_code and mobile_number are required to create referee info',
-          );
-        }
-
-        savedReferee = await this.prisma.staffReferee.create({
-          data: createPayload,
-        });
+      if (Object.keys(updatePayload).length === 0) {
+        throw new BadRequestException('No referee fields provided for update');
       }
+
+      const savedReferee = await this.prisma.staffReferee.update({
+        where: { id: refereeData.id },
+        data: updatePayload,
+      });
 
       await this.recalculateProfileCompletion(staff_id);
 
       return {
         success: true,
-        message: existingReferee
-          ? 'Referee info updated successfully'
-          : 'Referee info created successfully',
+        message: 'Referee info updated successfully',
         data: savedReferee,
       };
     } catch (error) {
