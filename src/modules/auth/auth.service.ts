@@ -13,6 +13,7 @@ import { DateHelper } from '../../common/helper/date.helper';
 import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
 import { calculateStaffProfileCompletion } from '../../common/helper/profile-completion.helper';
+import e from 'express';
 
 @Injectable()
 export class AuthService {
@@ -1499,23 +1500,15 @@ export class AuthService {
       const name = String(referee.name ?? '').trim();
       const mobileCode = String(referee.mobile_code ?? '').trim();
       const mobileNumber = String(referee.mobile_number ?? '').trim();
+      const email = referee.email ? String(referee.email).trim() : undefined;
+      const role = referee.role ? String(referee.role).trim() : undefined;
 
-      // Skip fully empty referee objects
-      if (
-        !name &&
-        !mobileCode &&
-        !mobileNumber &&
-        !referee.email &&
-        !referee.role
-      ) {
-        continue;
-      }
 
-      if (!name || !mobileCode || !mobileNumber) {
+      if (!name || !email) {
         return {
           success: false,
           message:
-            'Each referee must include name, mobile_code, and mobile_number.',
+            'Each referee must include name and email.',
         };
       }
 
@@ -1536,8 +1529,8 @@ export class AuthService {
         name,
         mobile_code: mobileCode,
         mobile_number: mobileNumber,
-        email: referee.email ? String(referee.email).trim() : undefined,
-        role: referee.role ? String(referee.role).trim() : undefined,
+        email: email,
+        role: role,
         consent_to_contact: normalizeConsent(referee.consent_to_contact),
         ...(refereeEmploymentDate
           ? { date_of_employment: refereeEmploymentDate }
