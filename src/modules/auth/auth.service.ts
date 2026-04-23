@@ -1313,9 +1313,9 @@ export class AuthService {
       };
     }
 
-    // if (user.staff_profile) {
-    //   return { success: false, message: 'Profile already created' };
-    // }
+    if (user.staff_profile) {
+      return { success: false, message: 'Profile already created' };
+    }
 
     // ─── 2. Hash password ─────────────────────────────────────────────────────
     await UserRepository.changePassword({
