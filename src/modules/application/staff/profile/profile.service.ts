@@ -501,25 +501,7 @@ export class ProfileService {
           }
 
           if (refereeData.date_of_employment !== undefined) {
-            const employmentDateString = String(
-              refereeData.date_of_employment,
-            ).trim();
-            if (
-              !employmentDateString ||
-              employmentDateString === 'undefined' ||
-              employmentDateString === 'null'
-            ) {
-              throw new BadRequestException(
-                'Referee date_of_employment must be a valid date in YYYY-MM-DD format',
-              );
-            }
-
-            const employmentDate = new Date(employmentDateString);
-            if (isNaN(employmentDate.getTime())) {
-              throw new BadRequestException(
-                `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
-              );
-            }
+            const employmentDate = new Date(refereeData.date_of_employment);
             updateRefereePayload.date_of_employment = employmentDate;
           }
 
@@ -1079,26 +1061,9 @@ export class ProfileService {
       }
 
       if (refereeData.date_of_employment !== undefined) {
-        const employmentDateString = String(
+        updatePayload.date_of_employment = new Date(
           refereeData.date_of_employment,
-        ).trim();
-        if (
-          !employmentDateString ||
-          employmentDateString === 'undefined' ||
-          employmentDateString === 'null'
-        ) {
-          throw new BadRequestException(
-            'date_of_employment must be a valid date in YYYY-MM-DD format.',
-          );
-        }
-
-        const parsedEmploymentDate = new Date(employmentDateString);
-        if (isNaN(parsedEmploymentDate.getTime())) {
-          throw new BadRequestException(
-            `Invalid date format for date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format (e.g., 2020-01-01).`,
-          );
-        }
-        updatePayload.date_of_employment = parsedEmploymentDate;
+        );
       }
 
       if (refereeData.consent_to_contact !== undefined) {
