@@ -3,12 +3,18 @@ import { Transform } from 'class-transformer';
 import {
   IsDateString,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsBoolean,
 } from 'class-validator';
 
 export class UpdateRefereeInfoDto {
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty({ description: 'Referee id', required: true })
+  id: string;
+
   @IsOptional()
   @IsString()
   @ApiProperty({ description: 'Referee full name', required: false })

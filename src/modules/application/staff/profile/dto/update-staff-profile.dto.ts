@@ -70,6 +70,12 @@ export class AddressDto {
 }
 
 export class RefereeInfoDto {
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({ description: 'Referee id', required: false })
+  id?: string;  
+
   @IsOptional()
   @IsString()
   @ApiProperty({ description: 'Referee name', required: false })
@@ -191,18 +197,6 @@ export class UpdateStaffProfileDto {
   })
   @Transform(({ value }) => (value ? JSON.parse(value) : undefined))
   previous_address?: AddressDto;
-
-  // Referee Info (single - legacy support)
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => RefereeInfoDto)
-  @ApiProperty({
-    description: 'Referee information (single)',
-    required: false,
-    type: () => RefereeInfoDto,
-  })
-  @Transform(({ value }) => (value ? JSON.parse(value) : undefined))
-  referee_info?: RefereeInfoDto;
 
   // Referees - Multiple referees (array)
   @IsOptional()
