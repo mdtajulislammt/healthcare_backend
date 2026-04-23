@@ -192,15 +192,40 @@ export class UpdateStaffProfileDto {
   @Transform(({ value }) => (value ? JSON.parse(value) : undefined))
   previous_address?: AddressDto;
 
-  // Referee Info
+  // Referee Info (single - legacy support)
   @IsOptional()
   @ValidateNested()
   @Type(() => RefereeInfoDto)
   @ApiProperty({
-    description: 'Referee information',
+    description: 'Referee information (single)',
     required: false,
     type: () => RefereeInfoDto,
   })
   @Transform(({ value }) => (value ? JSON.parse(value) : undefined))
   referee_info?: RefereeInfoDto;
+
+  // Referees - Multiple referees (array)
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RefereeInfoDto)
+  @ApiProperty({
+    description: 'Array of referees',
+    required: false,
+    isArray: true,
+    type: () => RefereeInfoDto,
+  })
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return undefined;
+      }
+    }
+    return Array.isArray(value) ? value : [value];
+  })
+  referees?: RefereeInfoDto[];
 }
