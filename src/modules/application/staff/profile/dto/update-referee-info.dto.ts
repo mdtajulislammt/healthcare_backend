@@ -11,8 +11,8 @@ import {
 
 export class UpdateRefereeInfoDto {
   @IsString()
-  @IsNotEmpty()
-  @ApiProperty({ description: 'Referee id', required: true })
+  @IsOptional()
+  @ApiProperty({ description: 'Referee id', required: false })
   id: string;
 
   @IsOptional()

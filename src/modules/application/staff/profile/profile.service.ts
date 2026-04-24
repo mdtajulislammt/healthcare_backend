@@ -446,25 +446,6 @@ export class ProfileService {
 
         const referees: any[] = [];
         for (const refereeData of refereesSource) {
-          if (!refereeData?.id) {
-            throw new BadRequestException(
-              'Each referee update must include id',
-            );
-          }
-
-          const existingReferee = await tx.staffReferee.findFirst({
-            where: {
-              id: refereeData.id,
-              staff_id,
-            },
-          });
-
-          if (!existingReferee) {
-            throw new BadRequestException(
-              `Referee with id "${refereeData.id}" not found for this staff`,
-            );
-          }
-
           const updateRefereePayload: any = {};
 
           if (refereeData.name !== undefined) {
@@ -509,9 +490,41 @@ export class ProfileService {
           }
 
           if (Object.keys(updateRefereePayload).length === 0) {
-            throw new BadRequestException(
-              `No update fields provided for referee id "${refereeData.id}"`,
-            );
+            if (refereeData?.id) {
+              throw new BadRequestException(
+                `No update fields provided for referee id "${refereeData.id}"`,
+              );
+            }
+            continue;
+          }
+
+          if (!refereeData?.id) {
+            if (!updateRefereePayload.name) {
+              throw new BadRequestException(
+                'Referee name is required when creating a new referee',
+              );
+            }
+
+            const createdReferee = await tx.staffReferee.create({
+              data: {
+                ...updateRefereePayload,
+                staff_id,
+              },
+            });
+
+            referees.push(createdReferee);
+            continue;
+          }
+
+          const existingReferee = await tx.staffReferee.findFirst({
+            where: {
+              id: refereeData.id,
+              staff_id,
+            },
+          });
+
+          if (!existingReferee) {
+            continue;
           }
 
           const updatedReferee = await tx.staffReferee.update({
