@@ -1284,389 +1284,415 @@ export class AuthService {
    * Step 4A: Complete Staff Profile
    * Creates StaffProfile and assigns role
    */
- async completeStaffProfile(
-  userId: string,
-  profileData: any,
-  photoFile?: Express.Multer.File,
-  cvFile?: Express.Multer.File,
-  certificateFiles?: { [key: string]: Express.Multer.File[] },
-) {
-  try {
-    // ─── 1. Verify user ───────────────────────────────────────────────────────
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { staff_profile: true },
-    });
+  async completeStaffProfile(
+    userId: string,
+    profileData: any,
+    photoFile?: Express.Multer.File,
+    cvFile?: Express.Multer.File,
+    certificateFiles?: { [key: string]: Express.Multer.File[] },
+  ) {
+    try {
+      // ─── 1. Verify user ───────────────────────────────────────────────────────
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { staff_profile: true },
+      });
 
-    if (!user) {
-      return { success: false, message: 'User not found' };
-    }
-
-    if (user.type !== 'staff') {
-      return { success: false, message: 'User type mismatch. Expected staff' };
-    }
-
-    if (!user.email_verified_at) {
-      return {
-        success: false,
-        message: 'Email must be verified before completing profile',
-      };
-    }
-
-    if (user.staff_profile) {
-      return { success: false, message: 'Profile already created' };
-    }
-
-    // ─── 2. Hash password ─────────────────────────────────────────────────────
-    await UserRepository.changePassword({
-      email: user.email,
-      password: profileData.password,
-    });
-
-    // ─── 3. Upload photo ──────────────────────────────────────────────────────
-    let staffPhotoFileName: string = null;
-    if (photoFile) {
-      staffPhotoFileName = `${StringHelper.randomString()}${photoFile.originalname}`;
-      await SojebStorage.put(
-        appConfig().storageUrl.staff + staffPhotoFileName,
-        photoFile.buffer,
-      );
-    }
-
-    // ─── 4. Upload CV ─────────────────────────────────────────────────────────
-    let staffCvFileName: string = null;
-    if (cvFile) {
-      staffCvFileName = `${StringHelper.randomString()}${cvFile.originalname}`;
-      await SojebStorage.put(
-        appConfig().storageUrl.cv + staffCvFileName,
-        cvFile.buffer,
-      );
-    }
-
-    // ─── 5. Upload certificate files ──────────────────────────────────────────
-    const typeToFile: Record<string, Express.Multer.File> = {};
-    const certificateFileNames: Record<string, string> = {};
-
-    if (certificateFiles && Object.keys(certificateFiles).length > 0) {
-      const allowedTypesSet = new Set([
-        'care_certificate',
-        'moving_handling',
-        'first_aid',
-        'basic_life_support',
-        'infection_control',
-        'safeguarding',
-        'health_safety',
-        'equality_diversity',
-        'coshh',
-        'medication_training',
-        'nvq_iii',
-        'additional_training',
-      ]);
-
-      for (const [fieldName, fileArray] of Object.entries(certificateFiles)) {
-        const type = fieldName.trim().toLowerCase();
-        if (!allowedTypesSet.has(type)) continue;
-        if (!fileArray || fileArray.length === 0) continue;
-        if (typeToFile[type]) continue;
-        typeToFile[type] = fileArray[0];
+      if (!user) {
+        return { success: false, message: 'User not found' };
       }
 
-      for (const [type, file] of Object.entries(typeToFile)) {
-        const fileName = `${StringHelper.randomString()}${file.originalname}`;
+      if (user.type !== 'staff') {
+        return {
+          success: false,
+          message: 'User type mismatch. Expected staff',
+        };
+      }
+
+      if (!user.email_verified_at) {
+        return {
+          success: false,
+          message: 'Email must be verified before completing profile',
+        };
+      }
+
+      if (user.staff_profile) {
+        return { success: false, message: 'Profile already created' };
+      }
+
+      // ─── 2. Hash password ─────────────────────────────────────────────────────
+      await UserRepository.changePassword({
+        email: user.email,
+        password: profileData.password,
+      });
+
+      // ─── 3. Upload photo ──────────────────────────────────────────────────────
+      let staffPhotoFileName: string = null;
+      if (photoFile) {
+        staffPhotoFileName = `${StringHelper.randomString()}${photoFile.originalname}`;
         await SojebStorage.put(
-          appConfig().storageUrl.certificate + fileName,
-          file.buffer,
-        );
-        certificateFileNames[type] = fileName;
-      }
-    }
-
-    // ─── 6. Normalize roles ───────────────────────────────────────────────────
-    const rolesNormalized = Array.isArray(profileData.roles)
-      ? profileData.roles
-      : typeof profileData.roles === 'string'
-        ? String(profileData.roles)
-            .split(',')
-            .map((v: string) => v.trim().toLowerCase())
-            .filter(Boolean)
-        : undefined;
-
-    // ─── 7. Normalize agreed_to_terms ────────────────────────────────────────
-    const agreedStaff =
-      typeof profileData.agreed_to_terms === 'string'
-        ? ['true', '1', 'yes'].includes(
-            String(profileData.agreed_to_terms).trim().toLowerCase(),
-          )
-        : !!profileData.agreed_to_terms;
-
-    // ─── 8. Parse DBS info ────────────────────────────────────────────────────
-    let dbsData = null;
-    if (
-      profileData.dbs_certificate_number &&
-      profileData.dbs_surname_as_certificate &&
-      profileData.dbs_date_of_birth_on_cert &&
-      profileData.dbs_certificate_print_date
-    ) {
-      let isRegistered = false;
-      const registeredValue = profileData.dbs_is_registered_on_update;
-      if (typeof registeredValue === 'boolean') {
-        isRegistered = registeredValue;
-      } else if (typeof registeredValue === 'number') {
-        isRegistered = registeredValue === 1;
-      } else if (typeof registeredValue === 'string') {
-        isRegistered = ['true', '1', 'yes'].includes(
-          registeredValue.trim().toLowerCase(),
+          appConfig().storageUrl.staff + staffPhotoFileName,
+          photoFile.buffer,
         );
       }
 
-      const dobString = String(profileData.dbs_date_of_birth_on_cert).trim();
-      const printString = String(profileData.dbs_certificate_print_date).trim();
-
-      if (!dobString || dobString === 'undefined' || dobString === 'null') {
-        return {
-          success: false,
-          message:
-            'dbs_date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
-        };
+      // ─── 4. Upload CV ─────────────────────────────────────────────────────────
+      let staffCvFileName: string = null;
+      if (cvFile) {
+        staffCvFileName = `${StringHelper.randomString()}${cvFile.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.cv + staffCvFileName,
+          cvFile.buffer,
+        );
       }
 
-      if (!printString || printString === 'undefined' || printString === 'null') {
-        return {
-          success: false,
-          message:
-            'dbs_certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
-        };
+      // ─── 5. Upload certificate files ──────────────────────────────────────────
+      const typeToFile: Record<string, Express.Multer.File> = {};
+      const certificateFileNames: Record<string, string> = {};
+
+      if (certificateFiles && Object.keys(certificateFiles).length > 0) {
+        const allowedTypesSet = new Set([
+          'care_certificate',
+          'moving_handling',
+          'first_aid',
+          'basic_life_support',
+          'infection_control',
+          'safeguarding',
+          'health_safety',
+          'equality_diversity',
+          'coshh',
+          'medication_training',
+          'nvq_iii',
+          'additional_training',
+        ]);
+
+        for (const [fieldName, fileArray] of Object.entries(certificateFiles)) {
+          const type = fieldName.trim().toLowerCase();
+          if (!allowedTypesSet.has(type)) continue;
+          if (!fileArray || fileArray.length === 0) continue;
+          if (typeToFile[type]) continue;
+          typeToFile[type] = fileArray[0];
+        }
+
+        for (const [type, file] of Object.entries(typeToFile)) {
+          const fileName = `${StringHelper.randomString()}${file.originalname}`;
+          await SojebStorage.put(
+            appConfig().storageUrl.certificate + fileName,
+            file.buffer,
+          );
+          certificateFileNames[type] = fileName;
+        }
       }
 
-      const dobDate = new Date(dobString);
-      const printDate = new Date(printString);
+      // ─── 6. Normalize roles ───────────────────────────────────────────────────
+      const rolesNormalized = Array.isArray(profileData.roles)
+        ? profileData.roles
+        : typeof profileData.roles === 'string'
+          ? String(profileData.roles)
+              .split(',')
+              .map((v: string) => v.trim().toLowerCase())
+              .filter(Boolean)
+          : undefined;
 
-      if (isNaN(dobDate.getTime())) {
-        return {
-          success: false,
-          message: `Invalid date format for dbs_date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format.`,
-        };
-      }
+      // ─── 7. Normalize agreed_to_terms ────────────────────────────────────────
+      const agreedStaff =
+        typeof profileData.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              String(profileData.agreed_to_terms).trim().toLowerCase(),
+            )
+          : !!profileData.agreed_to_terms;
 
-      if (isNaN(printDate.getTime())) {
-        return {
-          success: false,
-          message: `Invalid date format for dbs_certificate_print_date: "${printString}". Please use YYYY-MM-DD format.`,
-        };
-      }
+      // ─── 8. Parse DBS info ────────────────────────────────────────────────────
+      let dbsData = null;
+      if (
+        profileData.dbs_certificate_number &&
+        profileData.dbs_surname_as_certificate &&
+        profileData.dbs_date_of_birth_on_cert &&
+        profileData.dbs_certificate_print_date
+      ) {
+        let isRegistered = false;
+        const registeredValue = profileData.dbs_is_registered_on_update;
+        if (typeof registeredValue === 'boolean') {
+          isRegistered = registeredValue;
+        } else if (typeof registeredValue === 'number') {
+          isRegistered = registeredValue === 1;
+        } else if (typeof registeredValue === 'string') {
+          isRegistered = ['true', '1', 'yes'].includes(
+            registeredValue.trim().toLowerCase(),
+          );
+        }
 
-      dbsData = {
-        certificate_number: profileData.dbs_certificate_number,
-        surname_as_certificate: profileData.dbs_surname_as_certificate,
-        date_of_birth_on_cert: dobDate,
-        certificate_print_date: printDate,
-        is_registered_on_update: isRegistered,
-      };
-    }
+        const dobString = String(profileData.dbs_date_of_birth_on_cert).trim();
+        const printString = String(
+          profileData.dbs_certificate_print_date,
+        ).trim();
 
-    // ─── 9. Parse referees ────────────────────────────────────────────────────
-    // FIX: referees arrives as a JSON string from multipart/form-data.
-    // Parse it when it's a string; keep it when it's already an array.
-    let refereesSource: any[] = [];
-
-    if (Array.isArray(profileData.referees)) {
-      refereesSource = profileData.referees;
-    } else if (typeof profileData.referees === 'string') {
-      try {
-        const parsed = JSON.parse(profileData.referees);
-        refereesSource = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return {
-          success: false,
-          message:
-            'Invalid JSON format for referees field. Please send a valid JSON array.',
-        };
-      }
-    }
-
-    const normalizeConsent = (value: unknown): boolean => {
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'number') return value === 1;
-      if (typeof value === 'string')
-        return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
-      return false;
-    };
-
-    const refereesData: any[] = [];
-
-    for (const referee of refereesSource) {
-      if (!referee) continue;
-
-      const name = String(referee.name ?? '').trim();
-      const mobileCode = String(referee.mobile_code ?? '').trim();
-      const mobileNumber = String(referee.mobile_number ?? '').trim();
-      const email = referee.email ? String(referee.email).trim() : undefined;
-      const role = referee.role ? String(referee.role).trim() : undefined;
-
-
-      if (!name || !email) {
-        return {
-          success: false,
-          message:
-            'Each referee must include name and email.',
-        };
-      }
-
-      let refereeEmploymentDate: Date | undefined;
-      if (referee.date_of_employment) {
-        const employmentDateString = String(referee.date_of_employment).trim();
-        const parsedEmploymentDate = new Date(employmentDateString);
-        if (isNaN(parsedEmploymentDate.getTime())) {
+        if (!dobString || dobString === 'undefined' || dobString === 'null') {
           return {
             success: false,
-            message: `Invalid date format for referee date_of_employment: "${employmentDateString}". Please use YYYY-MM-DD format.`,
+            message:
+              'dbs_date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
           };
         }
-        refereeEmploymentDate = parsedEmploymentDate;
+
+        if (
+          !printString ||
+          printString === 'undefined' ||
+          printString === 'null'
+        ) {
+          return {
+            success: false,
+            message:
+              'dbs_certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
+          };
+        }
+
+        const dobDate = new Date(dobString);
+        const printDate = new Date(printString);
+
+        if (isNaN(dobDate.getTime())) {
+          return {
+            success: false,
+            message: `Invalid date format for dbs_date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format.`,
+          };
+        }
+
+        if (isNaN(printDate.getTime())) {
+          return {
+            success: false,
+            message: `Invalid date format for dbs_certificate_print_date: "${printString}". Please use YYYY-MM-DD format.`,
+          };
+        }
+
+        dbsData = {
+          certificate_number: profileData.dbs_certificate_number,
+          surname_as_certificate: profileData.dbs_surname_as_certificate,
+          date_of_birth_on_cert: dobDate,
+          certificate_print_date: printDate,
+          is_registered_on_update: isRegistered,
+        };
       }
 
-      refereesData.push({
-        name,
-        mobile_code: mobileCode,
-        mobile_number: mobileNumber,
-        email: email,
-        role: role,
-        consent_to_contact: normalizeConsent(referee.consent_to_contact),
-        ...(refereeEmploymentDate
-          ? { date_of_employment: refereeEmploymentDate }
-          : {}),
-      });
-    }
+      // ─── 9. Parse referees ────────────────────────────────────────────────────
+      // FIX: referees arrives as a JSON string from multipart/form-data.
+      // Parse it when it's a string; keep it when it's already an array.
+      let refereesSource: any[] = [];
 
-    // ─── 10. Fetch staff role ─────────────────────────────────────────────────
-    const role = await this.prisma.role.findFirst({
-      where: { name: 'staff' },
-    });
+      if (Array.isArray(profileData.referees)) {
+        refereesSource = profileData.referees;
+      } else if (typeof profileData.referees === 'string') {
+        try {
+          const parsed = JSON.parse(profileData.referees);
+          refereesSource = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return {
+            success: false,
+            message:
+              'Invalid JSON format for referees field. Please send a valid JSON array.',
+          };
+        }
+      }
 
-    // ─── 11. Run all DB writes inside a single transaction ────────────────────
-    const result = await this.prisma.$transaction(async (tx) => {
-      const staffProfile = await tx.staffProfile.create({
-        data: {
-          user_id: userId,
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          mobile_code: profileData.mobile_code,
-          mobile_number: profileData.mobile_number,
-          date_of_birth: new Date(profileData.date_of_birth),
-          roles:
-            rolesNormalized && rolesNormalized.length > 0
-              ? (rolesNormalized as any)
-              : undefined,
-          right_to_work_status: profileData.right_to_work_status,
-          cv_url: staffCvFileName ?? undefined,
-          photo_url: staffPhotoFileName ?? undefined,
-          agreed_to_terms: agreedStaff,
-          experience: profileData.experience,
-          nmc_pin: profileData.nmc_pin,
-        },
-      });
+      const normalizeConsent = (value: unknown): boolean => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value === 1;
+        if (typeof value === 'string')
+          return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
+        return false;
+      };
 
-      let roleUser = null;
-      if (role) {
-        roleUser = await tx.roleUser.create({
-          data: { user_id: userId, role_id: role.id },
+      const refereesData: any[] = [];
+
+      for (const referee of refereesSource) {
+        if (!referee) continue;
+
+        const name = String(referee.name ?? '').trim();
+        const mobileCode = String(referee.mobile_code ?? '').trim();
+        const mobileNumber = String(referee.mobile_number ?? '').trim();
+        const email = referee.email ? String(referee.email).trim() : undefined;
+        const role = referee.role ? String(referee.role).trim() : undefined;
+
+        if (!name || !email) {
+          return {
+            success: false,
+            message: 'Each referee must include name and email.',
+          };
+        }
+
+        let refereeStartDate: Date | undefined;
+        if (referee.start_date) {
+          const startDateString = String(referee.start_date).trim();
+          const parsedStartDate = new Date(startDateString);
+          if (isNaN(parsedStartDate.getTime())) {
+            return {
+              success: false,
+              message: `Invalid date format for referee start_date: "${startDateString}". Please use YYYY-MM-DD format.`,
+            };
+          }
+          refereeStartDate = parsedStartDate;
+        }
+
+        let refereeEndDate: Date | undefined;
+        if (referee.end_date) {
+          const endDateString = String(referee.end_date).trim();
+          const parsedEndDate = new Date(endDateString);
+          if (isNaN(parsedEndDate.getTime())) {
+            return {
+              success: false,
+              message: `Invalid date format for referee end_date: "${endDateString}". Please use YYYY-MM-DD format.`,
+            };
+          }
+          refereeEndDate = parsedEndDate;
+        }
+
+        refereesData.push({
+          name,
+          mobile_code: mobileCode,
+          mobile_number: mobileNumber,
+          email: email,
+          role: role,
+          consent_to_contact: normalizeConsent(referee.consent_to_contact),
+          ...(refereeStartDate ? { start_date: refereeStartDate } : {}),
+          ...(refereeEndDate ? { end_date: refereeEndDate } : {}),
         });
       }
 
-      await tx.user.update({
-        where: { id: userId },
-        data: { onboarding_step: 'completed' },
+      // ─── 10. Fetch staff role ─────────────────────────────────────────────────
+      const role = await this.prisma.role.findFirst({
+        where: { name: 'staff' },
       });
 
-      const certificatesCreated = [];
-      for (const [type, fileName] of Object.entries(certificateFileNames)) {
-        const cert = await tx.staffCertificate.create({
+      // ─── 11. Run all DB writes inside a single transaction ────────────────────
+      const result = await this.prisma.$transaction(async (tx) => {
+        const staffProfile = await tx.staffProfile.create({
           data: {
-            staff_id: staffProfile.id,
-            certificate_type: type as any,
-            file_url: fileName,
+            user_id: userId,
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            mobile_code: profileData.mobile_code,
+            mobile_number: profileData.mobile_number,
+            date_of_birth: new Date(profileData.date_of_birth),
+            roles:
+              rolesNormalized && rolesNormalized.length > 0
+                ? (rolesNormalized as any)
+                : undefined,
+            right_to_work_status: profileData.right_to_work_status,
+            cv_url: staffCvFileName ?? undefined,
+            photo_url: staffPhotoFileName ?? undefined,
+            agreed_to_terms: agreedStaff,
+            experience: profileData.experience,
+            nmc_pin: profileData.nmc_pin,
           },
         });
-        certificatesCreated.push(cert);
-      }
 
-      let dbsInfo = null;
-      if (dbsData) {
-        dbsInfo = await tx.staffDbsInfo.create({
-          data: { staff_id: staffProfile.id, ...dbsData },
+        let roleUser = null;
+        if (role) {
+          roleUser = await tx.roleUser.create({
+            data: { user_id: userId, role_id: role.id },
+          });
+        }
+
+        await tx.user.update({
+          where: { id: userId },
+          data: { onboarding_step: 'completed' },
         });
-      }
 
-      const refereesCreated = [];
-      if (refereesData.length > 0) {
-        const created = await tx.staffReferee.createMany({
-          data: refereesData.map((referee) => ({
-            staff_id: staffProfile.id,
-            ...referee,
-          })),
-        });
-        refereesCreated.push(created);
-      }
+        const certificatesCreated = [];
+        for (const [type, fileName] of Object.entries(certificateFileNames)) {
+          const cert = await tx.staffCertificate.create({
+            data: {
+              staff_id: staffProfile.id,
+              certificate_type: type as any,
+              file_url: fileName,
+            },
+          });
+          certificatesCreated.push(cert);
+        }
 
-      return { staffProfile, roleUser, certificatesCreated, dbsInfo, refereesCreated };
-    });
+        let dbsInfo = null;
+        if (dbsData) {
+          dbsInfo = await tx.staffDbsInfo.create({
+            data: { staff_id: staffProfile.id, ...dbsData },
+          });
+        }
 
-    // ─── 12. Create Stripe customer (external, after transaction) ─────────────
-    const stripeCustomer = await StripePayment.createCustomer({
-      user_id: userId,
-      email: user.email,
-      name: `${profileData.first_name} ${profileData.last_name}`,
-    });
+        const refereesCreated = [];
+        if (refereesData.length > 0) {
+          const created = await tx.staffReferee.createMany({
+            data: refereesData.map((referee) => ({
+              staff_id: staffProfile.id,
+              ...referee,
+            })),
+          });
+          refereesCreated.push(created);
+        }
 
-    if (stripeCustomer) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { billing_id: stripeCustomer.id },
+        return {
+          staffProfile,
+          roleUser,
+          certificatesCreated,
+          dbsInfo,
+          refereesCreated,
+        };
       });
-    }
 
-    // ─── 13. Calculate profile completion ─────────────────────────────────────
-    const staffProfileWithRelations = await this.prisma.staffProfile.findUnique({
-      where: { id: result.staffProfile.id },
-      include: {
-        certificates: true,
-        dbs_info: true,
-        emergency_contacts: true,
-        current_address: true,
-        previous_address: true,
-        educations: true,
-        referees: true,
-      },
-    });
+      // ─── 12. Create Stripe customer (external, after transaction) ─────────────
+      const stripeCustomer = await StripePayment.createCustomer({
+        user_id: userId,
+        email: user.email,
+        name: `${profileData.first_name} ${profileData.last_name}`,
+      });
 
-    if (staffProfileWithRelations) {
-      const completionResult = calculateStaffProfileCompletion(
-        staffProfileWithRelations,
-      );
-      await this.prisma.staffProfile.update({
-        where: { id: result.staffProfile.id },
+      if (stripeCustomer) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { billing_id: stripeCustomer.id },
+        });
+      }
+
+      // ─── 13. Calculate profile completion ─────────────────────────────────────
+      const staffProfileWithRelations =
+        await this.prisma.staffProfile.findUnique({
+          where: { id: result.staffProfile.id },
+          include: {
+            certificates: true,
+            dbs_info: true,
+            emergency_contacts: true,
+            current_address: true,
+            previous_address: true,
+            educations: true,
+            referees: true,
+          },
+        });
+
+      if (staffProfileWithRelations) {
+        const completionResult = calculateStaffProfileCompletion(
+          staffProfileWithRelations,
+        );
+        await this.prisma.staffProfile.update({
+          where: { id: result.staffProfile.id },
+          data: {
+            profile_completion: completionResult.profile_completion,
+            is_profile_complete: completionResult.is_profile_complete,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Staff profile created successfully',
         data: {
-          profile_completion: completionResult.profile_completion,
-          is_profile_complete: completionResult.is_profile_complete,
+          staff_profile_id: result.staffProfile.id,
+          onboarding_step: 'completed',
+          certificates_created: result.certificatesCreated.length,
+          dbs_info_created: !!result.dbsInfo,
+          referees_created: refereesData.length,
         },
-      });
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-
-    return {
-      success: true,
-      message: 'Staff profile created successfully',
-      data: {
-        staff_profile_id: result.staffProfile.id,
-        onboarding_step: 'completed',
-        certificates_created: result.certificatesCreated.length,
-        dbs_info_created: !!result.dbsInfo,
-        referees_created: refereesData.length,
-      },
-    };
-  } catch (error) {
-    return { success: false, message: error.message };
   }
-}
 
   // --------- Staff Certificates ---------
   async addStaffCertificate(

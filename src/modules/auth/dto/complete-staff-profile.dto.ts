@@ -34,7 +34,11 @@ export class RefereeInfoDto {
 
   @IsOptional()
   @IsDateString()
-  date_of_employment?: string;
+  start_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  end_date?: string;
 
   @IsOptional()
   consent_to_contact?: boolean | string | number;
