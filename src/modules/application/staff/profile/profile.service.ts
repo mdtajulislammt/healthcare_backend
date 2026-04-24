@@ -500,9 +500,12 @@ export class ProfileService {
                     );
           }
 
-          if (refereeData.date_of_employment !== undefined) {
-            const employmentDate = new Date(refereeData.date_of_employment);
-            updateRefereePayload.date_of_employment = employmentDate;
+          if (refereeData.start_date !== undefined) {
+            updateRefereePayload.start_date = new Date(refereeData.start_date);
+          }
+
+          if (refereeData.end_date !== undefined) {
+            updateRefereePayload.end_date = new Date(refereeData.end_date);
           }
 
           if (Object.keys(updateRefereePayload).length === 0) {
@@ -1060,10 +1063,12 @@ export class ProfileService {
         updatePayload.role = refereeData.role;
       }
 
-      if (refereeData.date_of_employment !== undefined) {
-        updatePayload.date_of_employment = new Date(
-          refereeData.date_of_employment,
-        );
+      if (refereeData.start_date !== undefined) {
+        updatePayload.start_date = new Date(refereeData.start_date);
+      }
+
+      if (refereeData.end_date !== undefined) {
+        updatePayload.end_date = new Date(refereeData.end_date);
       }
 
       if (refereeData.consent_to_contact !== undefined) {

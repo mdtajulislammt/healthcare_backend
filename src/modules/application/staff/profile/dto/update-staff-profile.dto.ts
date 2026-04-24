@@ -70,11 +70,10 @@ export class AddressDto {
 }
 
 export class RefereeInfoDto {
-
   @IsOptional()
   @IsString()
   @ApiProperty({ description: 'Referee id', required: false })
-  id?: string;  
+  id?: string;
 
   @IsOptional()
   @IsString()
@@ -104,10 +103,18 @@ export class RefereeInfoDto {
   @IsOptional()
   @IsDateString()
   @ApiProperty({
-    description: 'Referee date of employment (YYYY-MM-DD)',
+    description: 'Referee start date (YYYY-MM-DD)',
     required: false,
   })
-  date_of_employment?: string;
+  start_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  @ApiProperty({
+    description: 'Referee end date (YYYY-MM-DD)',
+    required: false,
+  })
+  end_date?: string;
 
   @IsOptional()
   @ApiProperty({ description: 'Consent to contact referee', required: false })

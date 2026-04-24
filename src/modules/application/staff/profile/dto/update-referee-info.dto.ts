@@ -46,10 +46,18 @@ export class UpdateRefereeInfoDto {
   @IsOptional()
   @IsDateString()
   @ApiProperty({
-    description: 'Referee employment date (YYYY-MM-DD)',
+    description: 'Referee start date (YYYY-MM-DD)',
     required: false,
   })
-  date_of_employment?: string;
+  start_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  @ApiProperty({
+    description: 'Referee end date (YYYY-MM-DD)',
+    required: false,
+  })
+  end_date?: string;
 
   @IsOptional()
   @IsBoolean()

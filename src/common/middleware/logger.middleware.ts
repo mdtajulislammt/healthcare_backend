@@ -240,10 +240,7 @@ export class LoggerMiddleware implements NestMiddleware {
     const startedAt = Date.now();
     let capturedBody: unknown;
 
-    // ─── FIX 2: correct res.json / res.send interception ──────────────────
-    // Must bind to `res` so the chain still works when other middleware also
-    // wraps these methods. Use a flag so res.send() (called internally by
-    // Express after res.json()) does not overwrite the already-captured value.
+   
     const _json = res.json.bind(res);
     const _send = res.send.bind(res);
 
@@ -276,7 +273,7 @@ export class LoggerMiddleware implements NestMiddleware {
         statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
 
       const userId   = req.user?.userId ?? req.user?.id   ?? null;
-      const userType = req.user?.type                      ?? null;
+      const userType = req.user?.email                      ?? null;
 
       // FIX 3: req.ip is deprecated in Express 5 — use req.socket directly
       const ip =

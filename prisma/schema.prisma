@@ -748,7 +748,8 @@ model StaffReferee {
   mobile_number      String?
   email              String?
   role               String? // e.g. "former manager", "colleague", etc.
-  date_of_employment DateTime?
+  start_date         DateTime?
+  end_date           DateTime?
   consent_to_contact Boolean   @default(false)
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
