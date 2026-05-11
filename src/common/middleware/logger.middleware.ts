@@ -4,35 +4,35 @@ import { randomUUID } from 'crypto';
 
 // ─── ANSI colour helpers ──────────────────────────────────────────────────────
 const c = {
-  reset:   '\x1b[0m',
-  bold:    '\x1b[1m',
-  dim:     '\x1b[2m',
-  white:   '\x1b[97m',
-  gray:    '\x1b[90m',
-  cyan:    '\x1b[96m',
-  green:   '\x1b[92m',
-  yellow:  '\x1b[93m',
-  red:     '\x1b[91m',
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  white: '\x1b[97m',
+  gray: '\x1b[90m',
+  cyan: '\x1b[96m',
+  green: '\x1b[92m',
+  yellow: '\x1b[93m',
+  red: '\x1b[91m',
   magenta: '\x1b[95m',
-  blue:    '\x1b[94m',
-  bgRed:    '\x1b[41m',
+  blue: '\x1b[94m',
+  bgRed: '\x1b[41m',
   bgYellow: '\x1b[43m',
-  bgGreen:  '\x1b[42m',
-  bgBlue:   '\x1b[44m',
-  bgGray:   '\x1b[100m',
+  bgGreen: '\x1b[42m',
+  bgBlue: '\x1b[44m',
+  bgGray: '\x1b[100m',
 };
 
 const paint = (...parts: string[]): string => parts.join('') + c.reset;
 
 // ─── Method badge colours ─────────────────────────────────────────────────────
 const METHOD_STYLES: Record<string, string> = {
-  GET:     paint(c.bgBlue,    c.bold, c.white),
-  POST:    paint(c.bgGreen,   c.bold, c.white),
-  PUT:     paint(c.bgYellow,  c.bold, c.white),
-  PATCH:   paint(c.bgYellow,  c.bold, c.white),
-  DELETE:  paint(c.bgRed,     c.bold, c.white),
-  OPTIONS: paint(c.bgGray,    c.bold, c.white),
-  HEAD:    paint(c.bgGray,    c.bold, c.white),
+  GET: paint(c.bgBlue, c.bold, c.white),
+  POST: paint(c.bgGreen, c.bold, c.white),
+  PUT: paint(c.bgYellow, c.bold, c.white),
+  PATCH: paint(c.bgYellow, c.bold, c.white),
+  DELETE: paint(c.bgRed, c.bold, c.white),
+  OPTIONS: paint(c.bgGray, c.bold, c.white),
+  HEAD: paint(c.bgGray, c.bold, c.white),
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -44,20 +44,20 @@ function statusStyle(code: number): string {
 }
 
 function levelTag(code: number): string {
-  if (code >= 500) return paint(c.bgRed,    c.bold, c.white, ' ERROR ');
+  if (code >= 500) return paint(c.bgRed, c.bold, c.white, ' ERROR ');
   if (code >= 400) return paint(c.bgYellow, c.bold, c.white, '  WARN ');
-  return              paint(c.bgGreen,  c.bold, c.white, '  INFO ');
+  return paint(c.bgGreen, c.bold, c.white, '  INFO ');
 }
 
 function durationStyle(ms: number): string {
-  if (ms > 2000) return paint(c.bold, c.red,    `${ms}ms`);
-  if (ms > 500)  return paint(c.bold, c.yellow, `${ms}ms`);
-  return               paint(c.bold, c.green,  `${ms}ms`);
+  if (ms > 2000) return paint(c.bold, c.red, `${ms}ms`);
+  if (ms > 500) return paint(c.bold, c.yellow, `${ms}ms`);
+  return paint(c.bold, c.green, `${ms}ms`);
 }
 
 function writeLog(level: 'info' | 'warn' | 'error', line: string): void {
   if (level === 'error') process.stderr.write(line + '\n');
-  else                   process.stdout.write(line + '\n');
+  else process.stdout.write(line + '\n');
 }
 
 function inlinePayload(value: unknown, indent = 2): string {
@@ -65,45 +65,54 @@ function inlinePayload(value: unknown, indent = 2): string {
   if (!json || json === '{}' || json === '[]' || json === 'null') return '';
   return json
     .split('\n')
-    .map((l) => paint(c.dim, c.gray, '  ' + l))
+    .map((l) => paint(c.gray, '  ' + l))
     .join('\n');
 }
 
-const SEP = paint(c.dim, c.gray, '─'.repeat(72));
+const SEP = paint(c.gray, '─'.repeat(72));
 
 // ─── Field type ───────────────────────────────────────────────────────────────
 interface LogFields {
-  level:        'info' | 'warn' | 'error';
-  timestamp:    string;
-  requestId:    string;
-  method:       string;
-  path:         string;
-  statusCode:   number;
-  durationMs:   number;
-  ip:           string | null;
-  userAgent:    string | null;
-  userId:       string | null;
-  userType:     string | null;
-  query:        unknown;
-  params:       unknown;
-  body:         unknown;
-  response:     unknown;
+  level: 'info' | 'warn' | 'error';
+  timestamp: string;
+  requestId: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  ip: string | null;
+  userAgent: string | null;
+  userId: string | null;
+  userType: string | null;
+  query: unknown;
+  params: unknown;
+  body: unknown;
+  response: unknown;
   responseSize: string | null;
 }
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
-
   // ─── Sensitive keys ─────────────────────────────────────────────────────────
   private readonly sensitiveKeys = new Set([
-    'password', 'new_password', 'old_password',
-    'token', 'authorization', 'access_token', 'refresh_token',
-    'otp', 'secret', 'cvv', 'card_number', 'ssn', 'pin',
+    'password',
+    'new_password',
+    'old_password',
+    'token',
+    'authorization',
+    'access_token',
+    'refresh_token',
+    'otp',
+    'secret',
+    'cvv',
+    'card_number',
+    'ssn',
+    'pin',
   ]);
 
   // ─── Skip config ────────────────────────────────────────────────────────────
   private readonly skipPrefixes = ['/api/docs', '/public', '/storage'];
-  private readonly skipExact    = new Set(['/health', '/favicon.ico']);
+  private readonly skipExact = new Set(['/health', '/favicon.ico']);
 
   private shouldSkip(path: string): boolean {
     if (this.skipExact.has(path)) return true;
@@ -191,15 +200,17 @@ export class LoggerMiddleware implements NestMiddleware {
     if (fields.userId) {
       meta.push(
         paint(c.magenta, `👤 ${fields.userId}`) +
-        paint(c.gray, ` (${fields.userType ?? 'unknown'})`),
+          paint(c.gray, ` (${fields.userType ?? 'unknown'})`),
       );
     }
-    if (fields.ip)           meta.push(paint(c.gray, `🌐 ${fields.ip}`));
-    if (fields.responseSize) meta.push(paint(c.dim, c.gray, `📦 ${fields.responseSize}`));
+    if (fields.ip) meta.push(paint(c.gray, `🌐 ${fields.ip}`));
+    if (fields.responseSize)
+      meta.push(paint(c.dim, c.gray, `📦 ${fields.responseSize}`));
     if (fields.userAgent) {
-      const ua = fields.userAgent.length > 60
-        ? fields.userAgent.slice(0, 60) + '…'
-        : fields.userAgent;
+      const ua =
+        fields.userAgent.length > 60
+          ? fields.userAgent.slice(0, 60) + '…'
+          : fields.userAgent;
       meta.push(paint(c.dim, c.gray, `🔧 ${ua}`));
     }
     if (meta.length) {
@@ -208,9 +219,9 @@ export class LoggerMiddleware implements NestMiddleware {
 
     // payload sections
     const sections: [string, unknown][] = [
-      ['Params',   fields.params],
-      ['Query',    fields.query],
-      ['Body',     fields.body],
+      ['Params', fields.params],
+      ['Query', fields.query],
+      ['Body', fields.body],
       ['Response', fields.response],
     ];
 
@@ -220,7 +231,8 @@ export class LoggerMiddleware implements NestMiddleware {
         typeof data === 'object' &&
         !Array.isArray(data) &&
         Object.keys(data as object).length === 0
-      ) continue;
+      )
+        continue;
       const rendered = inlinePayload(data);
       if (rendered) {
         lines.push(paint(c.dim, c.gray, `  ┌── ${label}`));
@@ -240,7 +252,6 @@ export class LoggerMiddleware implements NestMiddleware {
     const startedAt = Date.now();
     let capturedBody: unknown;
 
-   
     const _json = res.json.bind(res);
     const _send = res.send.bind(res);
 
@@ -258,7 +269,7 @@ export class LoggerMiddleware implements NestMiddleware {
 
     // ─── Request ID ────────────────────────────────────────────────────────
     const requestId =
-      (req.headers['x-request-id']     as string) ||
+      (req.headers['x-request-id'] as string) ||
       (req.headers['x-correlation-id'] as string) ||
       randomUUID();
 
@@ -272,8 +283,8 @@ export class LoggerMiddleware implements NestMiddleware {
       const level: 'info' | 'warn' | 'error' =
         statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
 
-      const userId   = req.user?.userId ?? req.user?.id   ?? null;
-      const userType = req.user?.email                      ?? null;
+      const userId = req.user?.userId ?? req.user?.id ?? null;
+      const userType = req.user?.email ?? null;
 
       // FIX 3: req.ip is deprecated in Express 5 — use req.socket directly
       const ip =
@@ -282,25 +293,25 @@ export class LoggerMiddleware implements NestMiddleware {
         null;
 
       // FIX 4: content-length header can be string | string[] | number
-      const rawSize    = res.getHeader('content-length');
+      const rawSize = res.getHeader('content-length');
       const responseSize = rawSize != null ? `${String(rawSize)} B` : null;
 
       const fields: LogFields = {
         level,
-        timestamp:    new Date().toISOString(),
+        timestamp: new Date().toISOString(),
         requestId,
-        method:       req.method,
-        path:         req.originalUrl || req.url,
+        method: req.method,
+        path: req.originalUrl || req.url,
         statusCode,
         durationMs,
         ip,
-        userAgent:    req.get('user-agent') ?? null,
+        userAgent: req.get('user-agent') ?? null,
         userId,
         userType,
-        query:        this.mask(req.query),
-        params:       this.mask(req.params),
-        body:         this.mask(req.body),
-        response:     this.mask(this.normalizeResponseBody(capturedBody)),
+        query: this.mask(req.query),
+        params: this.mask(req.params),
+        body: this.mask(req.body),
+        response: this.mask(this.normalizeResponseBody(capturedBody)),
         responseSize,
       };
 

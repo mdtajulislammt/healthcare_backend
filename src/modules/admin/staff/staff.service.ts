@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -11,10 +12,423 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { CertificateVerificationStatus } from '@prisma/client';
+import { calculateStaffProfileCompletion } from 'src/common/helper/profile-completion.helper';
+import { StringHelper } from 'src/common/helper/string.helper';
 
 @Injectable()
 export class StaffService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async recalculateProfileCompletion(staff_id: string) {
+    const staffProfileWithRelations = await this.prisma.staffProfile.findUnique(
+      {
+        where: { id: staff_id },
+        include: {
+          certificates: true,
+          dbs_info: true,
+          emergency_contacts: true,
+          current_address: true,
+          previous_address: true,
+          referees: true,
+          educations: true,
+          bank_details: true,
+        },
+      },
+    );
+
+    if (staffProfileWithRelations) {
+      const completionResult = calculateStaffProfileCompletion(
+        staffProfileWithRelations,
+      );
+
+      await this.prisma.staffProfile.update({
+        where: { id: staff_id },
+        data: {
+          profile_completion: completionResult.profile_completion,
+          is_profile_complete: completionResult.is_profile_complete,
+        },
+      });
+
+      return completionResult;
+    }
+
+    return null;
+  }
+
+  async create(
+    createStaffDto: CreateStaffDto,
+    files?: {
+      photo?: Express.Multer.File[];
+      cv?: Express.Multer.File[];
+      care_certificate?: Express.Multer.File[];
+      moving_handling?: Express.Multer.File[];
+      first_aid?: Express.Multer.File[];
+      basic_life_support?: Express.Multer.File[];
+      infection_control?: Express.Multer.File[];
+      safeguarding?: Express.Multer.File[];
+      health_safety?: Express.Multer.File[];
+      equality_diversity?: Express.Multer.File[];
+      coshh?: Express.Multer.File[];
+      medication_training?: Express.Multer.File[];
+      nvq_iii?: Express.Multer.File[];
+      additional_training?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      const email = String(createStaffDto.email ?? '')
+        .trim()
+        .toLowerCase();
+      const password = String(createStaffDto.password ?? '').trim();
+
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      if (!password) {
+        throw new BadRequestException('Password is required');
+      }
+
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (existingUser) {
+        throw new BadRequestException('Email already exists');
+      }
+
+      const photo = files?.photo?.[0];
+      const cv = files?.cv?.[0];
+
+      const certificateFiles: { [key: string]: Express.Multer.File[] } = {};
+      if (files) {
+        const certFields = [
+          'care_certificate',
+          'moving_handling',
+          'first_aid',
+          'basic_life_support',
+          'infection_control',
+          'safeguarding',
+          'health_safety',
+          'equality_diversity',
+          'coshh',
+          'medication_training',
+          'nvq_iii',
+          'additional_training',
+        ];
+
+        for (const field of certFields) {
+          if (files[field]) {
+            certificateFiles[field] = files[field];
+          }
+        }
+      }
+
+      let staffPhotoFileName: string = null;
+      if (photo) {
+        staffPhotoFileName = `${StringHelper.randomString()}${photo.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.staff + staffPhotoFileName,
+          photo.buffer,
+        );
+      }
+
+      let staffCvFileName: string = null;
+      if (cv) {
+        staffCvFileName = `${StringHelper.randomString()}${cv.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.cv + staffCvFileName,
+          cv.buffer,
+        );
+      }
+
+      const typeToFile: Record<string, Express.Multer.File> = {};
+      const certificateFileNames: Record<string, string> = {};
+
+      if (Object.keys(certificateFiles).length > 0) {
+        const allowedTypesSet = new Set([
+          'care_certificate',
+          'moving_handling',
+          'first_aid',
+          'basic_life_support',
+          'infection_control',
+          'safeguarding',
+          'health_safety',
+          'equality_diversity',
+          'coshh',
+          'medication_training',
+          'nvq_iii',
+          'additional_training',
+        ]);
+
+        for (const [fieldName, fileArray] of Object.entries(certificateFiles)) {
+          const type = fieldName.trim().toLowerCase();
+          if (!allowedTypesSet.has(type)) continue;
+          if (!fileArray || fileArray.length === 0) continue;
+          if (typeToFile[type]) continue;
+          typeToFile[type] = fileArray[0];
+        }
+
+        for (const [type, file] of Object.entries(typeToFile)) {
+          const fileName = `${StringHelper.randomString()}${file.originalname}`;
+          await SojebStorage.put(
+            appConfig().storageUrl.certificate + fileName,
+            file.buffer,
+          );
+          certificateFileNames[type] = fileName;
+        }
+      }
+
+      const rolesNormalized = Array.isArray(createStaffDto.roles)
+        ? createStaffDto.roles
+        : typeof createStaffDto.roles === 'string'
+          ? String(createStaffDto.roles)
+              .split(',')
+              .map((value: string) => value.trim().toLowerCase())
+              .filter(Boolean)
+          : undefined;
+
+      const agreedStaff =
+        typeof createStaffDto.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              String(createStaffDto.agreed_to_terms).trim().toLowerCase(),
+            )
+          : !!createStaffDto.agreed_to_terms;
+
+      let dbsData = null;
+      if (
+        createStaffDto.dbs_certificate_number &&
+        createStaffDto.dbs_surname_as_certificate &&
+        createStaffDto.dbs_date_of_birth_on_cert &&
+        createStaffDto.dbs_certificate_print_date
+      ) {
+        dbsData = {
+          certificate_number: createStaffDto.dbs_certificate_number,
+          surname_as_certificate: createStaffDto.dbs_surname_as_certificate,
+          date_of_birth_on_cert: new Date(
+            String(createStaffDto.dbs_date_of_birth_on_cert).trim(),
+          ),
+          certificate_print_date: new Date(
+            String(createStaffDto.dbs_certificate_print_date).trim(),
+          ),
+          is_registered_on_update:
+            typeof createStaffDto.dbs_is_registered_on_update === 'string'
+              ? ['true', '1', 'yes'].includes(
+                  createStaffDto.dbs_is_registered_on_update
+                    .trim()
+                    .toLowerCase(),
+                )
+              : !!createStaffDto.dbs_is_registered_on_update,
+        };
+
+        if (
+          isNaN(dbsData.date_of_birth_on_cert.getTime()) ||
+          isNaN(dbsData.certificate_print_date.getTime())
+        ) {
+          throw new BadRequestException('Invalid DBS date value');
+        }
+      }
+
+      let refereesSource: any[] = [];
+      if (Array.isArray(createStaffDto.referees)) {
+        refereesSource = createStaffDto.referees;
+      }
+
+      const normalizeConsent = (value: unknown): boolean => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value === 1;
+        if (typeof value === 'string') {
+          return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
+        }
+        return false;
+      };
+
+      const refereesData: any[] = [];
+      for (const referee of refereesSource) {
+        if (!referee) continue;
+
+        const name = String(referee.name ?? '').trim();
+        const mobileCode = String(referee.mobile_code ?? '').trim();
+        const mobileNumber = String(referee.mobile_number ?? '').trim();
+        const emailValue = referee.email ? String(referee.email).trim() : '';
+        const role = referee.role ? String(referee.role).trim() : undefined;
+
+        if (!name || !emailValue) {
+          throw new BadRequestException(
+            'Each referee must include name and email.',
+          );
+        }
+
+        const refereeData: any = {
+          name,
+          mobile_code: mobileCode,
+          mobile_number: mobileNumber,
+          email: emailValue,
+          role,
+          consent_to_contact: normalizeConsent(referee.consent_to_contact),
+        };
+
+        if (referee.start_date) {
+          const startDate = new Date(String(referee.start_date).trim());
+          if (isNaN(startDate.getTime())) {
+            throw new BadRequestException('Invalid referee start_date value');
+          }
+          refereeData.start_date = startDate;
+        }
+
+        if (referee.end_date) {
+          const endDate = new Date(String(referee.end_date).trim());
+          if (isNaN(endDate.getTime())) {
+            throw new BadRequestException('Invalid referee end_date value');
+          }
+          refereeData.end_date = endDate;
+        }
+
+        refereesData.push(refereeData);
+      }
+
+      const staffRole = await this.prisma.role.findFirst({
+        where: { name: 'staff' },
+      });
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        const hashedPassword = await bcrypt.hash(
+          password,
+          appConfig().security.salt,
+        );
+
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            type: 'staff',
+            status: 1,
+            approved_at: new Date(),
+            email_verified_at: new Date(),
+            onboarding_step: 'completed',
+          },
+        });
+
+        if (staffRole) {
+          await tx.roleUser.create({
+            data: {
+              user_id: user.id,
+              role_id: staffRole.id,
+            },
+          });
+        }
+
+        const staffProfile = await tx.staffProfile.create({
+          data: {
+            user_id: user.id,
+            first_name: createStaffDto.first_name,
+            last_name: createStaffDto.last_name,
+            mobile_code: createStaffDto.mobile_code,
+            mobile_number: createStaffDto.mobile_number,
+            date_of_birth: new Date(createStaffDto.date_of_birth),
+            roles:
+              rolesNormalized && rolesNormalized.length > 0
+                ? (rolesNormalized as any)
+                : undefined,
+            right_to_work_status: createStaffDto.right_to_work_status,
+            cv_url: staffCvFileName ?? undefined,
+            photo_url: staffPhotoFileName ?? undefined,
+            agreed_to_terms: agreedStaff ?? true,
+            experience: createStaffDto.experience,
+            nmc_pin: createStaffDto.nmc_pin,
+          },
+        });
+
+        const certificatesCreated = [];
+        for (const [type, fileName] of Object.entries(certificateFileNames)) {
+          const cert = await tx.staffCertificate.create({
+            data: {
+              staff_id: staffProfile.id,
+              certificate_type: type as any,
+              file_url: fileName,
+            },
+          });
+          certificatesCreated.push(cert);
+        }
+
+        let dbsInfo = null;
+        if (dbsData) {
+          dbsInfo = await tx.staffDbsInfo.create({
+            data: {
+              staff_id: staffProfile.id,
+              ...dbsData,
+            },
+          });
+        }
+
+        const refereesCreated = [];
+        if (refereesData.length > 0) {
+          const created = await tx.staffReferee.createMany({
+            data: refereesData.map((referee) => ({
+              staff_id: staffProfile.id,
+              ...referee,
+            })),
+          });
+          refereesCreated.push(created);
+        }
+
+        return {
+          user,
+          staffProfile,
+          certificatesCreated,
+          dbsInfo,
+          refereesCreated,
+        };
+      });
+
+      const staffProfileWithRelations =
+        await this.prisma.staffProfile.findUnique({
+          where: { id: result.staffProfile.id },
+          include: {
+            certificates: true,
+            dbs_info: true,
+            emergency_contacts: true,
+            current_address: true,
+            previous_address: true,
+            educations: true,
+            referees: true,
+            bank_details: true,
+          },
+        });
+
+      if (staffProfileWithRelations) {
+        const completionResult = calculateStaffProfileCompletion(
+          staffProfileWithRelations,
+        );
+
+        await this.prisma.staffProfile.update({
+          where: { id: result.staffProfile.id },
+          data: {
+            profile_completion: completionResult.profile_completion,
+            is_profile_complete: completionResult.is_profile_complete,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Staff user and profile created successfully',
+        data: {
+          user_id: result.user.id,
+          staff_profile_id: result.staffProfile.id,
+          certificates_created: result.certificatesCreated.length,
+          dbs_info_created: !!result.dbsInfo,
+          referees_created: refereesData.length,
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to create staff');
+    }
+  }
 
   async findAll({
     page = 1,
@@ -69,6 +483,9 @@ export class StaffService {
           ],
         });
       }
+
+      // Exclude soft-deleted users by default
+      andConditions.push({ user: { deleted_at: null } });
 
       // Status filter (0=pending, 1=active, 2=suspended)
       if (status) {
@@ -190,6 +607,7 @@ export class StaffService {
               id: true,
               email: true,
               status: true,
+              deleted_at: true,
               approved_at: true,
               email_verified_at: true,
               created_at: true,
@@ -215,6 +633,10 @@ export class StaffService {
       });
 
       if (!staff) throw new NotFoundException('Staff not found');
+
+      if (staff.user?.deleted_at) {
+        throw new NotFoundException('Staff not found');
+      }
 
       if (staff.photo_url) {
         staff.photo_url = SojebStorage.url(
@@ -285,12 +707,639 @@ export class StaffService {
     }
   }
 
-  update(id: string, updateStaffDto: UpdateStaffDto) {
-    return `This action updates a #${id} staff`;
+  async update(
+    id: string,
+    updateStaffDto: UpdateStaffDto,
+    photoFile?: Express.Multer.File,
+    cvFile?: Express.Multer.File,
+    currentAddressEvidenceFile?: Express.Multer.File,
+  ) {
+    try {
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { id },
+        include: {
+          user: true,
+          current_address: true,
+        },
+      });
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found');
+      }
+
+      const existingPhotoUrl = staff.photo_url;
+      const existingCvUrl = staff.cv_url;
+      const existingCurrentAddress = staff.current_address;
+
+      const existingUserEmail = staff.user.email;
+
+      let staffPhotoFileName: string | undefined = undefined;
+      if (photoFile) {
+        if (existingPhotoUrl) {
+          try {
+            await SojebStorage.delete(
+              appConfig().storageUrl.staff + existingPhotoUrl,
+            );
+          } catch (error) {
+            console.error('Failed to delete old photo:', error);
+          }
+        }
+
+        staffPhotoFileName = `${StringHelper.randomString()}${photoFile.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.staff + staffPhotoFileName,
+          photoFile.buffer,
+        );
+      }
+
+      let staffCvFileName: string | undefined = undefined;
+      if (cvFile) {
+        if (existingCvUrl) {
+          try {
+            await SojebStorage.delete(
+              appConfig().storageUrl.cv + existingCvUrl,
+            );
+          } catch (error) {
+            console.error('Failed to delete old CV:', error);
+          }
+        }
+
+        staffCvFileName = `${StringHelper.randomString()}${cvFile.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.cv + staffCvFileName,
+          cvFile.buffer,
+        );
+      }
+
+      let currentAddressEvidenceFileName: string | undefined = undefined;
+      if (currentAddressEvidenceFile) {
+        if (existingCurrentAddress?.evidence_file_url) {
+          try {
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate +
+                existingCurrentAddress.evidence_file_url,
+            );
+          } catch (error) {
+            console.error(
+              'Failed to delete old current address evidence:',
+              error,
+            );
+          }
+        }
+
+        currentAddressEvidenceFileName = `${StringHelper.randomString()}${currentAddressEvidenceFile.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.certificate + currentAddressEvidenceFileName,
+          currentAddressEvidenceFile.buffer,
+        );
+      }
+
+      const updatePayload: any = {};
+
+      if (updateStaffDto.first_name !== undefined) {
+        updatePayload.first_name = updateStaffDto.first_name;
+      }
+
+      if (updateStaffDto.last_name !== undefined) {
+        updatePayload.last_name = updateStaffDto.last_name;
+      }
+
+      if (updateStaffDto.mobile_code !== undefined) {
+        updatePayload.mobile_code = updateStaffDto.mobile_code;
+      }
+
+      if (updateStaffDto.mobile_number !== undefined) {
+        updatePayload.mobile_number = updateStaffDto.mobile_number;
+      }
+
+      if (updateStaffDto.date_of_birth !== undefined) {
+        updatePayload.date_of_birth = new Date(updateStaffDto.date_of_birth);
+      }
+
+      if (updateStaffDto.experience !== undefined) {
+        updatePayload.experience = updateStaffDto.experience;
+      }
+
+      if (updateStaffDto.bio !== undefined) {
+        updatePayload.bio = updateStaffDto.bio;
+      }
+
+      if (updateStaffDto.right_to_work_status !== undefined) {
+        updatePayload.right_to_work_status =
+          updateStaffDto.right_to_work_status;
+      }
+
+      if (updateStaffDto.nmc_pin !== undefined) {
+        updatePayload.nmc_pin = updateStaffDto.nmc_pin;
+      }
+
+      if (updateStaffDto.agreed_to_terms !== undefined) {
+        updatePayload.agreed_to_terms = updateStaffDto.agreed_to_terms;
+      }
+
+      if (staffPhotoFileName !== undefined) {
+        updatePayload.photo_url = staffPhotoFileName;
+      }
+
+      if (staffCvFileName !== undefined) {
+        updatePayload.cv_url = staffCvFileName;
+      }
+
+      if (updateStaffDto.roles !== undefined) {
+        const rolesArray = Array.isArray(updateStaffDto.roles)
+          ? updateStaffDto.roles
+          : [];
+        const allowedRoles = [
+          'nurse',
+          'senior_hca',
+          'hca_carer',
+          'support_worker',
+        ];
+        updatePayload.roles = rolesArray.filter((role: string) =>
+          allowedRoles.includes(role),
+        ) as any;
+      }
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        // if (
+        //   updateStaffDto.email !== undefined &&
+        //   updateStaffDto.email.trim().toLowerCase() !==
+        //     existingUserEmail?.toLowerCase()
+        // ) {
+        //   const emailExists = await tx.user.findUnique({
+        //     where: { email: updateStaffDto.email.trim().toLowerCase() },
+        //     select: { id: true },
+        //   });
+
+        //   if (emailExists && emailExists.id !== staff.user_id) {
+        //     throw new BadRequestException('Email already exists');
+        //   }
+
+        //   await tx.user.update({
+        //     where: { id: staff.user_id },
+        //     data: { email: updateStaffDto.email.trim().toLowerCase() },
+        //   });
+        // }
+
+        if (updateStaffDto.password !== undefined) {
+          const hashedPassword = await bcrypt.hash(
+            updateStaffDto.password,
+            appConfig().security.salt,
+          );
+
+          await tx.user.update({
+            where: { id: staff.user_id },
+            data: { password: hashedPassword },
+          });
+        }
+
+        const updatedProfile = await tx.staffProfile.update({
+          where: { id },
+          data: updatePayload,
+          select: {
+            id: true,
+            user_id: true,
+            first_name: true,
+            last_name: true,
+            mobile_code: true,
+            mobile_number: true,
+            date_of_birth: true,
+            roles: true,
+            right_to_work_status: true,
+            experience: true,
+            bio: true,
+            photo_url: true,
+            cv_url: true,
+            updated_at: true,
+          },
+        });
+
+        let emergencyContact = null;
+        if (updateStaffDto.emergency_contact) {
+          const emergencyData = updateStaffDto.emergency_contact;
+
+          if (
+            emergencyData.mobile_code === undefined ||
+            emergencyData.mobile_number === undefined
+          ) {
+            throw new BadRequestException(
+              'Emergency contact mobile_code and mobile_number are required',
+            );
+          }
+
+          emergencyContact = await tx.staffEmergencyContact.upsert({
+            where: { staff_id: id },
+            update: {
+              name: emergencyData.name ?? undefined,
+              mobile_code: emergencyData.mobile_code,
+              mobile_number: emergencyData.mobile_number,
+              relationship: emergencyData.relationship ?? undefined,
+            },
+            create: {
+              staff_id: id,
+              name: emergencyData.name ?? null,
+              mobile_code: emergencyData.mobile_code,
+              mobile_number: emergencyData.mobile_number,
+              relationship: emergencyData.relationship ?? null,
+            },
+          });
+        }
+
+        let currentAddress = null;
+        if (updateStaffDto.current_address) {
+          const addressData = updateStaffDto.current_address;
+
+          if (addressData.address === undefined) {
+            throw new BadRequestException('Current address is required');
+          }
+
+          const currentAddressUpdateData: any = {
+            address: addressData.address,
+            city: addressData.city ?? undefined,
+            state: addressData.state ?? undefined,
+            zip: addressData.zip ?? undefined,
+            country: addressData.country ?? undefined,
+            from_date: addressData.from_date
+              ? new Date(addressData.from_date)
+              : undefined,
+            to_date: addressData.to_date
+              ? new Date(addressData.to_date)
+              : undefined,
+          };
+
+          if (currentAddressEvidenceFileName !== undefined) {
+            currentAddressUpdateData.evidence_file_url =
+              currentAddressEvidenceFileName;
+          }
+
+          currentAddress = await tx.staffCurrentAddress.upsert({
+            where: { staff_id: id },
+            update: currentAddressUpdateData,
+            create: {
+              staff_id: id,
+              address: addressData.address,
+              city: addressData.city ?? null,
+              state: addressData.state ?? null,
+              zip: addressData.zip ?? null,
+              country: addressData.country ?? null,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : null,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : null,
+              evidence_file_url: currentAddressEvidenceFileName ?? null,
+            },
+          });
+        } else if (currentAddressEvidenceFile) {
+          if (existingCurrentAddress) {
+            currentAddress = await tx.staffCurrentAddress.update({
+              where: { staff_id: id },
+              data: {
+                evidence_file_url: currentAddressEvidenceFileName,
+              },
+            });
+          } else {
+            throw new BadRequestException(
+              'Current address must be provided before uploading evidence file',
+            );
+          }
+        }
+
+        let previousAddress = null;
+        if (updateStaffDto.previous_address) {
+          const addressData = updateStaffDto.previous_address;
+
+          if (addressData.address === undefined) {
+            throw new BadRequestException('Previous address is required');
+          }
+
+          previousAddress = await tx.staffPreviousAddress.upsert({
+            where: { staff_id: id },
+            update: {
+              address: addressData.address,
+              city: addressData.city ?? undefined,
+              state: addressData.state ?? undefined,
+              zip: addressData.zip ?? undefined,
+              country: addressData.country ?? undefined,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : undefined,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : undefined,
+            },
+            create: {
+              staff_id: id,
+              address: addressData.address,
+              city: addressData.city ?? null,
+              state: addressData.state ?? null,
+              zip: addressData.zip ?? null,
+              country: addressData.country ?? null,
+              from_date: addressData.from_date
+                ? new Date(addressData.from_date)
+                : null,
+              to_date: addressData.to_date
+                ? new Date(addressData.to_date)
+                : null,
+            },
+          });
+        }
+
+        let dbsInfo = null;
+        if (
+          updateStaffDto.dbs_certificate_number ||
+          updateStaffDto.dbs_surname_as_certificate ||
+          updateStaffDto.dbs_date_of_birth_on_cert ||
+          updateStaffDto.dbs_certificate_print_date ||
+          updateStaffDto.dbs_is_registered_on_update !== undefined
+        ) {
+          const dbsUpdateData: any = {};
+
+          if (updateStaffDto.dbs_certificate_number !== undefined) {
+            dbsUpdateData.certificate_number =
+              updateStaffDto.dbs_certificate_number;
+          }
+
+          if (updateStaffDto.dbs_surname_as_certificate !== undefined) {
+            dbsUpdateData.surname_as_certificate =
+              updateStaffDto.dbs_surname_as_certificate;
+          }
+
+          if (updateStaffDto.dbs_date_of_birth_on_cert !== undefined) {
+            const dobDate = new Date(updateStaffDto.dbs_date_of_birth_on_cert);
+            if (isNaN(dobDate.getTime())) {
+              throw new BadRequestException('Invalid DBS date value');
+            }
+            dbsUpdateData.date_of_birth_on_cert = dobDate;
+          }
+
+          if (updateStaffDto.dbs_certificate_print_date !== undefined) {
+            const printDate = new Date(
+              updateStaffDto.dbs_certificate_print_date,
+            );
+            if (isNaN(printDate.getTime())) {
+              throw new BadRequestException('Invalid DBS date value');
+            }
+            dbsUpdateData.certificate_print_date = printDate;
+          }
+
+          if (updateStaffDto.dbs_is_registered_on_update !== undefined) {
+            dbsUpdateData.is_registered_on_update =
+              typeof updateStaffDto.dbs_is_registered_on_update === 'string'
+                ? ['true', '1', 'yes'].includes(
+                    updateStaffDto.dbs_is_registered_on_update
+                      .trim()
+                      .toLowerCase(),
+                  )
+                : !!updateStaffDto.dbs_is_registered_on_update;
+          }
+
+          const existingDbsInfo = await tx.staffDbsInfo.findUnique({
+            where: { staff_id: id },
+          });
+
+          if (existingDbsInfo) {
+            dbsInfo = await tx.staffDbsInfo.update({
+              where: { staff_id: id },
+              data: dbsUpdateData,
+            });
+          } else {
+            dbsInfo = await tx.staffDbsInfo.create({
+              data: {
+                staff_id: id,
+                ...dbsUpdateData,
+              },
+            });
+          }
+        }
+
+        let refereesSource: any[] = [];
+        if (Array.isArray(updateStaffDto.referees)) {
+          refereesSource = updateStaffDto.referees;
+        } else if (typeof updateStaffDto.referees === 'string') {
+          try {
+            const parsed = JSON.parse(updateStaffDto.referees);
+            refereesSource = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            throw new BadRequestException(
+              'Invalid JSON format for referees field. Please send a valid JSON array.',
+            );
+          }
+        }
+
+        const referees: any[] = [];
+        for (const refereeData of refereesSource) {
+          const updateRefereePayload: any = {};
+
+          if (refereeData.name !== undefined) {
+            updateRefereePayload.name = refereeData.name;
+          }
+          if (refereeData.mobile_code !== undefined) {
+            updateRefereePayload.mobile_code = refereeData.mobile_code;
+          }
+          if (refereeData.mobile_number !== undefined) {
+            updateRefereePayload.mobile_number = refereeData.mobile_number;
+          }
+          if (refereeData.email !== undefined) {
+            updateRefereePayload.email = refereeData.email;
+          }
+          if (refereeData.role !== undefined) {
+            updateRefereePayload.role = refereeData.role;
+          }
+          if (refereeData.consent_to_contact !== undefined) {
+            updateRefereePayload.consent_to_contact =
+              typeof refereeData.consent_to_contact === 'boolean'
+                ? refereeData.consent_to_contact
+                : typeof refereeData.consent_to_contact === 'number'
+                  ? refereeData.consent_to_contact === 1
+                  : ['true', '1', 'yes'].includes(
+                      String(refereeData.consent_to_contact)
+                        .trim()
+                        .toLowerCase(),
+                    );
+          }
+          if (refereeData.start_date !== undefined) {
+            updateRefereePayload.start_date = new Date(refereeData.start_date);
+          }
+          if (refereeData.end_date !== undefined) {
+            updateRefereePayload.end_date = new Date(refereeData.end_date);
+          }
+
+          if (Object.keys(updateRefereePayload).length === 0) {
+            if (refereeData?.id) {
+              throw new BadRequestException(
+                `No update fields provided for referee id "${refereeData.id}"`,
+              );
+            }
+            continue;
+          }
+
+          if (!refereeData?.id) {
+            if (!updateRefereePayload.name) {
+              throw new BadRequestException(
+                'Referee name is required when creating a new referee',
+              );
+            }
+
+            const createdReferee = await tx.staffReferee.create({
+              data: {
+                ...updateRefereePayload,
+                staff_id: id,
+              },
+            });
+
+            referees.push(createdReferee);
+            continue;
+          }
+
+          const existingReferee = await tx.staffReferee.findFirst({
+            where: {
+              id: refereeData.id,
+              staff_id: id,
+            },
+          });
+
+          if (!existingReferee) {
+            continue;
+          }
+
+          const updatedReferee = await tx.staffReferee.update({
+            where: { id: refereeData.id },
+            data: updateRefereePayload,
+          });
+
+          referees.push(updatedReferee);
+        }
+
+        return {
+          profile: updatedProfile,
+          emergencyContact,
+          currentAddress,
+          previousAddress,
+          dbsInfo,
+          referees,
+        };
+      });
+
+      await this.recalculateProfileCompletion(id);
+
+      const finalProfile = await this.prisma.staffProfile.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          user_id: true,
+          first_name: true,
+          last_name: true,
+          mobile_code: true,
+          mobile_number: true,
+          date_of_birth: true,
+          roles: true,
+          experience: true,
+          bio: true,
+          photo_url: true,
+          cv_url: true,
+          right_to_work_status: true,
+          profile_completion: true,
+          is_profile_complete: true,
+          updated_at: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Staff profile updated successfully',
+        data: {
+          profile: finalProfile || result.profile,
+          emergency_contact: result.emergencyContact,
+          current_address: result.currentAddress,
+          previous_address: result.previousAddress,
+          dbs_info: result.dbsInfo,
+          referees: result.referees,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException(
+        `Failed to update staff profile: ${errorMessage}`,
+      );
+    }
   }
 
-  remove(id: string) {
-    return `This action removes a #${id} staff`;
+  async remove(id: string) {
+    try {
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          user_id: true,
+          user: {
+            select: {
+              id: true,
+              deleted_at: true,
+            },
+          },
+        },
+      });
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found');
+      }
+
+      if (staff.user?.deleted_at) {
+        return {
+          success: true,
+          message: 'Staff already deleted',
+          data: {
+            staff_id: staff.id,
+            user_id: staff.user_id,
+            soft_deleted: true,
+          },
+        };
+      }
+
+      const deletedAt = new Date();
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id: staff.user_id },
+        data: {
+          deleted_at: deletedAt,
+          status: 3,
+          approved_at: null,
+        },
+        select: {
+          id: true,
+          status: true,
+          deleted_at: true,
+          updated_at: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Staff soft deleted successfully',
+        data: {
+          staff_id: staff.id,
+          user_id: staff.user_id,
+          user: updatedUser,
+          soft_deleted: true,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to delete staff');
+    }
   }
 
   async updateStatus(id: string, status: number) {

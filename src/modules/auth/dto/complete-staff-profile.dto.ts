@@ -61,6 +61,31 @@ export class CompleteStaffProfileDto {
   @IsDateString()
   date_of_birth: string;
 
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const rawValue = value.trim();
+
+      try {
+        const parsed = JSON.parse(rawValue);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return rawValue
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    }
+
+    return [value];
+  })
   @IsOptional()
   @IsIn(['nurse', 'senior_hca', 'hca_carer', 'support_worker'], { each: true })
   roles?: ('nurse' | 'senior_hca' | 'hca_carer' | 'support_worker')[];
@@ -75,8 +100,8 @@ export class CompleteStaffProfileDto {
   @MinLength(8, { message: 'Password should be minimum 8 characters' })
   password: string;
 
-  @IsNotEmpty()
-  agreed_to_terms: boolean;
+  @IsOptional()
+  agreed_to_terms?: boolean;
 
   @IsOptional()
   experience?: string;
