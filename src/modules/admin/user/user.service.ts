@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
+import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { UserRepository } from '../../../common/repository/user/user.repository';
@@ -9,7 +11,7 @@ import { DateHelper } from '../../../common/helper/date.helper';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto) {
     try {
@@ -30,6 +32,113 @@ export class UserService {
       return {
         success: false,
         message: error.message,
+      };
+    }
+  }
+
+  async createAdminUser(createAdminUserDto: CreateAdminUserDto) {
+    try {
+      const email = String(createAdminUserDto.email ?? '')
+        .trim()
+        .toLowerCase();
+      const password = String(createAdminUserDto.password ?? '').trim();
+
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      if (!password) {
+        throw new BadRequestException('Password is required');
+      }
+
+      if (password.length < 6) {
+        throw new BadRequestException('Password must be at least 6 characters');
+      }
+
+      // Check if email already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (existingUser) {
+        throw new BadRequestException('Email already exists');
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(
+        password,
+        appConfig().security.salt,
+      );
+
+      // Get or create admin role
+      let adminRole = await this.prisma.role.findFirst({
+        where: { name: 'admin' },
+      });
+
+      if (!adminRole) {
+        adminRole = await this.prisma.role.create({
+          data: {
+            name: 'admin',
+            title: 'Administrator',
+            status: 1,
+          },
+        });
+      }
+
+      // Create user and attach role in transaction
+      const user = await this.prisma.$transaction(async (tx) => {
+        // Create user
+        const newUser = await tx.user.create({
+          data: {
+            email: email,
+            password: hashedPassword,
+            type: 'admin',
+            status: 1,
+            email_verified_at: DateHelper.now(),
+            approved_at: DateHelper.now(),
+          },
+        });
+
+        // Attach admin role
+        await tx.roleUser.create({
+          data: {
+            user_id: newUser.id,
+            role_id: adminRole.id,
+          },
+        });
+
+        // Create admin profile
+        await tx.adminProfile.create({
+          data: {
+            user_id: newUser.id,
+            first_name: createAdminUserDto.first_name || 'Admin',
+            last_name: createAdminUserDto.last_name || 'User',
+          },
+        });
+
+        return newUser;
+      });
+
+      return {
+        success: true,
+        message: 'Admin user created successfully',
+        data: {
+          id: user.id,
+          email: user.email,
+          type: user.type,
+          status: user.status,
+        },
+      };
+    } catch (error) {
+      const message =
+        error instanceof BadRequestException
+          ? error.message
+          : error.message || 'Failed to create admin user';
+
+      return {
+        success: false,
+        message: message,
       };
     }
   }
@@ -99,11 +208,15 @@ export class UserService {
               appConfig().storageUrl.staff + user.staff_profile.photo_url,
             );
           }
-        } else if (user.type === 'service_provider' && user.service_provider_info) {
+        } else if (
+          user.type === 'service_provider' &&
+          user.service_provider_info
+        ) {
           name = user.service_provider_info.organization_name;
           if (user.service_provider_info.brand_logo_url) {
             avatar_url = SojebStorage.url(
-              appConfig().storageUrl.brand + user.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                user.service_provider_info.brand_logo_url,
             );
           }
         } else if (user.type === 'admin') {
@@ -182,11 +295,15 @@ export class UserService {
             appConfig().storageUrl.staff + user.staff_profile.photo_url,
           );
         }
-      } else if (user.type === 'service_provider' && user.service_provider_info) {
+      } else if (
+        user.type === 'service_provider' &&
+        user.service_provider_info
+      ) {
         name = user.service_provider_info.organization_name;
         if (user.service_provider_info.brand_logo_url) {
           avatar_url = SojebStorage.url(
-            appConfig().storageUrl.brand + user.service_provider_info.brand_logo_url,
+            appConfig().storageUrl.brand +
+              user.service_provider_info.brand_logo_url,
           );
         }
       } else if (user.type === 'admin') {
