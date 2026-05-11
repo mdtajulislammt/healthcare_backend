@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ServiceProviderService } from './service-provider.service';
 import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
@@ -19,6 +21,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdatePayRateByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rate-by-role.dto';
 import { UpdatePayRatesByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rates-by-role.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('admin/service-provider')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,8 +32,15 @@ export class ServiceProviderController {
   ) {}
 
   @Post()
-  create(@Body() createServiceProviderDto: CreateServiceProviderDto) {
-    return this.serviceProviderService.create(createServiceProviderDto);
+  @UseInterceptors(FileInterceptor('brand_logo'))
+  create(
+    @Body() createServiceProviderDto: CreateServiceProviderDto,
+    @UploadedFile() brand_logo?: Express.Multer.File,
+  ) {
+    return this.serviceProviderService.create(
+      createServiceProviderDto,
+      brand_logo,
+    );
   }
 
   @Get()
@@ -61,11 +71,17 @@ export class ServiceProviderController {
   }
 
   @Patch(':id')
+  @UseInterceptors(FileInterceptor('brand_logo'))
   update(
     @Param('id') id: string,
     @Body() updateServiceProviderDto: UpdateServiceProviderDto,
+    @UploadedFile() brand_logo?: Express.Multer.File,
   ) {
-    return this.serviceProviderService.update(id, updateServiceProviderDto);
+    return this.serviceProviderService.update(
+      id,
+      updateServiceProviderDto,
+      brand_logo,
+    );
   }
 
   @Delete(':id')

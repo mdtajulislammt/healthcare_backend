@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma, ProfessionRole } from '@prisma/client';
 import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
@@ -13,13 +14,157 @@ import appConfig from 'src/config/app.config';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdatePayRateByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rate-by-role.dto';
 import { UpdatePayRatesByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rates-by-role.dto';
+import { StringHelper } from 'src/common/helper/string.helper';
+import { StripePayment } from 'src/common/lib/Payment/stripe/StripePayment';
 
 @Injectable()
 export class ServiceProviderService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(createServiceProviderDto: CreateServiceProviderDto) {
-    return 'This action adds a new serviceProvider';
+  async create(
+    createServiceProviderDto: CreateServiceProviderDto,
+    brandLogo?: Express.Multer.File,
+  ) {
+    try {
+      const email = String(createServiceProviderDto.email ?? '')
+        .trim()
+        .toLowerCase();
+      const password = String(createServiceProviderDto.password ?? '').trim();
+
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      if (!password) {
+        throw new BadRequestException('Password is required');
+      }
+
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (existingUser) {
+        throw new BadRequestException('Email already exists');
+      }
+
+      let brandLogoFileName: string | undefined = undefined;
+      if (brandLogo) {
+        brandLogoFileName = `${StringHelper.randomString()}${brandLogo.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.brand + brandLogoFileName,
+          brandLogo.buffer,
+        );
+      }
+
+      const maxClientCapacity = Number(
+        createServiceProviderDto.max_client_capacity,
+      );
+      if (Number.isNaN(maxClientCapacity) || maxClientCapacity < 1) {
+        throw new BadRequestException('Max client capacity must be at least 1');
+      }
+
+      const agreedToTerms =
+        typeof createServiceProviderDto.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              String(createServiceProviderDto.agreed_to_terms)
+                .trim()
+                .toLowerCase(),
+            )
+          : !!createServiceProviderDto.agreed_to_terms;
+
+      const hashedPassword = await bcrypt.hash(
+        password,
+        appConfig().security.salt,
+      );
+
+      const serviceProviderRole = await this.prisma.role.findFirst({
+        where: { name: 'service_provider' },
+      });
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            type: 'service_provider',
+            status: 1,
+            approved_at: new Date(),
+            email_verified_at: new Date(),
+            onboarding_step: 'completed',
+          },
+        });
+
+        if (serviceProviderRole) {
+          await tx.roleUser.create({
+            data: {
+              user_id: user.id,
+              role_id: serviceProviderRole.id,
+            },
+          });
+        }
+
+        const provider = await tx.serviceProviderInfo.create({
+          data: {
+            user_id: user.id,
+            first_name: createServiceProviderDto.first_name,
+            last_name: createServiceProviderDto.last_name,
+            mobile_code: createServiceProviderDto.mobile_code,
+            mobile_number: createServiceProviderDto.mobile_number,
+            organization_name: createServiceProviderDto.organization_name,
+            website: createServiceProviderDto.website,
+            cqc_provider_number: createServiceProviderDto.cqc_provider_number,
+            vat_tax_id: createServiceProviderDto.vat_tax_id,
+            primary_address: createServiceProviderDto.primary_address,
+            main_service_type:
+              createServiceProviderDto.main_service_type as any,
+            max_client_capacity: maxClientCapacity,
+            brand_logo_url: brandLogoFileName ?? undefined,
+            agreed_to_terms: agreedToTerms,
+          },
+        });
+
+        return { user, provider };
+      });
+
+      try {
+        const stripeCustomer = await StripePayment.createCustomer({
+          user_id: result.user.id,
+          email: result.user.email,
+          name: `${createServiceProviderDto.first_name} ${createServiceProviderDto.last_name}`,
+        });
+
+        if (stripeCustomer?.id) {
+          await this.prisma.user.update({
+            where: { id: result.user.id },
+            data: { billing_id: stripeCustomer.id },
+          });
+        }
+      } catch (stripeError) {
+        console.error(
+          'Failed to create Stripe customer for service provider:',
+          (stripeError as any)?.message,
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Service provider created successfully',
+        data: {
+          user_id: result.user.id,
+          service_provider_info_id: result.provider.id,
+          onboarding_step: 'completed',
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to create service provider',
+      );
+    }
   }
 
   async findAll({
@@ -235,8 +380,175 @@ export class ServiceProviderService {
     }
   }
 
-  update(id: string, updateServiceProviderDto: UpdateServiceProviderDto) {
-    return `This action updates a #${id} serviceProvider`;
+  async update(
+    id: string,
+    updateServiceProviderDto: UpdateServiceProviderDto,
+    brandLogo?: Express.Multer.File,
+  ) {
+    try {
+      const provider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id },
+        include: { user: true },
+      });
+
+      if (!provider) throw new NotFoundException('Service provider not found');
+
+      const existingLogo = provider.brand_logo_url;
+      const existingUserEmail = provider.user?.email;
+
+      let brandLogoFileName: string | undefined = undefined;
+      if (brandLogo) {
+        if (existingLogo) {
+          try {
+            await SojebStorage.delete(
+              appConfig().storageUrl.brand + existingLogo,
+            );
+          } catch (err) {
+            console.error('Failed to delete old brand logo:', err);
+          }
+        }
+
+        brandLogoFileName = `${StringHelper.randomString()}${brandLogo.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.brand + brandLogoFileName,
+          brandLogo.buffer,
+        );
+      }
+
+      const updatePayload: any = {};
+
+      if (updateServiceProviderDto.first_name !== undefined) {
+        updatePayload.first_name = updateServiceProviderDto.first_name;
+      }
+      if (updateServiceProviderDto.last_name !== undefined) {
+        updatePayload.last_name = updateServiceProviderDto.last_name;
+      }
+      if (updateServiceProviderDto.mobile_code !== undefined) {
+        updatePayload.mobile_code = updateServiceProviderDto.mobile_code;
+      }
+      if (updateServiceProviderDto.mobile_number !== undefined) {
+        updatePayload.mobile_number = updateServiceProviderDto.mobile_number;
+      }
+      if (updateServiceProviderDto.organization_name !== undefined) {
+        updatePayload.organization_name =
+          updateServiceProviderDto.organization_name;
+      }
+      if (updateServiceProviderDto.website !== undefined) {
+        updatePayload.website = updateServiceProviderDto.website;
+      }
+      if (updateServiceProviderDto.cqc_provider_number !== undefined) {
+        updatePayload.cqc_provider_number =
+          updateServiceProviderDto.cqc_provider_number;
+      }
+      if (updateServiceProviderDto.vat_tax_id !== undefined) {
+        updatePayload.vat_tax_id = updateServiceProviderDto.vat_tax_id;
+      }
+      if (updateServiceProviderDto.primary_address !== undefined) {
+        updatePayload.primary_address =
+          updateServiceProviderDto.primary_address;
+      }
+      if (updateServiceProviderDto.main_service_type !== undefined) {
+        updatePayload.main_service_type =
+          updateServiceProviderDto.main_service_type as any;
+      }
+      if (updateServiceProviderDto.max_client_capacity !== undefined) {
+        const cap = Number(updateServiceProviderDto.max_client_capacity);
+        if (Number.isNaN(cap) || cap < 1) {
+          throw new BadRequestException(
+            'Max client capacity must be at least 1',
+          );
+        }
+        updatePayload.max_client_capacity = cap;
+      }
+
+      if (brandLogoFileName !== undefined) {
+        updatePayload.brand_logo_url = brandLogoFileName;
+      }
+
+      const agreedToTerms =
+        typeof updateServiceProviderDto.agreed_to_terms === 'string'
+          ? ['true', '1', 'yes'].includes(
+              String(updateServiceProviderDto.agreed_to_terms)
+                .trim()
+                .toLowerCase(),
+            )
+          : updateServiceProviderDto.agreed_to_terms;
+
+      if (agreedToTerms !== undefined) {
+        updatePayload.agreed_to_terms = !!agreedToTerms;
+      }
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        if (
+          updateServiceProviderDto.email !== undefined &&
+          String(updateServiceProviderDto.email).trim().toLowerCase() !==
+            existingUserEmail?.toLowerCase()
+        ) {
+          const emailExists = await tx.user.findUnique({
+            where: {
+              email: String(updateServiceProviderDto.email)
+                .trim()
+                .toLowerCase(),
+            },
+            select: { id: true },
+          });
+
+          if (emailExists && emailExists.id !== provider.user.id) {
+            throw new BadRequestException('Email already exists');
+          }
+
+          await tx.user.update({
+            where: { id: provider.user.id },
+            data: {
+              email: String(updateServiceProviderDto.email)
+                .trim()
+                .toLowerCase(),
+            },
+          });
+        }
+
+        if (updateServiceProviderDto.password !== undefined) {
+          const hashed = await bcrypt.hash(
+            String(updateServiceProviderDto.password),
+            appConfig().security.salt,
+          );
+
+          await tx.user.update({
+            where: { id: provider.user.id },
+            data: { password: hashed },
+          });
+        }
+
+        const updatedProvider = await tx.serviceProviderInfo.update({
+          where: { id },
+          data: updatePayload,
+          select: {
+            id: true,
+            user_id: true,
+            organization_name: true,
+            brand_logo_url: true,
+            updated_at: true,
+          },
+        });
+
+        return { updatedProvider };
+      });
+
+      return {
+        success: true,
+        message: 'Service provider updated successfully',
+        data: result.updatedProvider,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      )
+        throw error;
+      throw new InternalServerErrorException(
+        'Failed to update service provider',
+      );
+    }
   }
 
   remove(id: string) {
