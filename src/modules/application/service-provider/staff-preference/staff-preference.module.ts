@@ -5,10 +5,8 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 
 @Module({
-    imports: [PrismaModule],
-    controllers: [StaffPreferenceController],
-    providers: [StaffPreferenceService, ServiceProviderContextHelper],
+  imports: [PrismaModule],
+  controllers: [StaffPreferenceController],
+  providers: [StaffPreferenceService, ServiceProviderContextHelper],
 })
-export class StaffPreferenceModule { }
-
-
+export class StaffPreferenceModule {}

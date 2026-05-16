@@ -4,7 +4,7 @@ import { Response } from 'express';
 
 @Controller('admin/shifts')
 export class ShiftController {
-  constructor(private readonly shiftService: ShiftService) { }
+  constructor(private readonly shiftService: ShiftService) {}
 
   @Get()
   findAll(
@@ -29,11 +29,17 @@ export class ShiftController {
     @Query('dateRange') dateRange: string,
     @Res() res: Response,
   ) {
-    const csv = await this.shiftService.exportShifts(type, { search, dateRange });
+    const csv = await this.shiftService.exportShifts(type, {
+      search,
+      dateRange,
+    });
     const date = new Date().toISOString().slice(0, 10);
     const rangeLabel = dateRange ? `_${dateRange}` : '';
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="shifts_${type || 'all'}${rangeLabel}_${date}.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="shifts_${type || 'all'}${rangeLabel}_${date}.csv"`,
+    );
     res.send(csv);
   }
 

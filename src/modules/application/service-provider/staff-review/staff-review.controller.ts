@@ -1,11 +1,11 @@
 import {
-    BadRequestException,
-    Body,
-    Controller,
-    Post,
-    Param,
-    Req,
-    UseGuards,
+  BadRequestException,
+  Body,
+  Controller,
+  Post,
+  Param,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffReviewService } from './staff-review.service';
@@ -22,21 +22,23 @@ import { EmployeePermissionType } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class StaffReviewController {
-    constructor(private readonly staffReviewService: StaffReviewService) { }
+  constructor(private readonly staffReviewService: StaffReviewService) {}
 
-    @Post(':staffId/reviews')
-    @RequireEmployeePermission(EmployeePermissionType.manage_team_permissions)
-    createReview(
-        @Param('staffId') staffId: string,
-        @Body() createStaffReviewDto: CreateStaffReviewDto,
-        @Req() req: Request,
-    ) {
-        const user_id = req.user?.userId;
-        if (!user_id) {
-            throw new BadRequestException('User not authenticated');
-        }
-        return this.staffReviewService.createReview(user_id, staffId, createStaffReviewDto);
+  @Post(':staffId/reviews')
+  @RequireEmployeePermission(EmployeePermissionType.manage_team_permissions)
+  createReview(
+    @Param('staffId') staffId: string,
+    @Body() createStaffReviewDto: CreateStaffReviewDto,
+    @Req() req: Request,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
     }
+    return this.staffReviewService.createReview(
+      user_id,
+      staffId,
+      createStaffReviewDto,
+    );
+  }
 }
-
-

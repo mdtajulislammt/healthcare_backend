@@ -25,15 +25,19 @@ export class ShiftTimesheetService {
     private readonly providerContextHelper: ServiceProviderContextHelper,
     private readonly pushNotificationService: PushNotificationService,
     private readonly notificationGateway: NotificationGateway,
-  ) { }
+  ) {}
 
   create(createShiftTimesheetDto: CreateShiftTimesheetDto) {
     return 'This action adds a new shiftTimesheet';
   }
 
-  async findAll(user_id: string, options?: { page?: number; limit?: number; status?: string }) {
+  async findAll(
+    user_id: string,
+    options?: { page?: number; limit?: number; status?: string },
+  ) {
     try {
-      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(user_id);
 
       const currentPage = Math.max(Number(options?.page) || 1, 1);
       const pageSize = Math.min(Math.max(Number(options?.limit) || 10, 1), 100);
@@ -43,7 +47,13 @@ export class ShiftTimesheetService {
         shift: {
           service_provider_id: serviceProviderId,
         },
-        status: options?.status || { in: [TimesheetStatus.submitted, TimesheetStatus.under_review, TimesheetStatus.pending_submission] },
+        status: options?.status || {
+          in: [
+            TimesheetStatus.submitted,
+            TimesheetStatus.under_review,
+            TimesheetStatus.pending_submission,
+          ],
+        },
       };
 
       const [total, timesheets] = await this.prisma.$transaction([
@@ -95,8 +105,10 @@ export class ShiftTimesheetService {
         ...timesheet,
         staff: {
           ...timesheet.staff,
-          photo_url: timesheet.staff.photo_url 
-            ? SojebStorage.url(appConfig().storageUrl.staff + timesheet.staff.photo_url) 
+          photo_url: timesheet.staff.photo_url
+            ? SojebStorage.url(
+                appConfig().storageUrl.staff + timesheet.staff.photo_url,
+              )
             : null,
         },
       }));
@@ -132,17 +144,32 @@ export class ShiftTimesheetService {
     return `This action removes a #${id} shiftTimesheet`;
   }
 
-  async approveTimesheet(id: string, user_id: string, dto: ApproveTimesheetDto) {
-    return this.handleTimesheetDecision(id, user_id, TimesheetStatus.approved, dto.message);
+  async approveTimesheet(
+    id: string,
+    user_id: string,
+    dto: ApproveTimesheetDto,
+  ) {
+    return this.handleTimesheetDecision(
+      id,
+      user_id,
+      TimesheetStatus.approved,
+      dto.message,
+    );
   }
 
   async rejectTimesheet(id: string, user_id: string, dto: RejectTimesheetDto) {
-    return this.handleTimesheetDecision(id, user_id, TimesheetStatus.rejected, dto.message);
+    return this.handleTimesheetDecision(
+      id,
+      user_id,
+      TimesheetStatus.rejected,
+      dto.message,
+    );
   }
 
   async findByShiftId(shiftId: string, user_id: string) {
     try {
-      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(user_id);
 
       const timesheet = await this.prisma.shiftTimesheet.findFirst({
         where: {
@@ -196,10 +223,15 @@ export class ShiftTimesheetService {
         data: timesheet,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to fetch timesheet for shift');
+      throw new InternalServerErrorException(
+        'Failed to fetch timesheet for shift',
+      );
     }
   }
 
@@ -210,12 +242,19 @@ export class ShiftTimesheetService {
     message?: string,
   ) {
     try {
-      const { serviceProviderId } = await this.providerContextHelper.resolveFromUser(user_id);
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(user_id);
 
       const timesheet = await this.prisma.shiftTimesheet.findUnique({
         where: { id: timesheetId },
         include: {
-          shift: { select: { id: true, service_provider_id: true, posting_title: true } },
+          shift: {
+            select: {
+              id: true,
+              service_provider_id: true,
+              posting_title: true,
+            },
+          },
           staff: {
             select: {
               id: true,
@@ -236,7 +275,9 @@ export class ShiftTimesheetService {
       }
 
       if (timesheet.shift.service_provider_id !== serviceProviderId) {
-        throw new ForbiddenException('You do not have permission to update this timesheet.');
+        throw new ForbiddenException(
+          'You do not have permission to update this timesheet.',
+        );
       }
 
       if (timesheet.status === status) {
@@ -288,7 +329,9 @@ export class ShiftTimesheetService {
       const staffUserId = timesheet.staff.user?.id;
       if (staffUserId) {
         const isApproved = status === TimesheetStatus.approved;
-        const notificationType = isApproved ? 'timesheet_approved' : 'timesheet_rejected';
+        const notificationType = isApproved
+          ? 'timesheet_approved'
+          : 'timesheet_rejected';
         const title = isApproved ? 'Timesheet Approved' : 'Timesheet Rejected';
         const bodyText = isApproved
           ? `Your timesheet for shift: ${timesheet.shift.posting_title} has been approved`
@@ -368,9 +411,9 @@ export class ShiftTimesheetService {
       ) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to update timesheet status.');
+      throw new InternalServerErrorException(
+        'Failed to update timesheet status.',
+      );
     }
   }
-
-
 }

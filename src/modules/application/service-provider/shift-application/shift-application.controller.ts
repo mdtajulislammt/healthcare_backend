@@ -31,7 +31,9 @@ import { EmployeePermissionType } from '@prisma/client';
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 @ApiBearerAuth()
 export class ShiftApplicationController {
-  constructor(private readonly shiftApplicationService: ShiftApplicationService) { }
+  constructor(
+    private readonly shiftApplicationService: ShiftApplicationService,
+  ) {}
 
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
@@ -82,7 +84,10 @@ export class ShiftApplicationController {
 
   @Patch(':id')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
-  update(@Param('id') id: string, @Body() updateShiftApplicationDto: UpdateShiftApplicationDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateShiftApplicationDto: UpdateShiftApplicationDto,
+  ) {
     return this.shiftApplicationService.update(+id, updateShiftApplicationDto);
   }
 
@@ -109,6 +114,10 @@ export class ShiftApplicationController {
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.shiftApplicationService.acceptApplication(id, user_id, acceptApplicationDto);
+    return this.shiftApplicationService.acceptApplication(
+      id,
+      user_id,
+      acceptApplicationDto,
+    );
   }
 }

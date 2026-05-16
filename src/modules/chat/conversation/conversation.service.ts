@@ -12,7 +12,7 @@ export class ConversationService {
   constructor(
     private prisma: PrismaService,
     private readonly messageGateway: MessageGateway,
-  ) { }
+  ) {}
 
   async create(createConversationDto: CreateConversationDto) {
     try {
@@ -97,18 +97,27 @@ export class ConversationService {
           let creatorName = null;
           let creatorAvatar = null;
 
-          if (conversation.creator.type === 'staff' && conversation.creator.staff_profile) {
+          if (
+            conversation.creator.type === 'staff' &&
+            conversation.creator.staff_profile
+          ) {
             creatorName = `${conversation.creator.staff_profile.first_name} ${conversation.creator.staff_profile.last_name}`;
             if (conversation.creator.staff_profile.photo_url) {
               creatorAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + conversation.creator.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  conversation.creator.staff_profile.photo_url,
               );
             }
-          } else if (conversation.creator.type === 'service_provider' && conversation.creator.service_provider_info) {
-            creatorName = conversation.creator.service_provider_info.organization_name;
+          } else if (
+            conversation.creator.type === 'service_provider' &&
+            conversation.creator.service_provider_info
+          ) {
+            creatorName =
+              conversation.creator.service_provider_info.organization_name;
             if (conversation.creator.service_provider_info.brand_logo_url) {
               creatorAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + conversation.creator.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  conversation.creator.service_provider_info.brand_logo_url,
               );
             }
           } else if (conversation.creator.type === 'admin') {
@@ -128,18 +137,27 @@ export class ConversationService {
           let participantName = null;
           let participantAvatar = null;
 
-          if (conversation.participant.type === 'staff' && conversation.participant.staff_profile) {
+          if (
+            conversation.participant.type === 'staff' &&
+            conversation.participant.staff_profile
+          ) {
             participantName = `${conversation.participant.staff_profile.first_name} ${conversation.participant.staff_profile.last_name}`;
             if (conversation.participant.staff_profile.photo_url) {
               participantAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + conversation.participant.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  conversation.participant.staff_profile.photo_url,
               );
             }
-          } else if (conversation.participant.type === 'service_provider' && conversation.participant.service_provider_info) {
-            participantName = conversation.participant.service_provider_info.organization_name;
+          } else if (
+            conversation.participant.type === 'service_provider' &&
+            conversation.participant.service_provider_info
+          ) {
+            participantName =
+              conversation.participant.service_provider_info.organization_name;
             if (conversation.participant.service_provider_info.brand_logo_url) {
               participantAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + conversation.participant.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  conversation.participant.service_provider_info.brand_logo_url,
               );
             }
           } else if (conversation.participant.type === 'admin') {
@@ -231,18 +249,27 @@ export class ConversationService {
         let creatorName = null;
         let creatorAvatar = null;
 
-        if (conversation.creator.type === 'staff' && conversation.creator.staff_profile) {
+        if (
+          conversation.creator.type === 'staff' &&
+          conversation.creator.staff_profile
+        ) {
           creatorName = `${conversation.creator.staff_profile.first_name} ${conversation.creator.staff_profile.last_name}`;
           if (conversation.creator.staff_profile.photo_url) {
             creatorAvatar = SojebStorage.url(
-              appConfig().storageUrl.staff + conversation.creator.staff_profile.photo_url,
+              appConfig().storageUrl.staff +
+                conversation.creator.staff_profile.photo_url,
             );
           }
-        } else if (conversation.creator.type === 'service_provider' && conversation.creator.service_provider_info) {
-          creatorName = conversation.creator.service_provider_info.organization_name;
+        } else if (
+          conversation.creator.type === 'service_provider' &&
+          conversation.creator.service_provider_info
+        ) {
+          creatorName =
+            conversation.creator.service_provider_info.organization_name;
           if (conversation.creator.service_provider_info.brand_logo_url) {
             creatorAvatar = SojebStorage.url(
-              appConfig().storageUrl.brand + conversation.creator.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                conversation.creator.service_provider_info.brand_logo_url,
             );
           }
         } else if (conversation.creator.type === 'admin') {
@@ -262,18 +289,27 @@ export class ConversationService {
         let participantName = null;
         let participantAvatar = null;
 
-        if (conversation.participant.type === 'staff' && conversation.participant.staff_profile) {
+        if (
+          conversation.participant.type === 'staff' &&
+          conversation.participant.staff_profile
+        ) {
           participantName = `${conversation.participant.staff_profile.first_name} ${conversation.participant.staff_profile.last_name}`;
           if (conversation.participant.staff_profile.photo_url) {
             participantAvatar = SojebStorage.url(
-              appConfig().storageUrl.staff + conversation.participant.staff_profile.photo_url,
+              appConfig().storageUrl.staff +
+                conversation.participant.staff_profile.photo_url,
             );
           }
-        } else if (conversation.participant.type === 'service_provider' && conversation.participant.service_provider_info) {
-          participantName = conversation.participant.service_provider_info.organization_name;
+        } else if (
+          conversation.participant.type === 'service_provider' &&
+          conversation.participant.service_provider_info
+        ) {
+          participantName =
+            conversation.participant.service_provider_info.organization_name;
           if (conversation.participant.service_provider_info.brand_logo_url) {
             participantAvatar = SojebStorage.url(
-              appConfig().storageUrl.brand + conversation.participant.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                conversation.participant.service_provider_info.brand_logo_url,
             );
           }
         } else if (conversation.participant.type === 'admin') {
@@ -307,7 +343,7 @@ export class ConversationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -384,18 +420,27 @@ export class ConversationService {
           let creatorName = null;
           let creatorAvatar = null;
 
-          if (conversation.creator.type === 'staff' && conversation.creator.staff_profile) {
+          if (
+            conversation.creator.type === 'staff' &&
+            conversation.creator.staff_profile
+          ) {
             creatorName = `${conversation.creator.staff_profile.first_name} ${conversation.creator.staff_profile.last_name}`;
             if (conversation.creator.staff_profile.photo_url) {
               creatorAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + conversation.creator.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  conversation.creator.staff_profile.photo_url,
               );
             }
-          } else if (conversation.creator.type === 'service_provider' && conversation.creator.service_provider_info) {
-            creatorName = conversation.creator.service_provider_info.organization_name;
+          } else if (
+            conversation.creator.type === 'service_provider' &&
+            conversation.creator.service_provider_info
+          ) {
+            creatorName =
+              conversation.creator.service_provider_info.organization_name;
             if (conversation.creator.service_provider_info.brand_logo_url) {
               creatorAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + conversation.creator.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  conversation.creator.service_provider_info.brand_logo_url,
               );
             }
           } else if (conversation.creator.type === 'admin') {
@@ -415,18 +460,27 @@ export class ConversationService {
           let participantName = null;
           let participantAvatar = null;
 
-          if (conversation.participant.type === 'staff' && conversation.participant.staff_profile) {
+          if (
+            conversation.participant.type === 'staff' &&
+            conversation.participant.staff_profile
+          ) {
             participantName = `${conversation.participant.staff_profile.first_name} ${conversation.participant.staff_profile.last_name}`;
             if (conversation.participant.staff_profile.photo_url) {
               participantAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + conversation.participant.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  conversation.participant.staff_profile.photo_url,
               );
             }
-          } else if (conversation.participant.type === 'service_provider' && conversation.participant.service_provider_info) {
-            participantName = conversation.participant.service_provider_info.organization_name;
+          } else if (
+            conversation.participant.type === 'service_provider' &&
+            conversation.participant.service_provider_info
+          ) {
+            participantName =
+              conversation.participant.service_provider_info.organization_name;
             if (conversation.participant.service_provider_info.brand_logo_url) {
               participantAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + conversation.participant.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  conversation.participant.service_provider_info.brand_logo_url,
               );
             }
           } else if (conversation.participant.type === 'admin') {
@@ -450,7 +504,7 @@ export class ConversationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -520,18 +574,27 @@ export class ConversationService {
         let creatorName = null;
         let creatorAvatar = null;
 
-        if (conversation.creator.type === 'staff' && conversation.creator.staff_profile) {
+        if (
+          conversation.creator.type === 'staff' &&
+          conversation.creator.staff_profile
+        ) {
           creatorName = `${conversation.creator.staff_profile.first_name} ${conversation.creator.staff_profile.last_name}`;
           if (conversation.creator.staff_profile.photo_url) {
             creatorAvatar = SojebStorage.url(
-              appConfig().storageUrl.staff + conversation.creator.staff_profile.photo_url,
+              appConfig().storageUrl.staff +
+                conversation.creator.staff_profile.photo_url,
             );
           }
-        } else if (conversation.creator.type === 'service_provider' && conversation.creator.service_provider_info) {
-          creatorName = conversation.creator.service_provider_info.organization_name;
+        } else if (
+          conversation.creator.type === 'service_provider' &&
+          conversation.creator.service_provider_info
+        ) {
+          creatorName =
+            conversation.creator.service_provider_info.organization_name;
           if (conversation.creator.service_provider_info.brand_logo_url) {
             creatorAvatar = SojebStorage.url(
-              appConfig().storageUrl.brand + conversation.creator.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                conversation.creator.service_provider_info.brand_logo_url,
             );
           }
         } else if (conversation.creator.type === 'admin') {
@@ -551,18 +614,27 @@ export class ConversationService {
         let participantName = null;
         let participantAvatar = null;
 
-        if (conversation.participant.type === 'staff' && conversation.participant.staff_profile) {
+        if (
+          conversation.participant.type === 'staff' &&
+          conversation.participant.staff_profile
+        ) {
           participantName = `${conversation.participant.staff_profile.first_name} ${conversation.participant.staff_profile.last_name}`;
           if (conversation.participant.staff_profile.photo_url) {
             participantAvatar = SojebStorage.url(
-              appConfig().storageUrl.staff + conversation.participant.staff_profile.photo_url,
+              appConfig().storageUrl.staff +
+                conversation.participant.staff_profile.photo_url,
             );
           }
-        } else if (conversation.participant.type === 'service_provider' && conversation.participant.service_provider_info) {
-          participantName = conversation.participant.service_provider_info.organization_name;
+        } else if (
+          conversation.participant.type === 'service_provider' &&
+          conversation.participant.service_provider_info
+        ) {
+          participantName =
+            conversation.participant.service_provider_info.organization_name;
           if (conversation.participant.service_provider_info.brand_logo_url) {
             participantAvatar = SojebStorage.url(
-              appConfig().storageUrl.brand + conversation.participant.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                conversation.participant.service_provider_info.brand_logo_url,
             );
           }
         } else if (conversation.participant.type === 'admin') {
@@ -585,7 +657,7 @@ export class ConversationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -615,7 +687,7 @@ export class ConversationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -633,7 +705,7 @@ export class ConversationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

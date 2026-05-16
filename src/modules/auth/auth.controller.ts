@@ -78,7 +78,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -117,7 +117,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -141,7 +141,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -439,7 +439,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -456,7 +456,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -472,7 +472,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -488,7 +488,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -510,7 +510,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -541,7 +541,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -572,7 +572,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -596,7 +596,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -704,7 +704,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -720,7 +720,10 @@ export class AuthController {
     try {
       return await this.authService.addStaffCertificate(data, file);
     } catch (error) {
-      return { success: false, message: error.message };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'An error occurred',
+      };
     }
   }
 
@@ -764,7 +767,10 @@ export class AuthController {
     try {
       return await this.authService.addStaffCertificatesBulk(data, files);
     } catch (error) {
-      return { success: false, message: error.message };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'An error occurred',
+      };
     }
   }
 
@@ -775,7 +781,10 @@ export class AuthController {
     try {
       return await this.authService.createOrUpdateStaffDbsInfo(data);
     } catch (error) {
-      return { success: false, message: error.message };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'An error occurred',
+      };
     }
   }
 
@@ -815,7 +824,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -832,7 +841,7 @@ export class AuthController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

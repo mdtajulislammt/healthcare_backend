@@ -4,8 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 @Global()
 @Module({
-    providers: [ActivityLogService, PrismaService],
-    exports: [ActivityLogService],
+  providers: [ActivityLogService, PrismaService],
+  exports: [ActivityLogService],
 })
-export class ActivityLogModule { }
-
+export class ActivityLogModule {}

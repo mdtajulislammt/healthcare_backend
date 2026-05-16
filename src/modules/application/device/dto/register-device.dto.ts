@@ -17,5 +17,3 @@ export class RegisterDeviceDto {
   @IsEnum(['android', 'ios'] as any)
   platform: 'android' | 'ios';
 }
-
-

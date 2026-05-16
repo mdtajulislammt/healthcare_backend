@@ -91,5 +91,3 @@ export class DeviceController {
     return this.deviceService.togglePushNotification(userId, enabled);
   }
 }
-
-

@@ -8,4 +8,4 @@ import { ActivityLogModule } from 'src/common/module/activity-log.module';
   controllers: [ApplyShiftController],
   providers: [ApplyShiftService],
 })
-export class ApplyShiftModule { }
+export class ApplyShiftModule {}

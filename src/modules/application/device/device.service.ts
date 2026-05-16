@@ -42,7 +42,8 @@ export class DeviceService {
     if (!devices.length) {
       return {
         success: false,
-        message: 'No device registered. Please register your device first using /application/devices/register',
+        message:
+          'No device registered. Please register your device first using /application/devices/register',
         data: {
           devices_count: 0,
         },
@@ -51,7 +52,8 @@ export class DeviceService {
 
     try {
       const notificationTitle = title || 'Test Notification';
-      const notificationBody = body || 'This is a test push notification from backend!';
+      const notificationBody =
+        body || 'This is a test push notification from backend!';
 
       // Save notification to database
       await NotificationRepository.createNotification({
@@ -79,7 +81,7 @@ export class DeviceService {
       return {
         success: false,
         message: 'Failed to send push notification',
-        error: error.message || 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -101,7 +103,7 @@ export class DeviceService {
       return {
         success: false,
         message: 'Failed to get push notification status',
-        error: error.message || 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -124,10 +126,8 @@ export class DeviceService {
       return {
         success: false,
         message: 'Failed to toggle push notification',
-        error: error.message || 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
 }
-
-

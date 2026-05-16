@@ -10,5 +10,3 @@ import { PushNotificationService } from '../service/push-notification.service';
   exports: [PushNotificationService],
 })
 export class PushNotificationModule {}
-
-

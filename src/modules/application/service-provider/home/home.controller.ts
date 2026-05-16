@@ -20,7 +20,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 @Roles(Role.SERVICE_PROVIDER)
 @ApiBearerAuth()
 export class HomeController {
-  constructor(private readonly homeService: HomeService) { }
+  constructor(private readonly homeService: HomeService) {}
 
   @ApiOperation({ summary: 'Get dashboard metrics (4 cards)' })
   @Get('metrics')
@@ -34,10 +34,7 @@ export class HomeController {
 
   @ApiOperation({ summary: 'Get recent shifts' })
   @Get('recent-shifts')
-  getRecentShifts(
-    @Req() req: Request,
-    @Query('limit') limit?: string,
-  ) {
+  getRecentShifts(@Req() req: Request, @Query('limit') limit?: string) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
@@ -53,10 +50,7 @@ export class HomeController {
 
   @ApiOperation({ summary: 'Get recent activities' })
   @Get('recent-activities')
-  getRecentActivities(
-    @Req() req: Request,
-    @Query('limit') limit?: string,
-  ) {
+  getRecentActivities(@Req() req: Request, @Query('limit') limit?: string) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
@@ -70,7 +64,9 @@ export class HomeController {
     return this.homeService.getRecentActivities(user_id, limitNum);
   }
 
-  @ApiOperation({ summary: 'Get all home data (metrics, recent shifts, recent activities)' })
+  @ApiOperation({
+    summary: 'Get all home data (metrics, recent shifts, recent activities)',
+  })
   @Get('all')
   getAllHomeData(
     @Req() req: Request,
@@ -85,14 +81,28 @@ export class HomeController {
     const shiftsLimitNum = shiftsLimit ? Number(shiftsLimit) : 10;
     const activitiesLimitNum = activitiesLimit ? Number(activitiesLimit) : 10;
 
-    if (shiftsLimit && (isNaN(shiftsLimitNum) || shiftsLimitNum < 1 || shiftsLimitNum > 50)) {
+    if (
+      shiftsLimit &&
+      (isNaN(shiftsLimitNum) || shiftsLimitNum < 1 || shiftsLimitNum > 50)
+    ) {
       throw new BadRequestException('Shifts limit must be between 1 and 50');
     }
-    if (activitiesLimit && (isNaN(activitiesLimitNum) || activitiesLimitNum < 1 || activitiesLimitNum > 50)) {
-      throw new BadRequestException('Activities limit must be between 1 and 50');
+    if (
+      activitiesLimit &&
+      (isNaN(activitiesLimitNum) ||
+        activitiesLimitNum < 1 ||
+        activitiesLimitNum > 50)
+    ) {
+      throw new BadRequestException(
+        'Activities limit must be between 1 and 50',
+      );
     }
 
-    return this.homeService.getAllHomeData(user_id, shiftsLimitNum, activitiesLimitNum);
+    return this.homeService.getAllHomeData(
+      user_id,
+      shiftsLimitNum,
+      activitiesLimitNum,
+    );
   }
 
   @ApiOperation({ summary: 'Get pending timesheet approval count' })

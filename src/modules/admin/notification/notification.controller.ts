@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Delete, UseGuards, Req, Post, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+  Post,
+  Body,
+} from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '../../../common/guard/role/role.enum';
@@ -32,7 +41,7 @@ export class NotificationController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -48,7 +57,7 @@ export class NotificationController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -64,14 +73,19 @@ export class NotificationController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
 
-  @ApiOperation({ summary: 'Send test notification to current admin (websocket + DB)' })
+  @ApiOperation({
+    summary: 'Send test notification to current admin (websocket + DB)',
+  })
   @Post('test')
-  async sendTest(@Req() req: Request, @Body() body: { title?: string; message?: string }) {
+  async sendTest(
+    @Req() req: Request,
+    @Body() body: { title?: string; message?: string },
+  ) {
     try {
       const user_id = req.user.userId;
       const title = body?.title || 'Test Notification';
@@ -102,7 +116,7 @@ export class NotificationController {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

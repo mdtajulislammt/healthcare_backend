@@ -7,4 +7,4 @@ import { PrismaService } from 'src/prisma/prisma.service';
   controllers: [DashboardController],
   providers: [DashboardService, PrismaService],
 })
-export class DashboardModule { }
+export class DashboardModule {}

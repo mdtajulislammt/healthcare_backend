@@ -16,4 +16,4 @@ import { DeviceModule } from './device/device.module';
     DeviceModule,
   ],
 })
-export class ApplicationModule { }
+export class ApplicationModule {}

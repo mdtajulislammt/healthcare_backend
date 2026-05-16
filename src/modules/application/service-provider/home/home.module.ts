@@ -9,4 +9,4 @@ import { ActivityLogModule } from 'src/common/module/activity-log.module';
   controllers: [HomeController],
   providers: [HomeService, PrismaService],
 })
-export class HomeModule { }
+export class HomeModule {}

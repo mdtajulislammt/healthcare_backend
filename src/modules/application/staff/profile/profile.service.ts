@@ -588,7 +588,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to update staff profile: ${error.message}`,
+        `Failed to update staff profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -697,7 +697,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to ${educationData.id ? 'update' : 'create'} education: ${error.message}`,
+        `Failed to ${educationData.id ? 'update' : 'create'} education: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -874,7 +874,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to ${certificateData.id || 'update'} certificate: ${error.message}`,
+        `Failed to ${certificateData.id || 'update'} certificate: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -1006,7 +1006,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to update DBS info: ${error.message}`,
+        `Failed to update DBS info: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -1112,7 +1112,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to update referee info: ${error.message}`,
+        `Failed to update referee info: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -1230,7 +1230,7 @@ export class ProfileService {
         throw error;
       }
       throw new BadRequestException(
-        `Failed to fetch staff profile: ${error.message}`,
+        `Failed to fetch staff profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

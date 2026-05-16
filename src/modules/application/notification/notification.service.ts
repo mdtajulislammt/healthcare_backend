@@ -16,53 +16,54 @@ export class NotificationService {
         deleted_at: null,
       };
 
-      const [total, notifications, unreadCount] = await this.prisma.$transaction([
-        this.prisma.notification.count({ where }),
-        this.prisma.notification.findMany({
-          where,
-          select: {
-            id: true,
-            read_at: true,
-            entity_id: true,
-            created_at: true,
-            notification_event: {
-              select: {
-                id: true,
-                type: true,
-                text: true,
-              },
-            },
-            sender: {
-              select: {
-                id: true,
-                staff_profile: {
-                  select: {
-                    first_name: true,
-                    last_name: true,
-                    photo_url: true,
-                  },
-                },
-                service_provider_info: {
-                  select: {
-                    first_name: true,
-                    last_name: true,
-                    brand_logo_url: true,
-                  },
+      const [total, notifications, unreadCount] =
+        await this.prisma.$transaction([
+          this.prisma.notification.count({ where }),
+          this.prisma.notification.findMany({
+            where,
+            select: {
+              id: true,
+              read_at: true,
+              entity_id: true,
+              created_at: true,
+              notification_event: {
+                select: {
+                  id: true,
+                  type: true,
+                  text: true,
                 },
               },
+              sender: {
+                select: {
+                  id: true,
+                  staff_profile: {
+                    select: {
+                      first_name: true,
+                      last_name: true,
+                      photo_url: true,
+                    },
+                  },
+                  service_provider_info: {
+                    select: {
+                      first_name: true,
+                      last_name: true,
+                      brand_logo_url: true,
+                    },
+                  },
+                },
+              },
             },
-          },
-          orderBy: { created_at: 'desc' },
-          skip,
-          take: pageSize,
-        }),
-        this.prisma.notification.count({
-          where: {
-            ...where,
-            read_at: null,
-          },
-        }),
-      ]);
+            orderBy: { created_at: 'desc' },
+            skip,
+            take: pageSize,
+          }),
+          this.prisma.notification.count({
+            where: {
+              ...where,
+              read_at: null,
+            },
+          }),
+        ]);
 
       return {
         success: true,
@@ -98,7 +99,9 @@ export class NotificationService {
         message: 'Notification marked as read',
       };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to mark notification as read');
+      throw new InternalServerErrorException(
+        'Failed to mark notification as read',
+      );
     }
   }
 
@@ -119,7 +122,9 @@ export class NotificationService {
         message: 'All notifications marked as read',
       };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to mark all notifications as read');
+      throw new InternalServerErrorException(
+        'Failed to mark all notifications as read',
+      );
     }
   }
 
@@ -157,7 +162,9 @@ export class NotificationService {
       });
 
       if (notification.count === 0) {
-        throw new InternalServerErrorException('Notification not found or unauthorized');
+        throw new InternalServerErrorException(
+          'Notification not found or unauthorized',
+        );
       }
 
       return {
@@ -186,7 +193,9 @@ export class NotificationService {
         message: 'All notifications deleted successfully',
       };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to delete all notifications');
+      throw new InternalServerErrorException(
+        'Failed to delete all notifications',
+      );
     }
   }
 }

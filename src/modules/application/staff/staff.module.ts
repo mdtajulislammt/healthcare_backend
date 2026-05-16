@@ -5,8 +5,13 @@ import { ProfileModule } from './profile/profile.module';
 import { HomeModule } from './home/home.module';
 import { BankDetailsModule } from './bank-details/bank-details.module';
 
-
 @Module({
-    imports: [ApplyShiftModule, GeofenceModule, ProfileModule, HomeModule, BankDetailsModule],
+  imports: [
+    ApplyShiftModule,
+    GeofenceModule,
+    ProfileModule,
+    HomeModule,
+    BankDetailsModule,
+  ],
 })
-export class StaffModule { }
+export class StaffModule {}

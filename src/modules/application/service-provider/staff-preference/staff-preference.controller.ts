@@ -1,12 +1,12 @@
 import {
-    BadRequestException,
-    Body,
-    Controller,
-    Get,
-    Param,
-    Post,
-    Req,
-    UseGuards,
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffPreferenceService } from './staff-preference.service';
@@ -23,69 +23,67 @@ import { EmployeePermissionType } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class StaffPreferenceController {
-    constructor(private readonly staffPreferenceService: StaffPreferenceService) { }
+  constructor(
+    private readonly staffPreferenceService: StaffPreferenceService,
+  ) {}
 
+  @Get('favorites')
+  @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
+  getFavorites(@Req() req: Request) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.staffPreferenceService.getPreferences(user_id, 'favorite');
+  }
 
-    @Get('favorites')
-    @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-    getFavorites(@Req() req: Request) {
-        const user_id = req.user?.userId;
-        if (!user_id) {
-            throw new BadRequestException('User not authenticated');
-        }
-        return this.staffPreferenceService.getPreferences(user_id, 'favorite');
+  @Get('blocked')
+  @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
+  getBlocked(@Req() req: Request) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.staffPreferenceService.getPreferences(user_id, 'blocked');
+  }
+
+  @Post(':staffId/favorite')
+  @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
+  favoriteStaff(
+    @Param('staffId') staffId: string,
+    @Body() favoriteStaffDto: FavoriteStaffDto,
+    @Req() req: Request,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
     }
 
-    @Get('blocked')
-    @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-    getBlocked(@Req() req: Request) {
-        const user_id = req.user?.userId;
-        if (!user_id) {
-            throw new BadRequestException('User not authenticated');
-        }
-        return this.staffPreferenceService.getPreferences(user_id, 'blocked');
+    return this.staffPreferenceService.setPreference(
+      user_id,
+      staffId,
+      'favorite',
+      favoriteStaffDto.reason,
+    );
+  }
+
+  @Post(':staffId/block')
+  @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
+  blockStaff(
+    @Param('staffId') staffId: string,
+    @Body() favoriteStaffDto: FavoriteStaffDto,
+    @Req() req: Request,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
     }
 
-
-    @Post(':staffId/favorite')
-    @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-    favoriteStaff(
-        @Param('staffId') staffId: string,
-        @Body() favoriteStaffDto: FavoriteStaffDto,
-        @Req() req: Request,
-    ) {
-        const user_id = req.user?.userId;
-        if (!user_id) {
-            throw new BadRequestException('User not authenticated');
-        }
-
-        return this.staffPreferenceService.setPreference(
-            user_id,
-            staffId,
-            'favorite',
-            favoriteStaffDto.reason,
-        );
-    }
-
-    @Post(':staffId/block')
-    @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-    blockStaff(
-        @Param('staffId') staffId: string,
-        @Body() favoriteStaffDto: FavoriteStaffDto,
-        @Req() req: Request,
-    ) {
-        const user_id = req.user?.userId;
-        if (!user_id) {
-            throw new BadRequestException('User not authenticated');
-        }
-
-        return this.staffPreferenceService.setPreference(
-            user_id,
-            staffId,
-            'blocked',
-            favoriteStaffDto.reason,
-        );
-    }
+    return this.staffPreferenceService.setPreference(
+      user_id,
+      staffId,
+      'blocked',
+      favoriteStaffDto.reason,
+    );
+  }
 }
-
-

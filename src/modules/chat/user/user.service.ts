@@ -5,7 +5,7 @@ import { SojebStorage } from '../../../common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async findAll() {
     try {
@@ -48,11 +48,15 @@ export class UserService {
               appConfig().storageUrl.staff + user.staff_profile.photo_url,
             );
           }
-        } else if (user.type === 'service_provider' && user.service_provider_info) {
+        } else if (
+          user.type === 'service_provider' &&
+          user.service_provider_info
+        ) {
           name = user.service_provider_info.organization_name;
           if (user.service_provider_info.brand_logo_url) {
             avatar_url = SojebStorage.url(
-              appConfig().storageUrl.brand + user.service_provider_info.brand_logo_url,
+              appConfig().storageUrl.brand +
+                user.service_provider_info.brand_logo_url,
             );
           }
         } else if (user.type === 'admin') {
@@ -75,7 +79,7 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

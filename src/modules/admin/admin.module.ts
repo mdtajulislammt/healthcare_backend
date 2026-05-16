@@ -28,4 +28,4 @@ import { ProfileModule } from './profile/profile.module';
     ProfileModule,
   ],
 })
-export class AdminModule { }
+export class AdminModule {}
