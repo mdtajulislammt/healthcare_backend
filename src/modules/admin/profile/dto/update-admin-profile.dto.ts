@@ -3,7 +3,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class UpdateAdminProfileDto {
-  @ApiPropertyOptional({ description: 'Admin full name (used to split into first/last if provided)' })
+  @ApiPropertyOptional({
+    description: 'Admin full name (used to split into first/last if provided)',
+  })
   @IsOptional()
   @IsString()
   name?: string;

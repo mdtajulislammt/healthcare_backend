@@ -31,7 +31,7 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -134,7 +134,9 @@ export class UserService {
       const message =
         error instanceof BadRequestException
           ? error.message
-          : error.message || 'Failed to create admin user';
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create admin user';
 
       return {
         success: false,
@@ -242,7 +244,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to fetch users',
       };
     }
   }
@@ -329,7 +332,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to fetch user',
       };
     }
   }
@@ -356,7 +360,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to approve user',
       };
     }
   }
@@ -383,7 +388,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to reject user',
       };
     }
   }
@@ -406,7 +412,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to update user',
       };
     }
   }
@@ -418,7 +425,8 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message:
+          error instanceof Error ? error.message : 'Failed to remove user',
       };
     }
   }

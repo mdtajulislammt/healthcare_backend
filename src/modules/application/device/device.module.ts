@@ -9,5 +9,3 @@ import { PrismaModule } from 'src/prisma/prisma.module';
   providers: [DeviceService],
 })
 export class DeviceModule {}
-
-

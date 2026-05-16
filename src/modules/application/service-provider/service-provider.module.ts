@@ -20,4 +20,4 @@ import { HomeModule } from './home/home.module';
     HomeModule,
   ],
 })
-export class ServiceProviderModule { }
+export class ServiceProviderModule {}

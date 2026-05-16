@@ -36,7 +36,7 @@ export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly activityLogService: ActivityLogService,
-  ) { }
+  ) {}
 
   @Post()
   create(@Body() createProfileDto: CreateProfileDto) {
@@ -89,7 +89,11 @@ export class ProfileController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.profileService.updateServiceProviderProfile(user_id, updateServiceProviderProfileDto, brandLogoFile);
+    return this.profileService.updateServiceProviderProfile(
+      user_id,
+      updateServiceProviderProfileDto,
+      brandLogoFile,
+    );
   }
 
   @ApiOperation({ summary: 'Update service provider business info' })
@@ -113,7 +117,11 @@ export class ProfileController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.profileService.updateBusinessInfo(user_id, updateBusinessInfoDto, supportDocumentsFile);
+    return this.profileService.updateBusinessInfo(
+      user_id,
+      updateBusinessInfoDto,
+      supportDocumentsFile,
+    );
   }
 
   @Patch(':id')
@@ -126,7 +134,9 @@ export class ProfileController {
     return this.profileService.remove(+id);
   }
 
-  @ApiOperation({ summary: 'Get recent activities for logged-in service provider' })
+  @ApiOperation({
+    summary: 'Get recent activities for logged-in service provider',
+  })
   @Get('activities')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SERVICE_PROVIDER)

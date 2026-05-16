@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -10,7 +14,7 @@ import { StringHelper } from '../../../../common/helper/string.helper';
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   create(createProfileDto: CreateProfileDto) {
     return 'This action adds a new profile';
@@ -61,7 +65,9 @@ export class ProfileService {
       }
 
       if (!user.service_provider_info) {
-        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Service provider profile not found. Please complete your profile first.',
+        );
       }
 
       const existingBrandLogoUrl = user.service_provider_info.brand_logo_url;
@@ -72,7 +78,9 @@ export class ProfileService {
         // Delete old brand logo if exists
         if (existingBrandLogoUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.brand + existingBrandLogoUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.brand + existingBrandLogoUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
             console.error('Failed to delete old brand logo:', error);
@@ -148,10 +156,15 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to update service provider profile: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to update service provider profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -184,10 +197,13 @@ export class ProfileService {
       }
 
       if (!user.service_provider_info) {
-        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Service provider profile not found. Please complete your profile first.',
+        );
       }
 
-      const existingSupportDocumentsUrl = (user.service_provider_info as any).support_documents_url;
+      const existingSupportDocumentsUrl = (user.service_provider_info as any)
+        .support_documents_url;
 
       // Upload support documents file if provided
       let supportDocumentsFileName: string | undefined = undefined;
@@ -195,10 +211,15 @@ export class ProfileService {
         // Delete old support documents file if exists
         if (existingSupportDocumentsUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.certificate + existingSupportDocumentsUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate + existingSupportDocumentsUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
-            console.error('Failed to delete old support documents file:', error);
+            console.error(
+              'Failed to delete old support documents file:',
+              error,
+            );
           }
         }
         // Upload new support documents file
@@ -267,7 +288,8 @@ export class ProfileService {
       let formattedSupportDocumentsUrl: string | null = null;
       if (updatedProfile.support_documents_url) {
         formattedSupportDocumentsUrl = SojebStorage.url(
-          appConfig().storageUrl.certificate + updatedProfile.support_documents_url,
+          appConfig().storageUrl.certificate +
+            updatedProfile.support_documents_url,
         );
       }
 
@@ -280,10 +302,15 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to update business info: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to update business info: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -327,7 +354,9 @@ export class ProfileService {
       }
 
       if (!user.service_provider_info) {
-        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Service provider profile not found. Please complete your profile first.',
+        );
       }
 
       const profile = user.service_provider_info;
@@ -342,7 +371,8 @@ export class ProfileService {
       // Format support documents URL if exists
       if ((profile as any).support_documents_url) {
         (profile as any).support_documents_url = SojebStorage.url(
-          appConfig().storageUrl.certificate + (profile as any).support_documents_url,
+          appConfig().storageUrl.certificate +
+            (profile as any).support_documents_url,
         );
       }
 
@@ -366,10 +396,15 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(`Failed to fetch service provider profile: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to fetch service provider profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 }

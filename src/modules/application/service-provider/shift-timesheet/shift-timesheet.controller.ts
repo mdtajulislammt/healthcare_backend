@@ -29,7 +29,7 @@ import { EmployeePermissionType } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class ShiftTimesheetController {
-  constructor(private readonly shiftTimesheetService: ShiftTimesheetService) { }
+  constructor(private readonly shiftTimesheetService: ShiftTimesheetService) {}
 
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
@@ -64,10 +64,7 @@ export class ShiftTimesheetController {
     EmployeePermissionType.approve_timesheets,
     EmployeePermissionType.dispute_timesheets,
   )
-  findByShift(
-    @Param('shift_id') shiftId: string,
-    @Req() req: Request,
-  ) {
+  findByShift(@Param('shift_id') shiftId: string, @Req() req: Request) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
@@ -86,7 +83,10 @@ export class ShiftTimesheetController {
 
   @Patch(':id')
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
-  update(@Param('id') id: string, @Body() updateShiftTimesheetDto: UpdateShiftTimesheetDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateShiftTimesheetDto: UpdateShiftTimesheetDto,
+  ) {
     return this.shiftTimesheetService.update(id, updateShiftTimesheetDto);
   }
 
@@ -107,7 +107,11 @@ export class ShiftTimesheetController {
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.shiftTimesheetService.approveTimesheet(id, user_id, approveTimesheetDto);
+    return this.shiftTimesheetService.approveTimesheet(
+      id,
+      user_id,
+      approveTimesheetDto,
+    );
   }
 
   @Post(':id/reject')
@@ -124,6 +128,10 @@ export class ShiftTimesheetController {
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.shiftTimesheetService.rejectTimesheet(id, user_id, rejectTimesheetDto);
+    return this.shiftTimesheetService.rejectTimesheet(
+      id,
+      user_id,
+      rejectTimesheetDto,
+    );
   }
 }

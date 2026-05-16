@@ -8,4 +8,4 @@ import { ActivityLogModule } from 'src/common/module/activity-log.module';
   controllers: [ProfileController],
   providers: [ProfileService],
 })
-export class ProfileModule { }
+export class ProfileModule {}

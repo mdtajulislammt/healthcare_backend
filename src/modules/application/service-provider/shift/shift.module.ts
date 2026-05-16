@@ -10,4 +10,4 @@ import { ServiceProviderContextHelper } from 'src/common/helper/service-provider
   controllers: [ShiftController],
   providers: [ShiftService, ServiceProviderContextHelper],
 })
-export class ShiftModule { }
+export class ShiftModule {}

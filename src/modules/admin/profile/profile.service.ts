@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { UpdateAdminProfileDto } from './dto/update-admin-profile.dto';
 import { SojebStorage } from '../../../common/lib/Disk/SojebStorage';
@@ -89,8 +93,8 @@ export class ProfileService {
     // Build profile update payload
     if (updateData.name !== undefined) {
       const parts = updateData.name.trim().split(' ');
-      updateProfilePayload.first_name = parts.shift() 
-      updateProfilePayload.last_name = parts.join(' ') 
+      updateProfilePayload.first_name = parts.shift();
+      updateProfilePayload.last_name = parts.join(' ');
     }
 
     if (updateData.phone_number !== undefined) {
@@ -109,7 +113,9 @@ export class ProfileService {
     if (avatarFile) {
       if (existingProfile.photo_url) {
         try {
-          await SojebStorage.delete(appConfig().storageUrl.avatar + existingProfile.photo_url);
+          await SojebStorage.delete(
+            appConfig().storageUrl.avatar + existingProfile.photo_url,
+          );
         } catch (error) {
           console.error('Failed to delete old avatar:', error);
         }
@@ -145,7 +151,9 @@ export class ProfileService {
         type: adminUser.type,
         name: `${updatedProfile.first_name} ${updatedProfile.last_name}`.trim(),
         avatar_url: updatedProfile.photo_url
-          ? SojebStorage.url(appConfig().storageUrl.avatar + updatedProfile.photo_url)
+          ? SojebStorage.url(
+              appConfig().storageUrl.avatar + updatedProfile.photo_url,
+            )
           : null,
         phone_number: updatedProfile.mobile_number
           ? `${updatedProfile.mobile_code || ''}${updatedProfile.mobile_number}`

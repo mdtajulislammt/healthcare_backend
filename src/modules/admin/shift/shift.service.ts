@@ -113,7 +113,9 @@ export class ShiftService {
         },
       };
     } catch (error) {
-      throw new BadRequestException(error.message || 'Failed to fetch shifts');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to fetch shifts',
+      );
     }
   }
 
@@ -187,7 +189,9 @@ export class ShiftService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to fetch shift');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to fetch shift',
+      );
     }
   }
 
@@ -196,7 +200,7 @@ export class ShiftService {
    * - filled/filed: shifts with assigned_staff_id not null
    * - unfilled: shifts with assigned_staff_id null
    * - cancelled/canceled: shifts with status = cancelled
-   * 
+   *
    * Date range options:
    * - daily: last 24 hours
    * - weekly: last 7 days
@@ -207,7 +211,6 @@ export class ShiftService {
     type: string,
     options?: { search?: string; dateRange?: string },
   ): Promise<string> {
-    
     try {
       const normalizedType = (type || '').trim().toLowerCase();
       // accept synonyms: 'filed' → 'filled', 'canceled' → 'cancelled'
@@ -359,7 +362,9 @@ export class ShiftService {
       const csv = [headers.join(','), ...rows].join('\n');
       return csv;
     } catch (error) {
-      throw new BadRequestException(error.message || 'Failed to export shifts');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to export shifts',
+      );
     }
   }
 }

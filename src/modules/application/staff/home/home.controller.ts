@@ -1,4 +1,11 @@
-import { Controller, Get, UseGuards, Req, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Req,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { HomeService } from './home.service';
@@ -13,9 +20,12 @@ import { Role } from 'src/common/guard/role/role.enum';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.STAFF)
 export class HomeController {
-  constructor(private readonly homeService: HomeService) { }
+  constructor(private readonly homeService: HomeService) {}
 
-  @ApiOperation({ summary: 'Get staff home dashboard data (profile completion, next shift, work stats, immediate check-in)' })
+  @ApiOperation({
+    summary:
+      'Get staff home dashboard data (profile completion, next shift, work stats, immediate check-in)',
+  })
   @Get('dashboard')
   getDashboardData(@Req() req: Request) {
     const user_id = req.user?.userId;
@@ -25,7 +35,9 @@ export class HomeController {
     return this.homeService.getDashboardData(user_id);
   }
 
-  @ApiOperation({ summary: 'Get new shifts near you with distance calculation' })
+  @ApiOperation({
+    summary: 'Get new shifts near you with distance calculation',
+  })
   @Get('new-shifts')
   getNewShiftsNearYou(
     @Req() req: Request,
@@ -55,7 +67,9 @@ export class HomeController {
     return this.homeService.getNewShiftsNearYou(user_id, lat, lng, limitNum);
   }
 
-  @ApiOperation({ summary: 'Get all home data (dashboard and new shifts) in one API call' })
+  @ApiOperation({
+    summary: 'Get all home data (dashboard and new shifts) in one API call',
+  })
   @Get('all')
   getAllHomeData(
     @Req() req: Request,

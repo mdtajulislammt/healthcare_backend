@@ -10,4 +10,4 @@ import { NotificationModule } from 'src/modules/application/notification/notific
   controllers: [ShiftTimesheetController],
   providers: [ShiftTimesheetService, ServiceProviderContextHelper],
 })
-export class ShiftTimesheetModule { }
+export class ShiftTimesheetModule {}

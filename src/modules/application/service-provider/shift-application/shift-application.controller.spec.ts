@@ -11,7 +11,9 @@ describe('ShiftApplicationController', () => {
       providers: [ShiftApplicationService],
     }).compile();
 
-    controller = module.get<ShiftApplicationController>(ShiftApplicationController);
+    controller = module.get<ShiftApplicationController>(
+      ShiftApplicationController,
+    );
   });
 
   it('should be defined', () => {

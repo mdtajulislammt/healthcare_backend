@@ -1,14 +1,14 @@
 import {
-    Controller,
-    Get,
-    Post,
-    Query,
-    Param,
-    UseGuards,
-    Req,
-    Res,
-    BadRequestException,
-    InternalServerErrorException,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Param,
+  UseGuards,
+  Req,
+  Res,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { XeroService } from './xero.service';
@@ -22,108 +22,109 @@ import appConfig from 'src/config/app.config';
 @ApiTags('Payment - Xero')
 @Controller('payment/xero')
 export class XeroController {
-    constructor(private readonly xeroService: XeroService) {}
+  constructor(private readonly xeroService: XeroService) {}
 
-    @Get('connect')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    @ApiBearerAuth()
-    async connect(@Res() res: Response) {
-        try {
-            const authUrl = await this.xeroService.getAuthorizationUrl();
-            return res.redirect(authUrl);
-        } catch (error) {
-            throw new BadRequestException(
-                'Failed to initiate Xero connection',
-            );
-        }
+  @Get('connect')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async connect(@Res() res: Response) {
+    try {
+      const authUrl = await this.xeroService.getAuthorizationUrl();
+      return res.redirect(authUrl);
+    } catch (error) {
+      throw new BadRequestException('Failed to initiate Xero connection');
+    }
+  }
+
+  @Get('connect-url')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async getConnectUrl() {
+    try {
+      const authUrl = await this.xeroService.getAuthorizationUrl();
+      return {
+        success: true,
+        authUrl: authUrl,
+        message: 'Copy this URL and open it in your browser to connect Xero',
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to generate Xero authorization URL: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  @Get('status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async getStatus() {
+    const status = await this.xeroService.getConnectionStatus();
+    return {
+      success: true,
+      connected: status.connected,
+      organization: status.organization || null,
+    };
+  }
+
+  @Post('disconnect')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async disconnect() {
+    try {
+      await this.xeroService.disconnect();
+      return {
+        success: true,
+        message: 'Xero disconnected successfully',
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to disconnect Xero: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  @Get('callback')
+  async callback(
+    @Query('code') code: string,
+    @Query('error') error: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = appConfig().payment.xero.frontendRedirectUrl;
+
+    // Check for OAuth errors from Xero
+    if (error) {
+      return res.redirect(
+        `${frontendUrl}?xero_error=${encodeURIComponent(error)}`,
+      );
     }
 
-    @Get('connect-url')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    @ApiBearerAuth()
-    async getConnectUrl() {
-        try {
-            const authUrl = await this.xeroService.getAuthorizationUrl();
-            return {
-                success: true,
-                authUrl: authUrl,
-                message: 'Copy this URL and open it in your browser to connect Xero',
-            };
-        } catch (error) {
-            throw new BadRequestException(
-                `Failed to generate Xero authorization URL: ${error.message}`,
-            );
-        }
+    if (!code) {
+      return res.redirect(`${frontendUrl}?xero_error=missing_code`);
     }
 
-    @Get('status')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    @ApiBearerAuth()
-    async getStatus() {
-        const status = await this.xeroService.getConnectionStatus();
-        return {
-            success: true,
-            connected: status.connected,
-            organization: status.organization || null,
-        };
+    try {
+      await this.xeroService.handleOAuthCallback(code);
+      return res.redirect(`${frontendUrl}?xero_connected=true`);
+    } catch (error) {
+      const errorMessage = error?.message || 'connection_failed';
+      return res.redirect(
+        `${frontendUrl}?xero_error=${encodeURIComponent(errorMessage)}`,
+      );
     }
+  }
 
-    @Post('disconnect')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    @ApiBearerAuth()
-    async disconnect() {
-        try {
-            await this.xeroService.disconnect();
-            return {
-                success: true,
-                message: 'Xero disconnected successfully',
-            };
-        } catch (error) {
-            throw new BadRequestException(
-                `Failed to disconnect Xero: ${error.message}`,
-            );
-        }
-    }
-
-    @Get('callback')
-    async callback(
-        @Query('code') code: string,
-        @Query('error') error: string,
-        @Res() res: Response,
-    ) {
-        const frontendUrl = appConfig().payment.xero.frontendRedirectUrl;
-
-        // Check for OAuth errors from Xero
-        if (error) {
-            return res.redirect(`${frontendUrl}?xero_error=${encodeURIComponent(error)}`);
-        }
-
-        if (!code) {
-            return res.redirect(`${frontendUrl}?xero_error=missing_code`);
-        }
-
-        try {
-            await this.xeroService.handleOAuthCallback(code);
-            return res.redirect(`${frontendUrl}?xero_connected=true`);
-        } catch (error) {
-            const errorMessage = error?.message || 'connection_failed';
-            return res.redirect(`${frontendUrl}?xero_error=${encodeURIComponent(errorMessage)}`);
-        }
-    }
-
-    @Post('webhook')
-    async webhook(@Req() req: Request) {
-        // Xero webhook handler (if webhooks are enabled)
-        // For now, this is a placeholder
-        // You would verify Xero signature and process invoice updates
-        return {
-            success: true,
-            message: 'Webhook received',
-        };
-    }
+  @Post('webhook')
+  async webhook(@Req() req: Request) {
+    // Xero webhook handler (if webhooks are enabled)
+    // For now, this is a placeholder
+    // You would verify Xero signature and process invoice updates
+    return {
+      success: true,
+      message: 'Webhook received',
+    };
+  }
 }
-

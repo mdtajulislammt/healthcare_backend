@@ -42,7 +42,7 @@ export class PaymentTransactionService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -90,7 +90,7 @@ export class PaymentTransactionService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -132,7 +132,7 @@ export class PaymentTransactionService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

@@ -22,7 +22,7 @@ export class ShiftApplicationService {
     private readonly prisma: PrismaService,
     private readonly pushNotificationService: PushNotificationService,
     private readonly notificationGateway: NotificationGateway,
-  ) { }
+  ) {}
 
   create(createShiftApplicationDto: CreateShiftApplicationDto) {
     return 'This action adds a new shiftApplication';
@@ -173,11 +173,11 @@ export class ShiftApplicationService {
       const formatted = applications.map((application) => {
         const staff = application.staff
           ? {
-            ...application.staff,
-            photo_url: application.staff.photo_url
-              ? SojebStorage.url(storage + application.staff.photo_url)
-              : null,
-          }
+              ...application.staff,
+              photo_url: application.staff.photo_url
+                ? SojebStorage.url(storage + application.staff.photo_url)
+                : null,
+            }
           : null;
         return {
           ...application,
@@ -369,7 +369,8 @@ export class ShiftApplicationService {
             data: {
               status: 'rejected' as ShiftApplicationStatus,
               reviewed_at: new Date(),
-              notes: 'Application rejected. Shift has been assigned to another applicant.',
+              notes:
+                'Application rejected. Shift has been assigned to another applicant.',
             },
           });
 
@@ -429,7 +430,8 @@ export class ShiftApplicationService {
 
         return {
           success: true,
-          message: 'Application accepted successfully. Staff has been assigned to the shift.',
+          message:
+            'Application accepted successfully. Staff has been assigned to the shift.',
           data: result,
         };
       } else {
@@ -638,7 +640,9 @@ export class ShiftApplicationService {
       const staffProfile = application.staff;
 
       if (!staffProfile) {
-        throw new NotFoundException('Staff profile not found for this application');
+        throw new NotFoundException(
+          'Staff profile not found for this application',
+        );
       }
 
       const storageConfig = appConfig().storageUrl;
@@ -650,12 +654,15 @@ export class ShiftApplicationService {
         cv_url: staffProfile.cv_url
           ? SojebStorage.url(storageConfig.cv + staffProfile.cv_url)
           : null,
-        certificates: staffProfile.certificates?.map((certificate) => ({
-          ...certificate,
-          file_url: certificate.file_url
-            ? SojebStorage.url(storageConfig.certificate + certificate.file_url)
-            : null,
-        })) ?? [],
+        certificates:
+          staffProfile.certificates?.map((certificate) => ({
+            ...certificate,
+            file_url: certificate.file_url
+              ? SojebStorage.url(
+                  storageConfig.certificate + certificate.file_url,
+                )
+              : null,
+          })) ?? [],
       };
 
       const applicationData = {
@@ -683,7 +690,9 @@ export class ShiftApplicationService {
       ) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to fetch applicant profile');
+      throw new InternalServerErrorException(
+        'Failed to fetch applicant profile',
+      );
     }
   }
 }

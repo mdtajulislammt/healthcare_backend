@@ -7,4 +7,4 @@ import { PrismaService } from 'src/prisma/prisma.service';
   controllers: [ShiftController],
   providers: [ShiftService, PrismaService],
 })
-export class ShiftModule { }
+export class ShiftModule {}

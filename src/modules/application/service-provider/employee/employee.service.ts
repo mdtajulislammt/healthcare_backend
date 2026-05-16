@@ -22,7 +22,7 @@ export class EmployeeService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
     private readonly activityLogService: ActivityLogService,
-  ) { }
+  ) {}
 
   /**
    * Create a new employee for a service provider
@@ -42,15 +42,23 @@ export class EmployeeService {
       });
 
       if (!user || !user.service_provider_info) {
-        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Service provider profile not found. Please complete your profile first.',
+        );
       }
 
       // Use service_provider_id from user's profile, or from DTO if provided
-      const serviceProviderId = createEmployeeDto.service_provider_id || user.service_provider_info.id;
+      const serviceProviderId =
+        createEmployeeDto.service_provider_id || user.service_provider_info.id;
 
       // Verify service provider access (if service_provider_id was provided in DTO, verify it matches)
-      if (createEmployeeDto.service_provider_id && createEmployeeDto.service_provider_id !== user.service_provider_info.id) {
-        throw new ForbiddenException('You can only create employees for your own service provider');
+      if (
+        createEmployeeDto.service_provider_id &&
+        createEmployeeDto.service_provider_id !== user.service_provider_info.id
+      ) {
+        throw new ForbiddenException(
+          'You can only create employees for your own service provider',
+        );
       }
 
       const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
@@ -77,7 +85,9 @@ export class EmployeeService {
       });
 
       if (existingEmployee) {
-        throw new BadRequestException('Employee with this email already exists');
+        throw new BadRequestException(
+          'Employee with this email already exists',
+        );
       }
 
       // Create User account (User model doesn't have first_name/last_name, those are in Employee model)
@@ -88,7 +98,9 @@ export class EmployeeService {
       });
 
       if (!userResult.success) {
-        throw new BadRequestException(userResult.message || 'Failed to create user account');
+        throw new BadRequestException(
+          userResult.message || 'Failed to create user account',
+        );
       }
 
       const userId = userResult.data.id;
@@ -131,11 +143,18 @@ export class EmployeeService {
       });
 
       // Assign default permissions based on role
-      const defaultPermissions = this.getDefaultPermissionsForRole(createEmployeeDto.employee_role);
+      const defaultPermissions = this.getDefaultPermissionsForRole(
+        createEmployeeDto.employee_role,
+      );
 
       // Merge with custom permissions if provided
       const permissionsToAssign = createEmployeeDto.permissions
-        ? [...new Set([...defaultPermissions, ...createEmployeeDto.permissions])]
+        ? [
+            ...new Set([
+              ...defaultPermissions,
+              ...createEmployeeDto.permissions,
+            ]),
+          ]
         : defaultPermissions;
 
       // Create employee permissions
@@ -170,18 +189,27 @@ export class EmployeeService {
       );
 
       // Fetch created employee with permissions
-      const createdEmployee = await this.findOne(serviceProviderUserId, employee.id);
+      const createdEmployee = await this.findOne(
+        serviceProviderUserId,
+        employee.id,
+      );
 
       return {
         success: true,
-        message: 'Employee created successfully. Email verified, account approved, and credentials sent via email.',
+        message:
+          'Employee created successfully. Email verified, account approved, and credentials sent via email.',
         data: createdEmployee.data,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to create employee');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to create employee',
+      );
     }
   }
 
@@ -199,15 +227,23 @@ export class EmployeeService {
       });
 
       if (!user || !user.service_provider_info) {
-        throw new NotFoundException('Service provider profile not found. Please complete your profile first.');
+        throw new NotFoundException(
+          'Service provider profile not found. Please complete your profile first.',
+        );
       }
 
       // Use service_provider_id from user's profile, or from parameter if provided
-      const finalServiceProviderId = serviceProviderId || user.service_provider_info.id;
+      const finalServiceProviderId =
+        serviceProviderId || user.service_provider_info.id;
 
       // Verify service provider access (if service_provider_id was provided, verify it matches)
-      if (serviceProviderId && serviceProviderId !== user.service_provider_info.id) {
-        throw new ForbiddenException('You can only view employees for your own service provider');
+      if (
+        serviceProviderId &&
+        serviceProviderId !== user.service_provider_info.id
+      ) {
+        throw new ForbiddenException(
+          'You can only view employees for your own service provider',
+        );
       }
 
       const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
@@ -280,7 +316,9 @@ export class EmployeeService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to fetch employees');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to fetch employees',
+      );
     }
   }
 
@@ -352,10 +390,15 @@ export class EmployeeService {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to fetch employee');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to fetch employee',
+      );
     }
   }
 
@@ -390,7 +433,10 @@ export class EmployeeService {
       }
 
       // Check email uniqueness if email is being updated
-      if (updateEmployeeDto.email && updateEmployeeDto.email !== employee.email) {
+      if (
+        updateEmployeeDto.email &&
+        updateEmployeeDto.email !== employee.email
+      ) {
         const existingUser = await UserRepository.exist({
           field: 'email',
           value: updateEmployeeDto.email,
@@ -405,18 +451,26 @@ export class EmployeeService {
         });
 
         if (existingEmployee) {
-          throw new BadRequestException('Employee with this email already exists');
+          throw new BadRequestException(
+            'Employee with this email already exists',
+          );
         }
       }
 
       // Update employee
       const updateData: any = {};
-      if (updateEmployeeDto.first_name) updateData.first_name = updateEmployeeDto.first_name;
-      if (updateEmployeeDto.last_name) updateData.last_name = updateEmployeeDto.last_name;
-      if (updateEmployeeDto.mobile_code !== undefined) updateData.mobile_code = updateEmployeeDto.mobile_code;
-      if (updateEmployeeDto.mobile_number !== undefined) updateData.mobile_number = updateEmployeeDto.mobile_number;
-      if (updateEmployeeDto.employee_role) updateData.employee_role = updateEmployeeDto.employee_role;
-      if (updateEmployeeDto.is_active !== undefined) updateData.is_active = updateEmployeeDto.is_active;
+      if (updateEmployeeDto.first_name)
+        updateData.first_name = updateEmployeeDto.first_name;
+      if (updateEmployeeDto.last_name)
+        updateData.last_name = updateEmployeeDto.last_name;
+      if (updateEmployeeDto.mobile_code !== undefined)
+        updateData.mobile_code = updateEmployeeDto.mobile_code;
+      if (updateEmployeeDto.mobile_number !== undefined)
+        updateData.mobile_number = updateEmployeeDto.mobile_number;
+      if (updateEmployeeDto.employee_role)
+        updateData.employee_role = updateEmployeeDto.employee_role;
+      if (updateEmployeeDto.is_active !== undefined)
+        updateData.is_active = updateEmployeeDto.is_active;
 
       // Handle photo upload if provided
       const existingPhotoUrl = employee.photo_url;
@@ -424,7 +478,9 @@ export class EmployeeService {
         // Delete old photo if exists
         if (existingPhotoUrl) {
           try {
-            await SojebStorage.delete(appConfig().storageUrl.avatar + existingPhotoUrl);
+            await SojebStorage.delete(
+              appConfig().storageUrl.avatar + existingPhotoUrl,
+            );
           } catch (error) {
             // Continue even if deletion fails
             console.error('Failed to delete old photo:', error);
@@ -468,7 +524,9 @@ export class EmployeeService {
       ) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to update employee');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to update employee',
+      );
     }
   }
 
@@ -536,7 +594,9 @@ export class EmployeeService {
       ) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to assign permissions');
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to assign permissions',
+      );
     }
   }
 
@@ -585,14 +645,20 @@ export class EmployeeService {
       ) {
         throw error;
       }
-      throw new BadRequestException(error.message || 'Failed to update employee status');
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update employee status',
+      );
     }
   }
 
   /**
    * Get default permissions for a role
    */
-  private getDefaultPermissionsForRole(role: EmployeeRole): EmployeePermissionType[] {
+  private getDefaultPermissionsForRole(
+    role: EmployeeRole,
+  ): EmployeePermissionType[] {
     const rolePermissionMap: Record<EmployeeRole, EmployeePermissionType[]> = {
       [EmployeeRole.manager]: [
         EmployeePermissionType.post_new_shifts,

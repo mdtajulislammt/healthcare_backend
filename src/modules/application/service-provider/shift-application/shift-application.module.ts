@@ -9,4 +9,4 @@ import { NotificationModule } from 'src/modules/application/notification/notific
   controllers: [ShiftApplicationController],
   providers: [ShiftApplicationService, PrismaService],
 })
-export class ShiftApplicationModule { }
+export class ShiftApplicationModule {}

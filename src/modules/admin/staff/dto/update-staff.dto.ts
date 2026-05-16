@@ -11,10 +11,10 @@ import {
 import { UpdateStaffProfileDto } from '../../../application/staff/profile/dto/update-staff-profile.dto';
 
 export class UpdateStaffDto extends PartialType(UpdateStaffProfileDto) {
-//   @IsOptional()
-//   @IsEmail()
-//   @ApiProperty({ description: 'Staff user email', required: false })
-//   email?: string;
+  //   @IsOptional()
+  //   @IsEmail()
+  //   @ApiProperty({ description: 'Staff user email', required: false })
+  //   email?: string;
 
   @IsOptional()
   @IsString()

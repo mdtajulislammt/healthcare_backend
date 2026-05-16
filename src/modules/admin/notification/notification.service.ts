@@ -7,7 +7,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async findAll(user_id: string) {
     try {
@@ -98,18 +98,27 @@ export class NotificationService {
             let senderAvatar = null;
 
             // Check user type and get appropriate data
-            if (notification.sender.type === 'staff' && notification.sender.staff_profile) {
+            if (
+              notification.sender.type === 'staff' &&
+              notification.sender.staff_profile
+            ) {
               senderName = `${notification.sender.staff_profile.first_name} ${notification.sender.staff_profile.last_name}`;
               if (notification.sender.staff_profile.photo_url) {
                 senderAvatar = SojebStorage.url(
-                  appConfig().storageUrl.staff + notification.sender.staff_profile.photo_url,
+                  appConfig().storageUrl.staff +
+                    notification.sender.staff_profile.photo_url,
                 );
               }
-            } else if (notification.sender.type === 'service_provider' && notification.sender.service_provider_info) {
-              senderName = notification.sender.service_provider_info.organization_name;
+            } else if (
+              notification.sender.type === 'service_provider' &&
+              notification.sender.service_provider_info
+            ) {
+              senderName =
+                notification.sender.service_provider_info.organization_name;
               if (notification.sender.service_provider_info.brand_logo_url) {
                 senderAvatar = SojebStorage.url(
-                  appConfig().storageUrl.brand + notification.sender.service_provider_info.brand_logo_url,
+                  appConfig().storageUrl.brand +
+                    notification.sender.service_provider_info.brand_logo_url,
                 );
               }
             } else if (notification.sender.type === 'admin') {
@@ -132,18 +141,27 @@ export class NotificationService {
             let receiverAvatar = null;
 
             // Check user type and get appropriate data
-            if (notification.receiver.type === 'staff' && notification.receiver.staff_profile) {
+            if (
+              notification.receiver.type === 'staff' &&
+              notification.receiver.staff_profile
+            ) {
               receiverName = `${notification.receiver.staff_profile.first_name} ${notification.receiver.staff_profile.last_name}`;
               if (notification.receiver.staff_profile.photo_url) {
                 receiverAvatar = SojebStorage.url(
-                  appConfig().storageUrl.staff + notification.receiver.staff_profile.photo_url,
+                  appConfig().storageUrl.staff +
+                    notification.receiver.staff_profile.photo_url,
                 );
               }
-            } else if (notification.receiver.type === 'service_provider' && notification.receiver.service_provider_info) {
-              receiverName = notification.receiver.service_provider_info.organization_name;
+            } else if (
+              notification.receiver.type === 'service_provider' &&
+              notification.receiver.service_provider_info
+            ) {
+              receiverName =
+                notification.receiver.service_provider_info.organization_name;
               if (notification.receiver.service_provider_info.brand_logo_url) {
                 receiverAvatar = SojebStorage.url(
-                  appConfig().storageUrl.brand + notification.receiver.service_provider_info.brand_logo_url,
+                  appConfig().storageUrl.brand +
+                    notification.receiver.service_provider_info.brand_logo_url,
                 );
               }
             } else if (notification.receiver.type === 'admin') {
@@ -169,7 +187,7 @@ export class NotificationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -204,7 +222,7 @@ export class NotificationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -238,7 +256,7 @@ export class NotificationService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

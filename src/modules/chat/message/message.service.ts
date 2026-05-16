@@ -15,7 +15,7 @@ export class MessageService {
   constructor(
     private prisma: PrismaService,
     private readonly messageGateway: MessageGateway,
-  ) { }
+  ) {}
 
   async create(user_id: string, createMessageDto: CreateMessageDto) {
     try {
@@ -91,7 +91,7 @@ export class MessageService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -225,14 +225,19 @@ export class MessageService {
             senderName = `${message.sender.staff_profile.first_name} ${message.sender.staff_profile.last_name}`;
             if (message.sender.staff_profile.photo_url) {
               senderAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + message.sender.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  message.sender.staff_profile.photo_url,
               );
             }
-          } else if (message.sender.type === 'service_provider' && message.sender.service_provider_info) {
+          } else if (
+            message.sender.type === 'service_provider' &&
+            message.sender.service_provider_info
+          ) {
             senderName = message.sender.service_provider_info.organization_name;
             if (message.sender.service_provider_info.brand_logo_url) {
               senderAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + message.sender.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  message.sender.service_provider_info.brand_logo_url,
               );
             }
           } else if (message.sender.type === 'admin') {
@@ -253,18 +258,27 @@ export class MessageService {
           let receiverName = null;
           let receiverAvatar = null;
 
-          if (message.receiver.type === 'staff' && message.receiver.staff_profile) {
+          if (
+            message.receiver.type === 'staff' &&
+            message.receiver.staff_profile
+          ) {
             receiverName = `${message.receiver.staff_profile.first_name} ${message.receiver.staff_profile.last_name}`;
             if (message.receiver.staff_profile.photo_url) {
               receiverAvatar = SojebStorage.url(
-                appConfig().storageUrl.staff + message.receiver.staff_profile.photo_url,
+                appConfig().storageUrl.staff +
+                  message.receiver.staff_profile.photo_url,
               );
             }
-          } else if (message.receiver.type === 'service_provider' && message.receiver.service_provider_info) {
-            receiverName = message.receiver.service_provider_info.organization_name;
+          } else if (
+            message.receiver.type === 'service_provider' &&
+            message.receiver.service_provider_info
+          ) {
+            receiverName =
+              message.receiver.service_provider_info.organization_name;
             if (message.receiver.service_provider_info.brand_logo_url) {
               receiverAvatar = SojebStorage.url(
-                appConfig().storageUrl.brand + message.receiver.service_provider_info.brand_logo_url,
+                appConfig().storageUrl.brand +
+                  message.receiver.service_provider_info.brand_logo_url,
               );
             }
           } else if (message.receiver.type === 'admin') {
@@ -288,7 +302,7 @@ export class MessageService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

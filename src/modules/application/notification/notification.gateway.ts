@@ -161,10 +161,16 @@ export class NotificationGateway
         };
       }
 
-      console.log(`Sending notification to user ${payload.userId}:`, notificationData);
-      
+      console.log(
+        `Sending notification to user ${payload.userId}:`,
+        notificationData,
+      );
+
       // Publish to Redis for all server instances to receive
-      await this.redisPubClient.publish('notification', JSON.stringify(notificationData));
+      await this.redisPubClient.publish(
+        'notification',
+        JSON.stringify(notificationData),
+      );
     } catch (error) {
       console.error('Error sending notification:', error);
     }

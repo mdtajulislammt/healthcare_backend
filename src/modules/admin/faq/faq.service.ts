@@ -39,7 +39,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -64,7 +64,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -89,7 +89,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -154,7 +154,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -181,7 +181,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }
@@ -200,7 +200,7 @@ export class FaqService {
     } catch (error) {
       return {
         success: false,
-        message: error.message,
+        message: error instanceof Error ? error.message : 'An error occurred',
       };
     }
   }

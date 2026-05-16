@@ -1,9 +1,9 @@
 import {
-    Injectable,
-    BadRequestException,
-    NotFoundException,
-    ForbiddenException,
-    InternalServerErrorException,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { DistanceHelper } from '../../../../common/helper/distance.helper';
@@ -14,712 +14,719 @@ import { PushNotificationService } from '../../../../common/service/push-notific
 
 @Injectable()
 export class GeofenceService {
-    private readonly GEOFENCE_RADIUS_METERS = 100; // 100 meters threshold
+  private readonly GEOFENCE_RADIUS_METERS = 100; // 100 meters threshold
 
-    constructor(
-        private readonly prisma: PrismaService,
-        private readonly activityLogService: ActivityLogService,
-        private readonly pushNotificationService: PushNotificationService,
-    ) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogService: ActivityLogService,
+    private readonly pushNotificationService: PushNotificationService,
+  ) {}
 
-    async checkGeofence(
-        shiftId: string,
-        staffUserId: string,
-        latitude: number,
-        longitude: number,
-    ) {
-        try {
-            // Get staff profile from user_id
-            const staffProfile = await this.prisma.staffProfile.findUnique({
-                where: { user_id: staffUserId },
-                select: { id: true, user_id: true },
+  async checkGeofence(
+    shiftId: string,
+    staffUserId: string,
+    latitude: number,
+    longitude: number,
+  ) {
+    try {
+      // Get staff profile from user_id
+      const staffProfile = await this.prisma.staffProfile.findUnique({
+        where: { user_id: staffUserId },
+        select: { id: true, user_id: true },
+      });
+
+      if (!staffProfile) {
+        throw new BadRequestException(
+          'Staff profile not found. Please complete your profile first.',
+        );
+      }
+
+      const staff_id = staffProfile.id;
+
+      // Get shift with location and assigned staff
+      const shift = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: {
+          id: true,
+          assigned_staff_id: true,
+          latitude: true,
+          longitude: true,
+          facility_name: true,
+          full_address: true,
+          posting_title: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      // Verify staff is assigned to this shift
+      if (shift.assigned_staff_id !== staff_id) {
+        throw new ForbiddenException(
+          'You are not assigned to this shift. Only assigned staff can check geofence.',
+        );
+      }
+
+      // Check if shift has location coordinates
+      if (shift.latitude === null || shift.longitude === null) {
+        throw new BadRequestException(
+          'Shift location coordinates are not available. Cannot check geofence.',
+        );
+      }
+
+      // Calculate distance between staff location and shift location
+      const distanceResult = await DistanceHelper.calculateDistance({
+        staff_latitude: latitude,
+        staff_longitude: longitude,
+        shift_latitude: shift.latitude,
+        shift_longitude: shift.longitude,
+      });
+
+      // Check if distance calculation was successful
+      if (
+        distanceResult.distance_meters === undefined ||
+        distanceResult.distance_meters === null
+      ) {
+        throw new InternalServerErrorException(
+          'Failed to calculate distance. Please try again.',
+        );
+      }
+
+      const distanceMeters = distanceResult.distance_meters;
+      const isWithinGeofence = distanceMeters <= this.GEOFENCE_RADIUS_METERS;
+
+      // Check if geofence has already been verified
+      // We check if ShiftTimesheet exists with geofence verification
+      const existingTimesheet = await this.prisma.shiftTimesheet.findUnique({
+        where: { shift_id: shiftId },
+        select: {
+          id: true,
+          verification_method: true,
+          clock_in_verified: true,
+        },
+      });
+
+      // Check if attendance already exists
+      const existingAttendance = await this.prisma.shiftAttendance.findUnique({
+        where: { shift_id: shiftId },
+        select: {
+          id: true,
+          status: true,
+          check_in_time: true,
+        },
+      });
+
+      const geofenceAlreadyVerified =
+        existingTimesheet?.verification_method === 'Geofence Verified';
+
+      const alreadyCheckedIn =
+        existingAttendance?.status === ShiftAttendanceStatus.checked_in ||
+        existingAttendance?.status === ShiftAttendanceStatus.checked_out;
+
+      let notificationSent = false;
+      let timesheetUpdated = false;
+      let attendanceCreated = false;
+
+      // If within geofence and not yet verified, automatically verify geofence and enable check-in
+      if (isWithinGeofence && !geofenceAlreadyVerified) {
+        // Use transaction to ensure atomicity
+        await this.prisma.$transaction(async (tx) => {
+          // Create or update ShiftTimesheet with geofence verification
+          // clock_in_verified remains false - service provider will verify later
+          await tx.shiftTimesheet.upsert({
+            where: { shift_id: shiftId },
+            create: {
+              shift_id: shiftId,
+              staff_id: staff_id,
+              verification_method: 'Geofence Verified',
+              clock_in_verified: false, // Service provider will verify
+              status: TimesheetStatus.pending_submission,
+            },
+            update: {
+              verification_method: 'Geofence Verified',
+              // Don't update clock_in_verified - keep existing value
+            },
+          });
+
+          timesheetUpdated = true;
+
+          // Create or update ShiftAttendance - staff can now check in
+          // Only create if not already checked in
+          if (!alreadyCheckedIn) {
+            await tx.shiftAttendance.upsert({
+              where: { shift_id: shiftId },
+              create: {
+                shift_id: shiftId,
+                staff_id: staff_id,
+                status: ShiftAttendanceStatus.not_checked_in,
+                location_check: 'Geofence Verified',
+              },
+              update: {
+                location_check: 'Geofence Verified',
+              },
             });
 
-            if (!staffProfile) {
-                throw new BadRequestException(
-                    'Staff profile not found. Please complete your profile first.',
-                );
-            }
+            attendanceCreated = true;
+          }
 
-            const staff_id = staffProfile.id;
+          // Create notification for check-in
+          await NotificationRepository.createNotification({
+            receiver_id: staffUserId,
+            text: 'Geofence verified! You can now check in.',
+            type: 'booking',
+            entity_id: shiftId,
+          });
 
-            // Get shift with location and assigned staff
-            const shift = await this.prisma.shift.findUnique({
-                where: { id: shiftId },
-                select: {
-                    id: true,
-                    assigned_staff_id: true,
-                    latitude: true,
-                    longitude: true,
-                    facility_name: true,
-                    full_address: true,
-                    posting_title: true,
-                },
-            });
+          notificationSent = true;
+        });
 
-            if (!shift) {
-                throw new NotFoundException('Shift not found');
-            }
+        // Send push notification outside of transaction
+        await this.pushNotificationService.sendToUser(staffUserId, {
+          title: 'Geofence verified',
+          body: 'You can now check in to your shift.',
+          data: {
+            shiftId,
+          },
+        });
+      }
 
-            // Verify staff is assigned to this shift
-            if (shift.assigned_staff_id !== staff_id) {
-                throw new ForbiddenException(
-                    'You are not assigned to this shift. Only assigned staff can check geofence.',
-                );
-            }
-
-            // Check if shift has location coordinates
-            if (shift.latitude === null || shift.longitude === null) {
-                throw new BadRequestException(
-                    'Shift location coordinates are not available. Cannot check geofence.',
-                );
-            }
-
-            // Calculate distance between staff location and shift location
-            const distanceResult = await DistanceHelper.calculateDistance({
-                staff_latitude: latitude,
-                staff_longitude: longitude,
-                shift_latitude: shift.latitude,
-                shift_longitude: shift.longitude,
-            });
-
-            // Check if distance calculation was successful
-            if (
-                distanceResult.distance_meters === undefined ||
-                distanceResult.distance_meters === null
-            ) {
-                throw new InternalServerErrorException(
-                    'Failed to calculate distance. Please try again.',
-                );
-            }
-
-            const distanceMeters = distanceResult.distance_meters;
-            const isWithinGeofence = distanceMeters <= this.GEOFENCE_RADIUS_METERS;
-
-            // Check if geofence has already been verified
-            // We check if ShiftTimesheet exists with geofence verification
-            const existingTimesheet = await this.prisma.shiftTimesheet.findUnique({
-                where: { shift_id: shiftId },
-                select: {
-                    id: true,
-                    verification_method: true,
-                    clock_in_verified: true,
-                },
-            });
-
-            // Check if attendance already exists
-            const existingAttendance = await this.prisma.shiftAttendance.findUnique({
-                where: { shift_id: shiftId },
-                select: {
-                    id: true,
-                    status: true,
-                    check_in_time: true,
-                },
-            });
-
-            const geofenceAlreadyVerified =
-                existingTimesheet?.verification_method === 'Geofence Verified';
-
-            const alreadyCheckedIn =
-                existingAttendance?.status === ShiftAttendanceStatus.checked_in ||
-                existingAttendance?.status === ShiftAttendanceStatus.checked_out;
-
-            let notificationSent = false;
-            let timesheetUpdated = false;
-            let attendanceCreated = false;
-
-            // If within geofence and not yet verified, automatically verify geofence and enable check-in
-            if (isWithinGeofence && !geofenceAlreadyVerified) {
-                // Use transaction to ensure atomicity
-                await this.prisma.$transaction(async (tx) => {
-                    // Create or update ShiftTimesheet with geofence verification
-                    // clock_in_verified remains false - service provider will verify later
-                    await tx.shiftTimesheet.upsert({
-                        where: { shift_id: shiftId },
-                        create: {
-                            shift_id: shiftId,
-                            staff_id: staff_id,
-                            verification_method: 'Geofence Verified',
-                            clock_in_verified: false, // Service provider will verify
-                            status: TimesheetStatus.pending_submission,
-                        },
-                        update: {
-                            verification_method: 'Geofence Verified',
-                            // Don't update clock_in_verified - keep existing value
-                        },
-                    });
-
-                    timesheetUpdated = true;
-
-                    // Create or update ShiftAttendance - staff can now check in
-                    // Only create if not already checked in
-                    if (!alreadyCheckedIn) {
-                        await tx.shiftAttendance.upsert({
-                            where: { shift_id: shiftId },
-                            create: {
-                                shift_id: shiftId,
-                                staff_id: staff_id,
-                                status: ShiftAttendanceStatus.not_checked_in,
-                                location_check: 'Geofence Verified',
-                            },
-                            update: {
-                                location_check: 'Geofence Verified',
-                            },
-                        });
-
-                        attendanceCreated = true;
-                    }
-
-                    // Create notification for check-in
-                    await NotificationRepository.createNotification({
-                        receiver_id: staffUserId,
-                        text: 'Geofence verified! You can now check in.',
-                        type: 'booking',
-                        entity_id: shiftId,
-                    });
-
-                    notificationSent = true;
-                });
-
-                // Send push notification outside of transaction
-                await this.pushNotificationService.sendToUser(staffUserId, {
-                    title: 'Geofence verified',
-                    body: 'You can now check in to your shift.',
-                    data: {
-                        shiftId,
-                    },
-                });
-            }
-
-            return {
-                success: true,
-                message: 'Geofence check completed successfully',
-                data: {
-                    is_within_geofence: isWithinGeofence,
-                    distance_meters: Math.round(distanceMeters),
-                    distance_km: distanceResult.distance_km
-                        ? Math.round(distanceResult.distance_km * 10) / 10
-                        : null,
-                    geofence_radius_meters: this.GEOFENCE_RADIUS_METERS,
-                    notification_sent: notificationSent,
-                    geofence_verified: geofenceAlreadyVerified || timesheetUpdated,
-                    can_check_in: (geofenceAlreadyVerified || timesheetUpdated) && !alreadyCheckedIn,
-                    attendance_created: attendanceCreated,
-                    shift: {
-                        id: shift.id,
-                        posting_title: shift.posting_title,
-                        facility_name: shift.facility_name,
-                        full_address: shift.full_address,
-                    },
-                },
-            };
-        } catch (error) {
-            if (
-                error instanceof BadRequestException ||
-                error instanceof NotFoundException ||
-                error instanceof ForbiddenException
-            ) {
-                throw error;
-            }
-            throw new InternalServerErrorException(
-                'Failed to check geofence. Please try again.',
-            );
-        }
+      return {
+        success: true,
+        message: 'Geofence check completed successfully',
+        data: {
+          is_within_geofence: isWithinGeofence,
+          distance_meters: Math.round(distanceMeters),
+          distance_km: distanceResult.distance_km
+            ? Math.round(distanceResult.distance_km * 10) / 10
+            : null,
+          geofence_radius_meters: this.GEOFENCE_RADIUS_METERS,
+          notification_sent: notificationSent,
+          geofence_verified: geofenceAlreadyVerified || timesheetUpdated,
+          can_check_in:
+            (geofenceAlreadyVerified || timesheetUpdated) && !alreadyCheckedIn,
+          attendance_created: attendanceCreated,
+          shift: {
+            id: shift.id,
+            posting_title: shift.posting_title,
+            facility_name: shift.facility_name,
+            full_address: shift.full_address,
+          },
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to check geofence. Please try again.',
+      );
     }
+  }
 
-    async checkIn(
-        shiftId: string,
-        staffUserId: string,
-        latitude?: number,
-        longitude?: number,
-    ) {
-        try {
-            // Get staff profile from user_id
-            const staffProfile = await this.prisma.staffProfile.findUnique({
-                where: { user_id: staffUserId },
-                select: { id: true, user_id: true },
-            });
+  async checkIn(
+    shiftId: string,
+    staffUserId: string,
+    latitude?: number,
+    longitude?: number,
+  ) {
+    try {
+      // Get staff profile from user_id
+      const staffProfile = await this.prisma.staffProfile.findUnique({
+        where: { user_id: staffUserId },
+        select: { id: true, user_id: true },
+      });
 
-            if (!staffProfile) {
-                throw new BadRequestException(
-                    'Staff profile not found. Please complete your profile first.',
-                );
-            }
+      if (!staffProfile) {
+        throw new BadRequestException(
+          'Staff profile not found. Please complete your profile first.',
+        );
+      }
 
-            const staff_id = staffProfile.id;
+      const staff_id = staffProfile.id;
 
-            // Get shift with assigned staff and location
-            const shift = await this.prisma.shift.findUnique({
-                where: { id: shiftId },
-                select: {
-                    id: true,
-                    assigned_staff_id: true,
-                    posting_title: true,
-                    facility_name: true,
-                    latitude: true,
-                    longitude: true,
-                },
-            });
+      // Get shift with assigned staff and location
+      const shift = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: {
+          id: true,
+          assigned_staff_id: true,
+          posting_title: true,
+          facility_name: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
 
-            if (!shift) {
-                throw new NotFoundException('Shift not found');
-            }
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
 
-            // Verify staff is assigned to this shift
-            if (shift.assigned_staff_id !== staff_id) {
-                throw new ForbiddenException(
-                    'You are not assigned to this shift. Only assigned staff can check in.',
-                );
-            }
+      // Verify staff is assigned to this shift
+      if (shift.assigned_staff_id !== staff_id) {
+        throw new ForbiddenException(
+          'You are not assigned to this shift. Only assigned staff can check in.',
+        );
+      }
 
-            // If coordinates provided, automatically verify geofence if within radius
-            if (latitude !== undefined && longitude !== undefined) {
-                // Check if shift has location coordinates
-                if (shift.latitude === null || shift.longitude === null) {
-                    throw new BadRequestException(
-                        'Shift location coordinates are not available. Cannot verify geofence automatically.',
-                    );
-                }
-
-                // Calculate distance between staff location and shift location
-                const distanceResult = await DistanceHelper.calculateDistance({
-                    staff_latitude: latitude,
-                    staff_longitude: longitude,
-                    shift_latitude: shift.latitude,
-                    shift_longitude: shift.longitude,
-                });
-
-                // Check if distance calculation was successful
-                if (
-                    distanceResult.distance_meters === undefined ||
-                    distanceResult.distance_meters === null
-                ) {
-                    throw new InternalServerErrorException(
-                        'Failed to calculate distance. Please try again.',
-                    );
-                }
-
-                const distanceMeters = distanceResult.distance_meters;
-                const isWithinGeofence = distanceMeters <= this.GEOFENCE_RADIUS_METERS;
-
-                if (!isWithinGeofence) {
-                    throw new BadRequestException(
-                        `You must be within ${this.GEOFENCE_RADIUS_METERS}m of shift location to check in. Current distance: ${Math.round(distanceMeters)}m`,
-                    );
-                }
-
-                // Check if geofence has already been verified
-                const existingTimesheet = await this.prisma.shiftTimesheet.findUnique({
-                    where: { shift_id: shiftId },
-                    select: {
-                        id: true,
-                        verification_method: true,
-                        clock_in_verified: true,
-                    },
-                });
-
-                const geofenceAlreadyVerified =
-                    existingTimesheet?.verification_method === 'Geofence Verified';
-
-                // If within geofence and not yet verified, automatically verify geofence
-                if (!geofenceAlreadyVerified) {
-                    // Use transaction to ensure atomicity
-                    await this.prisma.$transaction(async (tx) => {
-                        // Create or update ShiftTimesheet with geofence verification
-                        await tx.shiftTimesheet.upsert({
-                            where: { shift_id: shiftId },
-                            create: {
-                                shift_id: shiftId,
-                                staff_id: staff_id,
-                                verification_method: 'Geofence Verified',
-                                clock_in_verified: false, // Will be set to true after check-in
-                                status: TimesheetStatus.pending_submission,
-                            },
-                            update: {
-                                verification_method: 'Geofence Verified',
-                                // Don't update clock_in_verified - keep existing value
-                            },
-                        });
-
-                        // Create or update ShiftAttendance with location check
-                        const existingAttendance = await tx.shiftAttendance.findUnique({
-                            where: { shift_id: shiftId },
-                        });
-
-                        if (!existingAttendance) {
-                            await tx.shiftAttendance.create({
-                                data: {
-                                    shift_id: shiftId,
-                                    staff_id: staff_id,
-                                    status: ShiftAttendanceStatus.not_checked_in,
-                                    location_check: 'Geofence Verified',
-                                },
-                            });
-                        } else {
-                            await tx.shiftAttendance.update({
-                                where: { shift_id: shiftId },
-                                data: {
-                                    location_check: 'Geofence Verified',
-                                },
-                            });
-                        }
-
-                        // Create notification for geofence verification
-                        await NotificationRepository.createNotification({
-                            receiver_id: staffUserId,
-                            text: 'Geofence verified! You can now check in.',
-                            type: 'booking',
-                            entity_id: shiftId,
-                        });
-                    });
-                }
-            } else {
-                // If coordinates not provided, check if geofence is already verified
-                const timesheet = await this.prisma.shiftTimesheet.findUnique({
-                    where: { shift_id: shiftId },
-                    select: {
-                        id: true,
-                        verification_method: true,
-                    },
-                });
-
-                if (!timesheet || timesheet.verification_method !== 'Geofence Verified') {
-                    throw new BadRequestException(
-                        'Geofence must be verified before checking in. Please verify your location first or provide coordinates with check-in request.',
-                    );
-                }
-            }
-
-            // Check if already checked in
-            const existingAttendance = await this.prisma.shiftAttendance.findUnique({
-                where: { shift_id: shiftId },
-                select: {
-                    id: true,
-                    status: true,
-                    check_in_time: true,
-                },
-            });
-
-            if (
-                existingAttendance?.status === ShiftAttendanceStatus.checked_in ||
-                existingAttendance?.status === ShiftAttendanceStatus.checked_out
-            ) {
-                throw new BadRequestException('You have already checked in for this shift.');
-            }
-
-            // Create or update ShiftAttendance with check-in
-            const checkInTime = new Date();
-            const attendance = await this.prisma.shiftAttendance.upsert({
-                where: { shift_id: shiftId },
-                create: {
-                    shift_id: shiftId,
-                    staff_id: staff_id,
-                    status: ShiftAttendanceStatus.checked_in,
-                    check_in_time: checkInTime,
-                    location_check: 'Geofence Verified',
-                },
-                update: {
-                    status: ShiftAttendanceStatus.checked_in,
-                    check_in_time: checkInTime,
-                },
-            });
-
-            // Automatically verify clock-in
-            await this.prisma.shiftTimesheet.upsert({
-                where: { shift_id: shiftId },
-                create: {
-                    shift_id: shiftId,
-                    staff_id: staff_id,
-                    verification_method: 'Geofence Verified',
-                    clock_in_verified: true,
-                    status: TimesheetStatus.pending_submission,
-                },
-                update: {
-                    clock_in_verified: true,
-                },
-            });
-
-            // Log activity
-            await this.activityLogService.logShiftCheckIn(
-                staffUserId,
-                shiftId,
-                shift.facility_name,
-            );
-
-            // Get service provider user_id from shift
-            const shiftWithProvider = await this.prisma.shift.findUnique({
-                where: { id: shiftId },
-                include: {
-                    service_provider_info: {
-                        select: {
-                            user_id: true,
-                        },
-                    },
-                },
-            });
-
-            // Send notification to service provider
-            if (shiftWithProvider?.service_provider_info?.user_id) {
-                await NotificationRepository.createNotification({
-                    receiver_id: shiftWithProvider.service_provider_info.user_id,
-                    text: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
-                    type: 'shift_checkin',
-                    entity_id: shiftId,
-                });
-
-                await this.pushNotificationService.sendToUser(
-                    shiftWithProvider.service_provider_info.user_id,
-                    {
-                        title: 'Staff Checked In',
-                        body: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
-                        data: {
-                            type: 'shift_checkin',
-                            shiftId: shiftId,
-                        },
-                    },
-                );
-            }
-
-            return {
-                success: true,
-                message: 'Check-in completed successfully',
-                data: {
-                    attendance: {
-                        id: attendance.id,
-                        status: attendance.status,
-                        check_in_time: attendance.check_in_time,
-                    },
-                    shift: {
-                        id: shift.id,
-                        posting_title: shift.posting_title,
-                        facility_name: shift.facility_name,
-                    },
-                },
-            };
-        } catch (error) {
-            if (
-                error instanceof BadRequestException ||
-                error instanceof NotFoundException ||
-                error instanceof ForbiddenException
-            ) {
-                throw error;
-            }
-            throw new InternalServerErrorException(
-                'Failed to check in. Please try again.',
-            );
+      // If coordinates provided, automatically verify geofence if within radius
+      if (latitude !== undefined && longitude !== undefined) {
+        // Check if shift has location coordinates
+        if (shift.latitude === null || shift.longitude === null) {
+          throw new BadRequestException(
+            'Shift location coordinates are not available. Cannot verify geofence automatically.',
+          );
         }
-    }
 
-    async checkOut(shiftId: string, staffUserId: string) {
-        try {
-            // Get staff profile from user_id
-            const staffProfile = await this.prisma.staffProfile.findUnique({
-                where: { user_id: staffUserId },
-                select: { id: true, user_id: true },
+        // Calculate distance between staff location and shift location
+        const distanceResult = await DistanceHelper.calculateDistance({
+          staff_latitude: latitude,
+          staff_longitude: longitude,
+          shift_latitude: shift.latitude,
+          shift_longitude: shift.longitude,
+        });
+
+        // Check if distance calculation was successful
+        if (
+          distanceResult.distance_meters === undefined ||
+          distanceResult.distance_meters === null
+        ) {
+          throw new InternalServerErrorException(
+            'Failed to calculate distance. Please try again.',
+          );
+        }
+
+        const distanceMeters = distanceResult.distance_meters;
+        const isWithinGeofence = distanceMeters <= this.GEOFENCE_RADIUS_METERS;
+
+        if (!isWithinGeofence) {
+          throw new BadRequestException(
+            `You must be within ${this.GEOFENCE_RADIUS_METERS}m of shift location to check in. Current distance: ${Math.round(distanceMeters)}m`,
+          );
+        }
+
+        // Check if geofence has already been verified
+        const existingTimesheet = await this.prisma.shiftTimesheet.findUnique({
+          where: { shift_id: shiftId },
+          select: {
+            id: true,
+            verification_method: true,
+            clock_in_verified: true,
+          },
+        });
+
+        const geofenceAlreadyVerified =
+          existingTimesheet?.verification_method === 'Geofence Verified';
+
+        // If within geofence and not yet verified, automatically verify geofence
+        if (!geofenceAlreadyVerified) {
+          // Use transaction to ensure atomicity
+          await this.prisma.$transaction(async (tx) => {
+            // Create or update ShiftTimesheet with geofence verification
+            await tx.shiftTimesheet.upsert({
+              where: { shift_id: shiftId },
+              create: {
+                shift_id: shiftId,
+                staff_id: staff_id,
+                verification_method: 'Geofence Verified',
+                clock_in_verified: false, // Will be set to true after check-in
+                status: TimesheetStatus.pending_submission,
+              },
+              update: {
+                verification_method: 'Geofence Verified',
+                // Don't update clock_in_verified - keep existing value
+              },
             });
 
-            if (!staffProfile) {
-                throw new BadRequestException(
-                    'Staff profile not found. Please complete your profile first.',
-                );
-            }
-
-            const staff_id = staffProfile.id;
-
-            // Get shift with assigned staff, pay rate, and time schedule
-            const shift = await this.prisma.shift.findUnique({
-                where: { id: shiftId },
-                select: {
-                    id: true,
-                    assigned_staff_id: true,
-                    posting_title: true,
-                    facility_name: true,
-                    pay_rate_hourly: true,
-                    start_time: true,
-                    end_time: true,
-                },
-            });
-
-            if (!shift) {
-                throw new NotFoundException('Shift not found');
-            }
-
-            // Verify staff is assigned to this shift
-            if (shift.assigned_staff_id !== staff_id) {
-                throw new ForbiddenException(
-                    'You are not assigned to this shift. Only assigned staff can check out.',
-                );
-            }
-
-            // Check if already checked in
-            const existingAttendance = await this.prisma.shiftAttendance.findUnique({
-                where: { shift_id: shiftId },
-                select: {
-                    id: true,
-                    status: true,
-                    check_in_time: true,
-                    check_out_time: true,
-                },
+            // Create or update ShiftAttendance with location check
+            const existingAttendance = await tx.shiftAttendance.findUnique({
+              where: { shift_id: shiftId },
             });
 
             if (!existingAttendance) {
-                throw new BadRequestException(
-                    'You must check in before checking out. Please check in first.',
-                );
-            }
-
-            if (existingAttendance.status === ShiftAttendanceStatus.checked_out) {
-                throw new BadRequestException('You have already checked out for this shift.');
-            }
-
-            if (existingAttendance.status === ShiftAttendanceStatus.not_checked_in) {
-                throw new BadRequestException(
-                    'You must check in before checking out. Please check in first.',
-                );
-            }
-
-            // Update ShiftAttendance with check-out
-            const checkOutTime = new Date();
-
-            // Calculate total hours from shift start_time and end_time
-            if (!shift.start_time || !shift.end_time) {
-                throw new BadRequestException(
-                    'Shift start time or end time is missing. Cannot calculate hours.',
-                );
-            }
-
-            // Calculate total hours worked based on shift schedule
-            const timeDifferenceMs =
-                shift.end_time.getTime() - shift.start_time.getTime();
-            const totalHours = parseFloat(
-                (timeDifferenceMs / (1000 * 60 * 60)).toFixed(2),
-            ); // Convert to hours with 2 decimal places
-
-            // Get hourly rate from shift
-            const hourlyRate = shift.pay_rate_hourly;
-
-            // Calculate total pay
-            const totalPay = parseFloat((totalHours * hourlyRate).toFixed(2));
-
-            const attendance = await this.prisma.shiftAttendance.update({
+              await tx.shiftAttendance.create({
+                data: {
+                  shift_id: shiftId,
+                  staff_id: staff_id,
+                  status: ShiftAttendanceStatus.not_checked_in,
+                  location_check: 'Geofence Verified',
+                },
+              });
+            } else {
+              await tx.shiftAttendance.update({
                 where: { shift_id: shiftId },
                 data: {
-                    status: ShiftAttendanceStatus.checked_out,
-                    check_out_time: checkOutTime,
+                  location_check: 'Geofence Verified',
                 },
-            });
-
-            // Automatically verify clock-out and update timesheet with calculated values
-            await this.prisma.shiftTimesheet.upsert({
-                where: { shift_id: shiftId },
-                create: {
-                    shift_id: shiftId,
-                    staff_id: staff_id,
-                    verification_method: 'Geofence Verified',
-                    clock_out_verified: true,
-                    status: TimesheetStatus.submitted,
-                    total_hours: totalHours,
-                    hourly_rate: hourlyRate,
-                    total_pay: totalPay,
-                    submitted_at: new Date(),
-                },
-                update: {
-                    clock_out_verified: true,
-                    total_hours: totalHours,
-                    hourly_rate: hourlyRate,
-                    total_pay: totalPay,
-                    status: TimesheetStatus.submitted,
-                    submitted_at: new Date(),
-                },
-            });
-
-            // Log activity for checkout
-            await this.activityLogService.logShiftCheckOut(
-                staffUserId,
-                shiftId,
-                shift.facility_name,
-            );
-
-            // Log activity for timesheet submission
-            const timesheet = await this.prisma.shiftTimesheet.findUnique({
-                where: { shift_id: shiftId },
-                select: { id: true },
-            });
-
-            if (timesheet) {
-                await this.activityLogService.logTimesheetSubmit(
-                    staffUserId,
-                    timesheet.id,
-                    shiftId,
-                    totalHours,
-                    totalPay,
-                );
+              });
             }
 
-            // Get service provider user_id from shift
-            const shiftWithProvider = await this.prisma.shift.findUnique({
-                where: { id: shiftId },
-                include: {
-                    service_provider_info: {
-                        select: {
-                            user_id: true,
-                        },
-                    },
-                },
+            // Create notification for geofence verification
+            await NotificationRepository.createNotification({
+              receiver_id: staffUserId,
+              text: 'Geofence verified! You can now check in.',
+              type: 'booking',
+              entity_id: shiftId,
             });
-
-            // Send notification to service provider
-            if (shiftWithProvider?.service_provider_info?.user_id) {
-                await NotificationRepository.createNotification({
-                    receiver_id: shiftWithProvider.service_provider_info.user_id,
-                    text: `Staff has checked out from shift: ${shift.posting_title} at ${shift.facility_name}. Total hours: ${totalHours}`,
-                    type: 'shift_checkout',
-                    entity_id: shiftId,
-                });
-
-                await this.pushNotificationService.sendToUser(
-                    shiftWithProvider.service_provider_info.user_id,
-                    {
-                        title: 'Staff Checked Out',
-                        body: `Staff has checked out from shift: ${shift.posting_title}. Total hours: ${totalHours}`,
-                        data: {
-                            type: 'shift_checkout',
-                            shiftId: shiftId,
-                            totalHours: totalHours.toString(),
-                        },
-                    },
-                );
-            }
-
-            return {
-                success: true,
-                message: 'Check-out completed successfully',
-                data: {
-                    attendance: {
-                        id: attendance.id,
-                        status: attendance.status,
-                        check_in_time: attendance.check_in_time,
-                        check_out_time: attendance.check_out_time,
-                    },
-                    shift: {
-                        id: shift.id,
-                        posting_title: shift.posting_title,
-                        facility_name: shift.facility_name,
-                    },
-                },
-            };
-        } catch (error) {
-            if (
-                error instanceof BadRequestException ||
-                error instanceof NotFoundException ||
-                error instanceof ForbiddenException
-            ) {
-                throw error;
-            }
-            throw new InternalServerErrorException(
-                'Failed to check out. Please try again.',
-            );
+          });
         }
-    }
-}
+      } else {
+        // If coordinates not provided, check if geofence is already verified
+        const timesheet = await this.prisma.shiftTimesheet.findUnique({
+          where: { shift_id: shiftId },
+          select: {
+            id: true,
+            verification_method: true,
+          },
+        });
 
+        if (
+          !timesheet ||
+          timesheet.verification_method !== 'Geofence Verified'
+        ) {
+          throw new BadRequestException(
+            'Geofence must be verified before checking in. Please verify your location first or provide coordinates with check-in request.',
+          );
+        }
+      }
+
+      // Check if already checked in
+      const existingAttendance = await this.prisma.shiftAttendance.findUnique({
+        where: { shift_id: shiftId },
+        select: {
+          id: true,
+          status: true,
+          check_in_time: true,
+        },
+      });
+
+      if (
+        existingAttendance?.status === ShiftAttendanceStatus.checked_in ||
+        existingAttendance?.status === ShiftAttendanceStatus.checked_out
+      ) {
+        throw new BadRequestException(
+          'You have already checked in for this shift.',
+        );
+      }
+
+      // Create or update ShiftAttendance with check-in
+      const checkInTime = new Date();
+      const attendance = await this.prisma.shiftAttendance.upsert({
+        where: { shift_id: shiftId },
+        create: {
+          shift_id: shiftId,
+          staff_id: staff_id,
+          status: ShiftAttendanceStatus.checked_in,
+          check_in_time: checkInTime,
+          location_check: 'Geofence Verified',
+        },
+        update: {
+          status: ShiftAttendanceStatus.checked_in,
+          check_in_time: checkInTime,
+        },
+      });
+
+      // Automatically verify clock-in
+      await this.prisma.shiftTimesheet.upsert({
+        where: { shift_id: shiftId },
+        create: {
+          shift_id: shiftId,
+          staff_id: staff_id,
+          verification_method: 'Geofence Verified',
+          clock_in_verified: true,
+          status: TimesheetStatus.pending_submission,
+        },
+        update: {
+          clock_in_verified: true,
+        },
+      });
+
+      // Log activity
+      await this.activityLogService.logShiftCheckIn(
+        staffUserId,
+        shiftId,
+        shift.facility_name,
+      );
+
+      // Get service provider user_id from shift
+      const shiftWithProvider = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        include: {
+          service_provider_info: {
+            select: {
+              user_id: true,
+            },
+          },
+        },
+      });
+
+      // Send notification to service provider
+      if (shiftWithProvider?.service_provider_info?.user_id) {
+        await NotificationRepository.createNotification({
+          receiver_id: shiftWithProvider.service_provider_info.user_id,
+          text: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+          type: 'shift_checkin',
+          entity_id: shiftId,
+        });
+
+        await this.pushNotificationService.sendToUser(
+          shiftWithProvider.service_provider_info.user_id,
+          {
+            title: 'Staff Checked In',
+            body: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+            data: {
+              type: 'shift_checkin',
+              shiftId: shiftId,
+            },
+          },
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Check-in completed successfully',
+        data: {
+          attendance: {
+            id: attendance.id,
+            status: attendance.status,
+            check_in_time: attendance.check_in_time,
+          },
+          shift: {
+            id: shift.id,
+            posting_title: shift.posting_title,
+            facility_name: shift.facility_name,
+          },
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to check in. Please try again.',
+      );
+    }
+  }
+
+  async checkOut(shiftId: string, staffUserId: string) {
+    try {
+      // Get staff profile from user_id
+      const staffProfile = await this.prisma.staffProfile.findUnique({
+        where: { user_id: staffUserId },
+        select: { id: true, user_id: true },
+      });
+
+      if (!staffProfile) {
+        throw new BadRequestException(
+          'Staff profile not found. Please complete your profile first.',
+        );
+      }
+
+      const staff_id = staffProfile.id;
+
+      // Get shift with assigned staff, pay rate, and time schedule
+      const shift = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: {
+          id: true,
+          assigned_staff_id: true,
+          posting_title: true,
+          facility_name: true,
+          pay_rate_hourly: true,
+          start_time: true,
+          end_time: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      // Verify staff is assigned to this shift
+      if (shift.assigned_staff_id !== staff_id) {
+        throw new ForbiddenException(
+          'You are not assigned to this shift. Only assigned staff can check out.',
+        );
+      }
+
+      // Check if already checked in
+      const existingAttendance = await this.prisma.shiftAttendance.findUnique({
+        where: { shift_id: shiftId },
+        select: {
+          id: true,
+          status: true,
+          check_in_time: true,
+          check_out_time: true,
+        },
+      });
+
+      if (!existingAttendance) {
+        throw new BadRequestException(
+          'You must check in before checking out. Please check in first.',
+        );
+      }
+
+      if (existingAttendance.status === ShiftAttendanceStatus.checked_out) {
+        throw new BadRequestException(
+          'You have already checked out for this shift.',
+        );
+      }
+
+      if (existingAttendance.status === ShiftAttendanceStatus.not_checked_in) {
+        throw new BadRequestException(
+          'You must check in before checking out. Please check in first.',
+        );
+      }
+
+      // Update ShiftAttendance with check-out
+      const checkOutTime = new Date();
+
+      // Calculate total hours from shift start_time and end_time
+      if (!shift.start_time || !shift.end_time) {
+        throw new BadRequestException(
+          'Shift start time or end time is missing. Cannot calculate hours.',
+        );
+      }
+
+      // Calculate total hours worked based on shift schedule
+      const timeDifferenceMs =
+        shift.end_time.getTime() - shift.start_time.getTime();
+      const totalHours = parseFloat(
+        (timeDifferenceMs / (1000 * 60 * 60)).toFixed(2),
+      ); // Convert to hours with 2 decimal places
+
+      // Get hourly rate from shift
+      const hourlyRate = shift.pay_rate_hourly;
+
+      // Calculate total pay
+      const totalPay = parseFloat((totalHours * hourlyRate).toFixed(2));
+
+      const attendance = await this.prisma.shiftAttendance.update({
+        where: { shift_id: shiftId },
+        data: {
+          status: ShiftAttendanceStatus.checked_out,
+          check_out_time: checkOutTime,
+        },
+      });
+
+      // Automatically verify clock-out and update timesheet with calculated values
+      await this.prisma.shiftTimesheet.upsert({
+        where: { shift_id: shiftId },
+        create: {
+          shift_id: shiftId,
+          staff_id: staff_id,
+          verification_method: 'Geofence Verified',
+          clock_out_verified: true,
+          status: TimesheetStatus.submitted,
+          total_hours: totalHours,
+          hourly_rate: hourlyRate,
+          total_pay: totalPay,
+          submitted_at: new Date(),
+        },
+        update: {
+          clock_out_verified: true,
+          total_hours: totalHours,
+          hourly_rate: hourlyRate,
+          total_pay: totalPay,
+          status: TimesheetStatus.submitted,
+          submitted_at: new Date(),
+        },
+      });
+
+      // Log activity for checkout
+      await this.activityLogService.logShiftCheckOut(
+        staffUserId,
+        shiftId,
+        shift.facility_name,
+      );
+
+      // Log activity for timesheet submission
+      const timesheet = await this.prisma.shiftTimesheet.findUnique({
+        where: { shift_id: shiftId },
+        select: { id: true },
+      });
+
+      if (timesheet) {
+        await this.activityLogService.logTimesheetSubmit(
+          staffUserId,
+          timesheet.id,
+          shiftId,
+          totalHours,
+          totalPay,
+        );
+      }
+
+      // Get service provider user_id from shift
+      const shiftWithProvider = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        include: {
+          service_provider_info: {
+            select: {
+              user_id: true,
+            },
+          },
+        },
+      });
+
+      // Send notification to service provider
+      if (shiftWithProvider?.service_provider_info?.user_id) {
+        await NotificationRepository.createNotification({
+          receiver_id: shiftWithProvider.service_provider_info.user_id,
+          text: `Staff has checked out from shift: ${shift.posting_title} at ${shift.facility_name}. Total hours: ${totalHours}`,
+          type: 'shift_checkout',
+          entity_id: shiftId,
+        });
+
+        await this.pushNotificationService.sendToUser(
+          shiftWithProvider.service_provider_info.user_id,
+          {
+            title: 'Staff Checked Out',
+            body: `Staff has checked out from shift: ${shift.posting_title}. Total hours: ${totalHours}`,
+            data: {
+              type: 'shift_checkout',
+              shiftId: shiftId,
+              totalHours: totalHours.toString(),
+            },
+          },
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Check-out completed successfully',
+        data: {
+          attendance: {
+            id: attendance.id,
+            status: attendance.status,
+            check_in_time: attendance.check_in_time,
+            check_out_time: attendance.check_out_time,
+          },
+          shift: {
+            id: shift.id,
+            posting_title: shift.posting_title,
+            facility_name: shift.facility_name,
+          },
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to check out. Please try again.',
+      );
+    }
+  }
+}

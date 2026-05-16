@@ -31,7 +31,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SERVICE_PROVIDER)
 export class EmployeeController {
-  constructor(private readonly employeeService: EmployeeService) { }
+  constructor(private readonly employeeService: EmployeeService) {}
 
   @ApiOperation({ summary: 'Create a new employee' })
   @Post()
@@ -96,7 +96,12 @@ export class EmployeeController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.employeeService.update(user_id, id, updateEmployeeDto, photoFile);
+    return this.employeeService.update(
+      user_id,
+      id,
+      updateEmployeeDto,
+      photoFile,
+    );
   }
 
   @ApiOperation({ summary: 'Assign permissions to employee' })
@@ -111,7 +116,11 @@ export class EmployeeController {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.employeeService.assignPermissions(user_id, id, assignPermissionDto);
+    return this.employeeService.assignPermissions(
+      user_id,
+      id,
+      assignPermissionDto,
+    );
   }
 
   @ApiOperation({ summary: 'Update employee status (activate/deactivate)' })

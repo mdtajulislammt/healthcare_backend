@@ -88,10 +88,8 @@ export class PushNotificationService {
       }
     } catch (error) {
       this.logger.error(
-        `Failed to send push notification to user ${userId}: ${error.message}`,
+        `Failed to send push notification to user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
 }
-
-

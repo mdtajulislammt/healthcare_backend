@@ -58,6 +58,10 @@ export class ProfileController {
     if (!userId) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.profileService.updateAdminProfile(userId, updateAdminProfileDto, photoFile);
+    return this.profileService.updateAdminProfile(
+      userId,
+      updateAdminProfileDto,
+      photoFile,
+    );
   }
 }

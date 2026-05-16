@@ -10,4 +10,4 @@ import { ActivityLogModule } from 'src/common/module/activity-log.module';
   providers: [EmployeeService],
   exports: [EmployeeService],
 })
-export class EmployeeModule { }
+export class EmployeeModule {}
