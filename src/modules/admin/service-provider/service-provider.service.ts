@@ -189,7 +189,10 @@ export class ServiceProviderService {
       const skip = (currentPage - 1) * pageSize;
 
       // Build where clause
-      const andConditions: any[] = [];
+      const andConditions: any[] = [
+        // Exclude soft-deleted service providers
+        { user: { deleted_at: null } },
+      ];
 
       // Search filter
       if (search) {
@@ -333,6 +336,7 @@ export class ServiceProviderService {
               status: true,
               approved_at: true,
               email_verified_at: true,
+              deleted_at: true,
             },
           },
           employees: {
@@ -360,6 +364,8 @@ export class ServiceProviderService {
         },
       });
       if (!provider) throw new NotFoundException('Service provider not found');
+      if (provider.user?.deleted_at)
+        throw new NotFoundException('Service provider not found');
 
       if (provider.brand_logo_url) {
         provider.brand_logo_url = SojebStorage.url(
@@ -551,8 +557,49 @@ export class ServiceProviderService {
     }
   }
 
-  remove(id: string) {
-    return `This action removes a #${id} serviceProvider`;
+  async remove(id: string) {
+    try {
+      const provider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id },
+        select: { id: true, user_id: true },
+      });
+
+      if (!provider) {
+        throw new NotFoundException('Service provider not found');
+      }
+
+      // Check if already deleted
+      const user = await this.prisma.user.findUnique({
+        where: { id: provider.user_id },
+        select: { deleted_at: true },
+      });
+
+      if (user?.deleted_at) {
+        throw new NotFoundException('Service provider not found');
+      }
+
+      // Soft-delete by setting deleted_at
+      await this.prisma.user.update({
+        where: { id: provider.user_id },
+        data: { deleted_at: new Date() },
+      });
+
+      return {
+        success: true,
+        message: 'Service provider deleted successfully',
+        data: {
+          id: provider.id,
+          user_id: provider.user_id,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to delete service provider',
+      );
+    }
   }
 
   async updateStatus(id: string, status: number) {
