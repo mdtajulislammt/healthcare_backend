@@ -349,9 +349,9 @@ export class ShiftService {
                       appConfig().storageUrl.staff + s.assigned_staff.photo_url,
                     )
                   : null,
+                review_count: s.assigned_staff?._count?.reviews ?? 0,
               }
             : null,
-          review_count: s.assigned_staff?._count?.reviews ?? 0,
           applications_count: s._count?.applications ?? 0,
           _count: undefined,
         };

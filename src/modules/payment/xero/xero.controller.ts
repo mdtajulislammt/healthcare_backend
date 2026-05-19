@@ -110,7 +110,7 @@ export class XeroController {
       await this.xeroService.handleOAuthCallback(code);
       return res.redirect(`${frontendUrl}?xero_connected=true`);
     } catch (error) {
-      const errorMessage = error?.message || 'connection_failed';
+      const errorMessage = error instanceof Error ? error.message : 'connection_failed';
       return res.redirect(
         `${frontendUrl}?xero_error=${encodeURIComponent(errorMessage)}`,
       );
