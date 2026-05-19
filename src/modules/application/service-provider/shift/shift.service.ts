@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateShiftDto } from './dto/create-shift.dto';
-import { Prisma, ProfessionRole, ShiftApplicationStatus } from '@prisma/client';
+import {
+  Prisma,
+  ProfessionRole,
+  ShiftApplicationStatus,
+  ShiftStatus,
+} from '@prisma/client';
 import { UpdateShiftDto } from './dto/update-shift.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -155,58 +160,73 @@ export class ShiftService {
         }
       }
 
-      // latitude = 51.5074;
-      // longitude = -0.1278;
+      const shiftDates = this.getShiftDates(start_date, end_date);
 
-      const shift = await this.prisma.shift.create({
-        data: {
-          service_provider_id: serviceProviderId,
-          created_by_employee_id: finalCreatorEmployeeId,
-          assigned_staff_id,
-          posting_title,
-          shift_type,
-          profession_role,
-          is_urgent,
-          start_date: new Date(start_date),
-          end_date: end_date ? new Date(end_date) : null,
-          start_time: new Date(start_time),
-          end_time: new Date(end_time),
-          facility_name,
-          full_address,
-          latitude,
-          longitude,
-          pay_rate_hourly: providerPayRateHourly,
-          signing_bonus,
-          internal_po_number,
-          emergency_bonus: selectedEmergencyBonus,
-          notes,
-          status,
-        },
-        select: {
-          id: true,
-          posting_title: true,
-          shift_type: true,
-          profession_role: true,
-          start_date: true,
-          start_time: true,
-          facility_name: true,
-          status: true,
-          created_at: true,
-        },
-      });
+      const shifts = await this.prisma.$transaction(
+        shiftDates.map((shiftDate) =>
+          this.prisma.shift.create({
+            data: {
+              service_provider_id: serviceProviderId,
+              created_by_employee_id: finalCreatorEmployeeId,
+              assigned_staff_id,
+              posting_title,
+              shift_type,
+              profession_role,
+              is_urgent,
+              start_date: shiftDate,
+              end_date: shiftDate,
+              start_time: new Date(start_time),
+              end_time: new Date(end_time),
+              facility_name,
+              full_address,
+              latitude,
+              longitude,
+              pay_rate_hourly: providerPayRateHourly,
+              signing_bonus,
+              internal_po_number,
+              emergency_bonus: selectedEmergencyBonus,
+              notes,
+              status,
+            },
+            select: {
+              id: true,
+              posting_title: true,
+              shift_type: true,
+              profession_role: true,
+              start_date: true,
+              start_time: true,
+              facility_name: true,
+              status: true,
+              created_at: true,
+            },
+          }),
+        ),
+      );
 
-      await this.activityLogService.logShiftCreate(
-        requestingUserId,
-        shift.id,
-        posting_title,
-        facility_name,
-        selectedEmergencyBonus,
+      await Promise.all(
+        shifts.map((shift) =>
+          this.activityLogService.logShiftCreate(
+            requestingUserId,
+            shift.id,
+            posting_title,
+            facility_name,
+            selectedEmergencyBonus,
+          ),
+        ),
       );
 
       return {
         success: true,
-        message: 'Shift created successfully',
-        data: shift,
+        message:
+          shifts.length === 1
+            ? 'Shift created successfully'
+            : `${shifts.length} shifts created successfully`,
+        data: shifts,
+        meta: {
+          total_created: shifts.length,
+          start_date,
+          end_date: end_date ?? start_date,
+        },
       };
     } catch (error) {
       if (
@@ -293,8 +313,12 @@ export class ShiftService {
                 id: true,
                 first_name: true,
                 last_name: true,
+                photo_url: true,
                 reviews: {
                   select: { rating: true },
+                },
+                _count: {
+                  select: { reviews: true },
                 },
               },
             },
@@ -320,8 +344,14 @@ export class ShiftService {
                 first_name: s.assigned_staff.first_name,
                 last_name: s.assigned_staff.last_name,
                 avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+                photo_url: s.assigned_staff.photo_url
+                  ? SojebStorage.url(
+                      appConfig().storageUrl.staff + s.assigned_staff.photo_url,
+                    )
+                  : null,
               }
             : null,
+          review_count: s.assigned_staff?._count?.reviews ?? 0,
           applications_count: s._count?.applications ?? 0,
           _count: undefined,
         };
@@ -527,12 +557,232 @@ export class ShiftService {
     }
   }
 
-  update(id: string, updateShiftDto: UpdateShiftDto) {
-    return `This action updates a #${id} shift`;
+  async update(id: string, updateShiftDto: UpdateShiftDto) {
+    try {
+      const shift = await this.prisma.shift.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          service_provider_id: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      if (shift.status !== ShiftStatus.published) {
+        throw new BadRequestException('Only published shifts can be edited');
+      }
+
+      const updateData: Prisma.ShiftUpdateInput = {};
+
+      if (updateShiftDto.created_by_employee_id !== undefined) {
+        updateData.created_by_employee = updateShiftDto.created_by_employee_id
+          ? {
+              connect: {
+                id: updateShiftDto.created_by_employee_id,
+              },
+            }
+          : {
+              disconnect: true,
+            };
+      }
+
+      // if (updateShiftDto.assigned_staff_id !== undefined) {
+      //   updateData.assigned_staff = updateShiftDto.assigned_staff_id
+      //     ? {
+      //         connect: {
+      //           id: updateShiftDto.assigned_staff_id,
+      //         },
+      //       }
+      //     : {
+      //         disconnect: true,
+      //       };
+      // }
+
+      if (updateShiftDto.posting_title !== undefined) {
+        updateData.posting_title = updateShiftDto.posting_title;
+      }
+
+      if (updateShiftDto.shift_type !== undefined) {
+        updateData.shift_type = updateShiftDto.shift_type;
+      }
+
+      if (updateShiftDto.profession_role !== undefined) {
+        updateData.profession_role = updateShiftDto.profession_role;
+      }
+
+      if (updateShiftDto.is_urgent !== undefined) {
+        updateData.is_urgent = updateShiftDto.is_urgent;
+      }
+
+      if (updateShiftDto.start_date !== undefined) {
+        const startDate = new Date(updateShiftDto.start_date);
+        if (Number.isNaN(startDate.getTime())) {
+          throw new BadRequestException('Invalid start_date value');
+        }
+        updateData.start_date = startDate;
+      }
+
+      if (updateShiftDto.end_date !== undefined) {
+        const endDate = new Date(updateShiftDto.end_date);
+        if (Number.isNaN(endDate.getTime())) {
+          throw new BadRequestException('Invalid end_date value');
+        }
+        updateData.end_date = endDate;
+      }
+
+      if (updateShiftDto.start_time !== undefined) {
+        const startTime = new Date(updateShiftDto.start_time);
+        if (Number.isNaN(startTime.getTime())) {
+          throw new BadRequestException('Invalid start_time value');
+        }
+        updateData.start_time = startTime;
+      }
+
+      if (updateShiftDto.end_time !== undefined) {
+        const endTime = new Date(updateShiftDto.end_time);
+        if (Number.isNaN(endTime.getTime())) {
+          throw new BadRequestException('Invalid end_time value');
+        }
+        updateData.end_time = endTime;
+      }
+
+      if (updateShiftDto.facility_name !== undefined) {
+        updateData.facility_name = updateShiftDto.facility_name;
+      }
+
+      if (updateShiftDto.full_address !== undefined) {
+        updateData.full_address = updateShiftDto.full_address;
+
+        if (updateShiftDto.full_address) {
+          try {
+            const geocodeResult = await GoogleMapsService.geocodeAddress(
+              updateShiftDto.full_address,
+            );
+
+            updateData.latitude = geocodeResult?.latitude ?? null;
+            updateData.longitude = geocodeResult?.longitude ?? null;
+          } catch (error) {
+            const geocodeErrorMessage =
+              error instanceof Error ? error.message : 'Unknown geocode error';
+            console.error(
+              'Failed to geocode address for shift update:',
+              geocodeErrorMessage,
+            );
+          }
+        } else {
+          updateData.latitude = null;
+          updateData.longitude = null;
+        }
+      }
+
+      if (updateShiftDto.signing_bonus !== undefined) {
+        updateData.signing_bonus = updateShiftDto.signing_bonus;
+      }
+
+      if (updateShiftDto.internal_po_number !== undefined) {
+        updateData.internal_po_number = updateShiftDto.internal_po_number;
+      }
+
+      if (updateShiftDto.emergency_bonus !== undefined) {
+        updateData.emergency_bonus = updateShiftDto.emergency_bonus;
+      }
+
+      if (updateShiftDto.notes !== undefined) {
+        updateData.notes = updateShiftDto.notes;
+      }
+
+      if (updateShiftDto.status !== undefined) {
+        updateData.status = updateShiftDto.status;
+      }
+
+      const updatedShift = await this.prisma.shift.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          posting_title: true,
+          shift_type: true,
+          profession_role: true,
+          is_urgent: true,
+          start_date: true,
+          end_date: true,
+          start_time: true,
+          end_time: true,
+          facility_name: true,
+          full_address: true,
+          latitude: true,
+          longitude: true,
+          pay_rate_hourly: true,
+          signing_bonus: true,
+          internal_po_number: true,
+          emergency_bonus: true,
+          notes: true,
+          status: true,
+          updated_at: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Shift updated successfully',
+        data: updatedShift,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update shift');
+    }
   }
 
-  remove(id: string) {
-    return `This action removes a #${id} shift`;
+  async remove(id: string) {
+    try {
+      const shift = await this.prisma.shift.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      if (shift.status !== ShiftStatus.published) {
+        throw new BadRequestException('Only published shifts can be deleted');
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.shiftApplication.deleteMany({
+          where: { shift_id: id },
+        });
+
+        await tx.shift.delete({
+          where: { id },
+        });
+      });
+
+      return {
+        success: true,
+        message: 'Shift deleted successfully',
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to delete shift');
+    }
   }
 
   async getPayRatesByRole(requestingUserId: string, role?: string) {
@@ -615,6 +865,37 @@ export class ShiftService {
         'Failed to fetch emergency bonus options',
       );
     }
+  }
+
+  private getShiftDates(startDateValue: string, endDateValue?: string) {
+    const startDate = new Date(startDateValue);
+    if (Number.isNaN(startDate.getTime())) {
+      throw new BadRequestException('Invalid start_date value');
+    }
+
+    const endDate = endDateValue ? new Date(endDateValue) : startDate;
+    if (Number.isNaN(endDate.getTime())) {
+      throw new BadRequestException('Invalid end_date value');
+    }
+
+    if (endDate.getTime() < startDate.getTime()) {
+      throw new BadRequestException(
+        'end_date must be greater than or equal to start_date',
+      );
+    }
+
+    const dates: Date[] = [];
+    const currentDate = new Date(startDate);
+    currentDate.setHours(0, 0, 0, 0);
+    const finalDate = new Date(endDate);
+    finalDate.setHours(0, 0, 0, 0);
+
+    while (currentDate.getTime() <= finalDate.getTime()) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return dates;
   }
 
   private normalizeBonusOptions(
