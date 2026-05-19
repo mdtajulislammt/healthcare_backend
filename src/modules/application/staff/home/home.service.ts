@@ -318,6 +318,9 @@ export class HomeService {
               ? `${Math.round(distanceMiles * 10) / 10} miles`
               : null,
             estimatedDuration: `(estimated ${durationHours}-hour shift)`,
+            latitude: shift.latitude,
+            longitude: shift.longitude,
+            organizationName: shift.service_provider_info?.organization_name,
             role: shift.profession_role,
           };
         }),
