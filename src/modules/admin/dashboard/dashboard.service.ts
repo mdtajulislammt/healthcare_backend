@@ -385,14 +385,28 @@ export class DashboardService {
     }
   }
 
-  async getAllDashboardData(options: { search?: string; status?: string }) {
+  async getAllDashboardData(options: {
+    search?: string;
+    status?: string;
+    lowStarPage?: number;
+    lowStarLimit?: number;
+    lowStarSearch?: string;
+    ratingBelow?: number;
+  }) {
     try {
       // Fetch all data in parallel
-      const [metrics, monthlyStats, topProvidersStaff] = await Promise.all([
-        this.getMetrics(),
-        this.getMonthlyStats(),
-        this.getTopProvidersAndStaff(options),
-      ]);
+      const [metrics, monthlyStats, topProvidersStaff, lowStarReviews] =
+        await Promise.all([
+          this.getMetrics(),
+          this.getMonthlyStats(),
+          this.getTopProvidersAndStaff(options),
+          this.getLowStarStaffReviews({
+            page: options.lowStarPage,
+            limit: options.lowStarLimit,
+            search: options.lowStarSearch,
+            ratingBelow: options.ratingBelow,
+          }),
+        ]);
 
       return {
         success: true,
@@ -401,6 +415,7 @@ export class DashboardService {
           metrics: metrics.data,
           monthlyStats: monthlyStats.data,
           topProvidersStaff: topProvidersStaff.data,
+          lowStarReviews: lowStarReviews.data,
         },
       };
     } catch (error) {
@@ -408,6 +423,174 @@ export class DashboardService {
         error instanceof Error
           ? error.message
           : 'Failed to fetch dashboard data',
+      );
+    }
+  }
+
+  async getLowStarStaffReviews(options: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    ratingBelow?: number;
+  }) {
+    try {
+      const page = Math.max(Number(options.page) || 1, 1);
+      const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 100);
+      const skip = (page - 1) * limit;
+      const search = options.search?.trim();
+      const ratingBelow =
+        options.ratingBelow !== undefined &&
+        !Number.isNaN(Number(options.ratingBelow))
+          ? Number(options.ratingBelow)
+          : 3;
+
+      if (Number.isNaN(page) || Number.isNaN(limit)) {
+        throw new InternalServerErrorException('Invalid pagination parameters');
+      }
+
+      const where: Prisma.StaffPerformanceReviewWhereInput = {
+        rating: { lt: ratingBelow },
+        ...(search
+          ? {
+              OR: [
+                {
+                  feedback: {
+                    contains: search,
+                    mode: 'insensitive' as Prisma.QueryMode,
+                  },
+                },
+                {
+                  staff: {
+                    is: {
+                      OR: [
+                        {
+                          first_name: {
+                            contains: search,
+                            mode: 'insensitive' as Prisma.QueryMode,
+                          },
+                        },
+                        {
+                          last_name: {
+                            contains: search,
+                            mode: 'insensitive' as Prisma.QueryMode,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  shift: {
+                    is: {
+                      posting_title: {
+                        contains: search,
+                        mode: 'insensitive' as Prisma.QueryMode,
+                      },
+                    },
+                  },
+                },
+                {
+                  provider: {
+                    is: {
+                      organization_name: {
+                        contains: search,
+                        mode: 'insensitive' as Prisma.QueryMode,
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
+      };
+
+      const [total, reviews] = await this.prisma.$transaction([
+        this.prisma.staffPerformanceReview.count({ where }),
+        this.prisma.staffPerformanceReview.findMany({
+          where,
+          select: {
+            id: true,
+            provider_id: true,
+            staff_id: true,
+            shift_id: true,
+            rating: true,
+            feedback: true,
+            admin_alert: true,
+            created_by: true,
+            created_at: true,
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+                mobile_code: true,
+                mobile_number: true,
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+            shift: {
+              select: {
+                id: true,
+                posting_title: true,
+                shift_type: true,
+                profession_role: true,
+                start_date: true,
+                end_date: true,
+                status: true,
+                facility_name: true,
+              },
+            },
+            provider: {
+              select: {
+                id: true,
+                organization_name: true,
+                primary_address: true,
+              },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: limit,
+        }),
+      ]);
+
+      const data = reviews.map((review) => ({
+        ...review,
+        staff: review.staff
+          ? {
+              ...review.staff,
+              photo_url: review.staff.photo_url
+                ? SojebStorage.url(
+                    appConfig().storageUrl.staff + review.staff.photo_url,
+                  )
+                : null,
+            }
+          : null,
+      }));
+
+      return {
+        success: true,
+        message: 'Low star staff reviews fetched successfully',
+        data,
+        meta: {
+          total,
+          page,
+          limit,
+          ratingBelow,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch low star staff reviews',
       );
     }
   }

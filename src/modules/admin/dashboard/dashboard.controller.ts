@@ -50,10 +50,34 @@ export class DashboardController {
   getAllDashboardData(
     @Query('search') search?: string,
     @Query('status') status?: string, // 'active' | 'suspended' | 'all'
+    @Query('lowStarPage') lowStarPage?: string,
+    @Query('lowStarLimit') lowStarLimit?: string,
+    @Query('lowStarSearch') lowStarSearch?: string,
+    @Query('ratingBelow') ratingBelow?: string,
   ) {
     return this.dashboardService.getAllDashboardData({
       search,
       status: status || 'all',
+      lowStarPage: lowStarPage ? Number(lowStarPage) : undefined,
+      lowStarLimit: lowStarLimit ? Number(lowStarLimit) : undefined,
+      lowStarSearch,
+      ratingBelow: ratingBelow ? Number(ratingBelow) : undefined,
+    });
+  }
+
+  @ApiOperation({ summary: 'Get staff reviews below a star threshold' })
+  @Get('low-star-staff-reviews')
+  getLowStarStaffReviews(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('ratingBelow') ratingBelow?: string,
+  ) {
+    return this.dashboardService.getLowStarStaffReviews({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      ratingBelow: ratingBelow ? Number(ratingBelow) : undefined,
     });
   }
 }
