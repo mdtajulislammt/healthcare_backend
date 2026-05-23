@@ -11,6 +11,7 @@ import { ShiftModule } from './shift/shift.module';
 import { TimesheetModule } from './timesheet/timesheet.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
+import { StaffReviewModule } from './staff-review/staff-review.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ProfileModule } from './profile/profile.module';
     TimesheetModule,
     DashboardModule,
     ProfileModule,
+    StaffReviewModule,
   ],
 })
 export class AdminModule {}

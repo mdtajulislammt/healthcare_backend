@@ -160,6 +160,14 @@ export class ShiftApplicationService {
                 last_name: true,
                 photo_url: true,
                 roles: true,
+                mobile_code: true,
+                mobile_number: true,
+                user: { 
+                  select: {
+                    id: true,
+                    email: true,
+                  },
+                },
               },
             },
           },

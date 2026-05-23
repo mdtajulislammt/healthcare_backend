@@ -1,10 +1,13 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { Prisma, ShiftStatus } from '@prisma/client';
+import { Prisma, ShiftApplicationStatus, ShiftStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ActivityLogService } from 'src/common/service/activity-log.service';
 
 interface FindAllOptions {
   page?: number;
@@ -15,7 +18,188 @@ interface FindAllOptions {
 
 @Injectable()
 export class ShiftService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogService: ActivityLogService,
+  ) {}
+
+  async assignStaff(shiftId: string, staffId: string, userId: string) {
+    try {
+      if (!shiftId || !shiftId.trim()) {
+        throw new BadRequestException('Shift ID is required');
+      }
+
+      if (!staffId || !staffId.trim()) {
+        throw new BadRequestException('staff_id is required');
+      }
+
+      if (!userId || !userId.trim()) {
+        throw new BadRequestException('User is not authenticated');
+      }
+
+      const shift = await this.prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: {
+          id: true,
+          assigned_staff_id: true,
+          facility_name: true,
+          posting_title: true,
+          start_date: true,
+          end_date: true,
+          start_time: true,
+          end_time: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      if (shift.assigned_staff_id) {
+        throw new ConflictException('This shift already has an assigned staff');
+      }
+
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { id: staffId },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          user_id: true,
+        },
+      });
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found');
+      }
+
+      const existingShifts = await this.prisma.shift.findMany({
+        where: {
+          assigned_staff_id: staffId,
+          id: { not: shiftId },
+        },
+        select: {
+          id: true,
+          status: true,
+          start_date: true,
+          end_date: true,
+          start_time: true,
+          end_time: true,
+        },
+      });
+
+      const targetWindow = this.getShiftWindow(
+        shift.start_date,
+        shift.end_date,
+        shift.start_time,
+        shift.end_time,
+      );
+
+      const hasOverlap = existingShifts.some((existingShift) => {
+        const existingWindow = this.getShiftWindow(
+          existingShift.start_date,
+          existingShift.end_date,
+          existingShift.start_time,
+          existingShift.end_time,
+        );
+
+        return (
+          targetWindow.start.getTime() < existingWindow.end.getTime() &&
+          targetWindow.end.getTime() > existingWindow.start.getTime()
+        );
+      });
+
+      if (hasOverlap) {
+        throw new ConflictException(
+          'This staff member is already assigned to another overlapping shift',
+        );
+      }
+
+      const updatedShift = await this.prisma.$transaction(async (tx) => {
+        const selectedApplication = await tx.shiftApplication.findFirst({
+          where: {
+            shift_id: shiftId,
+            staff_id: staffId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (selectedApplication) {
+          await tx.shiftApplication.update({
+            where: { id: selectedApplication.id },
+            data: {
+              status: ShiftApplicationStatus.accepted,
+              reviewed_at: new Date(),
+              notes: 'Application accepted by admin assignment',
+            },
+          });
+        }
+
+        await tx.shiftApplication.updateMany({
+          where: {
+            shift_id: shiftId,
+            staff_id: { not: staffId },
+          },
+          data: {
+            status: ShiftApplicationStatus.rejected,
+            reviewed_at: new Date(),
+            notes:
+              'Application rejected. Shift has been assigned to another applicant.',
+          },
+        });
+
+        return tx.shift.update({
+          where: { id: shiftId },
+          data: {
+            assigned_staff_id: staffId,
+            status: ShiftStatus.assigned,
+          },
+          select: {
+            id: true,
+            assigned_staff_id: true,
+            facility_name: true,
+            posting_title: true,
+            status: true,
+            assigned_staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                mobile_code: true,
+                mobile_number: true,
+                user: { select: { id: true, email: true } },
+              },
+            },
+          },
+        });
+      });
+
+      await this.activityLogService.logShiftAssign(
+        userId,
+        updatedShift.id,
+        `${staff.first_name} ${staff.last_name}`,
+        updatedShift.facility_name,
+      );
+
+      return {
+        success: true,
+        message: 'Staff assigned successfully',
+        data: updatedShift,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to assign staff');
+    }
+  }
 
   async findAll(options: FindAllOptions) {
     try {
@@ -160,6 +344,13 @@ export class ShiftService {
               id: true,
               first_name: true,
               last_name: true,
+              mobile_code: true,
+              mobile_number: true,
+              user: {
+                select: {
+                  email: true,
+                },
+              },
             },
           },
           _count: {
@@ -174,8 +365,22 @@ export class ShiftService {
         throw new NotFoundException('Shift not found');
       }
 
+      const startTime = new Date(shift.start_time);
+      const endTime = new Date(shift.end_time);
+      let totalHours = 0;
+
+      if (
+        !Number.isNaN(startTime.getTime()) &&
+        !Number.isNaN(endTime.getTime())
+      ) {
+        const diffMs = endTime.getTime() - startTime.getTime();
+        totalHours =
+          diffMs > 0 ? Number((diffMs / (1000 * 60 * 60)).toFixed(2)) : 0;
+      }
+
       const data = {
         ...shift,
+        total_hours: totalHours,
         applications_count: shift._count?.applications ?? 0,
         _count: undefined,
       } as any;
@@ -193,6 +398,40 @@ export class ShiftService {
         error instanceof Error ? error.message : 'Failed to fetch shift',
       );
     }
+  }
+
+  private getShiftWindow(
+    startDateValue: Date,
+    endDateValue: Date | null,
+    startTimeValue: Date,
+    endTimeValue: Date,
+  ) {
+    const startDate = new Date(startDateValue);
+    const endDate = new Date(endDateValue || startDateValue);
+    const startTime = new Date(startTimeValue);
+    const endTime = new Date(endTimeValue);
+
+    const start = new Date(startDate);
+    start.setHours(
+      startTime.getHours(),
+      startTime.getMinutes(),
+      startTime.getSeconds(),
+      startTime.getMilliseconds(),
+    );
+
+    const end = new Date(endDate);
+    end.setHours(
+      endTime.getHours(),
+      endTime.getMinutes(),
+      endTime.getSeconds(),
+      endTime.getMilliseconds(),
+    );
+
+    if (end.getTime() <= start.getTime()) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    return { start, end };
   }
 
   /**
