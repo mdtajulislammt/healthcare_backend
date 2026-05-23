@@ -1,8 +1,30 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ShiftService } from './shift.service';
 import { Response } from 'express';
+import { Request } from 'express';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guard/role/roles.guard';
+import { Roles } from 'src/common/guard/role/roles.decorator';
+import { Role } from 'src/common/guard/role/role.enum';
+import { AssignStaffDto } from './dto/assign-staff.dto';
 
+@ApiTags('Admin - Shifts')
+@ApiBearerAuth()
 @Controller('admin/shifts')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
 export class ShiftController {
   constructor(private readonly shiftService: ShiftService) {}
 
@@ -46,5 +68,20 @@ export class ShiftController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.shiftService.findOne(id);
+  }
+
+  @ApiOperation({ summary: 'Assign staff to a shift manually' })
+  @Patch(':id/assign')
+  assignStaff(
+    @Param('id') id: string,
+    @Body() assignStaffDto: AssignStaffDto,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.shiftService.assignStaff(id, assignStaffDto.staff_id, userId);
   }
 }

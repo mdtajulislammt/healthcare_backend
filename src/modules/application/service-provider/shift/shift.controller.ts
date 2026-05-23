@@ -99,8 +99,16 @@ export class ShiftController {
 
   @Patch(':id')
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
-  update(@Param('id') id: string, @Body() updateShiftDto: UpdateShiftDto) {
-    return this.shiftService.update(id, updateShiftDto);
+  update(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() updateShiftDto: UpdateShiftDto,
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.update(id, updateShiftDto, userId);
   }
 
   @Delete(':id')
