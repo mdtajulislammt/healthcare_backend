@@ -38,6 +38,12 @@ enum ComplianceStatus {
   rejected
 }
 
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
 enum CertificateType {
   care_certificate
   moving_handling
@@ -611,6 +617,7 @@ model StaffProfile {
 
   profile_completion  Int     @default(0) // percentage (0–100)
   is_profile_complete Boolean @default(false) // quick flag for checks
+  admin_note          String? // for internal use by admins/employees to add notes about the staff member
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -907,6 +914,7 @@ model StaffPerformanceReview {
   shift_id    String
   rating      Int // 1–5 stars
   feedback    String?
+  status      ReviewStatus @default(pending) // pending, approved, rejected
   created_by  String? // employee_id of reviewer (optional)
   admin_alert Boolean  @default(false) // trigger if rating < 3
   created_at  DateTime @default(now())

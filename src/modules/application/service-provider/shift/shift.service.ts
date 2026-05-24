@@ -18,6 +18,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
+import {
+  calculateShiftHours,
+  createAndLogShifts,
+  formatDateKey,
+  getShiftDates,
+  normalizeBonusOptions,
+} from './utils/shift.utils';
 
 @Injectable()
 export class ShiftService {
@@ -86,7 +93,7 @@ export class ShiftService {
         );
       }
 
-      const bonusOptions = this.normalizeBonusOptions(
+      const bonusOptions = normalizeBonusOptions(
         serviceProvider.emergency_bonus_increments,
       );
 
@@ -169,60 +176,33 @@ export class ShiftService {
         throw new BadRequestException('Invalid start_time or end_time value');
       }
 
-      const shiftDates = this.getShiftDates(start_date, end_date);
+      const shiftDates = getShiftDates(start_date, end_date);
 
-      const shifts = await this.prisma.$transaction(
-        shiftDates.map((shiftDate) =>
-          this.prisma.shift.create({
-            data: {
-              service_provider_id: serviceProviderId,
-              created_by_employee_id: finalCreatorEmployeeId,
-              assigned_staff_id,
-              posting_title,
-              shift_type,
-              profession_role,
-              is_urgent,
-              start_date: shiftDate,
-              end_date: shiftDate,
-              start_time: new Date(start_time),
-              end_time: new Date(end_time),
-              facility_name,
-              full_address,
-              latitude,
-              longitude,
-              pay_rate_hourly: providerPayRateHourly,
-              signing_bonus,
-              internal_po_number,
-              emergency_bonus: selectedEmergencyBonus,
-              notes,
-              status,
-            },
-            select: {
-              id: true,
-              posting_title: true,
-              shift_type: true,
-              profession_role: true,
-              start_date: true,
-              start_time: true,
-              facility_name: true,
-              status: true,
-              created_at: true,
-            },
-          }),
-        ),
-      );
-
-      await Promise.all(
-        shifts.map((shift) =>
-          this.activityLogService.logShiftCreate(
-            requestingUserId,
-            shift.id,
-            posting_title,
-            facility_name,
-            selectedEmergencyBonus,
-          ),
-        ),
-      );
+      const shifts = await createAndLogShifts({
+        prisma: this.prisma,
+        activityLogService: this.activityLogService,
+        serviceProviderId,
+        createdByEmployeeId: finalCreatorEmployeeId,
+        assignedStaffId: assigned_staff_id,
+        postingTitle: posting_title,
+        shiftType: shift_type,
+        professionRole: profession_role,
+        isUrgent: is_urgent,
+        shiftDates,
+        startTimeValue: start_time,
+        endTimeValue: end_time,
+        facilityName: facility_name,
+        fullAddress: full_address,
+        latitude,
+        longitude,
+        payRateHourly: providerPayRateHourly,
+        signingBonus: signing_bonus,
+        internalPoNumber: internal_po_number,
+        emergencyBonus: selectedEmergencyBonus,
+        notes,
+        status,
+        requestingUserId,
+      });
 
       return {
         success: true,
@@ -345,7 +325,7 @@ export class ShiftService {
             s.assigned_staff.reviews.length
           : null;
 
-        const totalHours = this.calculateShiftHours(s.start_time, s.end_time);
+        const totalHours = calculateShiftHours(s.start_time, s.end_time);
 
         return {
           ...s,
@@ -471,7 +451,24 @@ export class ShiftService {
             orderBy: { applied_at: applicationsOrder },
           },
           attendance: true,
-          timesheet: true,
+          timesheet: {
+            select: {
+              id: true,
+              total_hours: true,
+              total_pay: true,
+              status: true,
+              submitted_at: true,
+              reviewed_at: true,
+              approved_by: true,
+              clock_in_verified: true,
+              clock_out_verified: true,
+              xero_status: true,
+              paid_at: true,
+              hourly_rate: true,
+              xero_invoice_id: true,
+              xero_invoice_number: true,
+            },
+          },
           reviews: {
             select: {
               id: true,
@@ -563,10 +560,7 @@ export class ShiftService {
         );
       }
 
-      const totalHours = this.calculateShiftHours(
-        shift.start_time,
-        shift.end_time,
-      );
+      const totalHours = calculateShiftHours(shift.start_time, shift.end_time);
 
       // Calculate average rating for assigned staff
       let assignedStaffWithRating = null;
@@ -591,13 +585,58 @@ export class ShiftService {
       }
 
       const { _count, assigned_staff, reviews, ...rest } = shift as any;
-      const formatted = {
+      const formatted: any = {
         ...rest,
         assigned_staff: assignedStaffWithRating,
         total_hours: totalHours,
         applications_count: _count?.applications ?? 0,
         is_reviewed: reviews && reviews.length > 0,
       };
+
+      // Resolve timesheet approver name (approved_by) when present
+      if (shift.timesheet) {
+        const ts: any = shift.timesheet;
+        let approverName: string | null = null;
+        if (ts.approved_by) {
+          // Try service provider
+          const sp = await this.prisma.serviceProviderInfo.findUnique({
+            where: { id: ts.approved_by },
+            select: { organization_name: true },
+          });
+          if (sp) {
+            approverName = sp.organization_name;
+          } else {
+            // Try employee
+            const emp = await this.prisma.employee.findUnique({
+              where: { id: ts.approved_by },
+              select: { first_name: true, last_name: true },
+            });
+            if (emp) approverName = `${emp.first_name} ${emp.last_name}`;
+            else {
+              // Try staff profile
+              const staff = await this.prisma.staffProfile.findUnique({
+                where: { id: ts.approved_by },
+                select: { first_name: true, last_name: true },
+              });
+              if (staff)
+                approverName = `${staff.first_name} ${staff.last_name}`;
+              else {
+                // Fallback to user email
+                const user = await this.prisma.user.findUnique({
+                  where: { id: ts.approved_by },
+                  select: { email: true },
+                });
+                approverName = user ? (user.email ?? null) : null;
+              }
+            }
+          }
+        }
+
+        formatted.timesheet = {
+          ...ts,
+          approved_by: approverName,
+        };
+      }
 
       return {
         success: true,
@@ -773,14 +812,14 @@ export class ShiftService {
       // If a date range is supplied, create new shifts for dates that do not match the current shift date
       let createdShifts: any[] = [];
       if (isDateRangeUpdate) {
-        const shiftDates = this.getShiftDates(
+        const shiftDates = getShiftDates(
           updateShiftDto.start_date,
           updateShiftDto.end_date,
         );
 
-        const currentDateKey = this.formatDateKey(existingShift?.start_date);
+        const currentDateKey = formatDateKey(existingShift?.start_date);
         const shiftDatesToCreate = shiftDates.filter(
-          (shiftDate) => this.formatDateKey(shiftDate) !== currentDateKey,
+          (shiftDate) => formatDateKey(shiftDate) !== currentDateKey,
         );
 
         if (shiftDatesToCreate.length) {
@@ -874,7 +913,9 @@ export class ShiftService {
             }
           }
 
-          createdShifts = await this.createAndLogShifts({
+          createdShifts = await createAndLogShifts({
+            prisma: this.prisma,
+            activityLogService: this.activityLogService,
             serviceProviderId: shift.service_provider_id,
             createdByEmployeeId:
               updateShiftDto.created_by_employee_id ??
@@ -1058,7 +1099,7 @@ export class ShiftService {
         throw new NotFoundException('Service provider not found');
       }
 
-      const increments = this.normalizeBonusOptions(
+      const increments = normalizeBonusOptions(
         provider.emergency_bonus_increments,
       );
 
@@ -1075,163 +1116,5 @@ export class ShiftService {
         'Failed to fetch emergency bonus options',
       );
     }
-  }
-
-  private getShiftDates(startDateValue: string, endDateValue?: string) {
-    const startDate = new Date(startDateValue);
-    if (Number.isNaN(startDate.getTime())) {
-      throw new BadRequestException('Invalid start_date value');
-    }
-
-    const endDate = endDateValue ? new Date(endDateValue) : startDate;
-    if (Number.isNaN(endDate.getTime())) {
-      throw new BadRequestException('Invalid end_date value');
-    }
-
-    if (endDate.getTime() < startDate.getTime()) {
-      throw new BadRequestException(
-        'end_date must be greater than or equal to start_date',
-      );
-    }
-
-    const dates: Date[] = [];
-    const currentDate = new Date(startDate);
-    currentDate.setHours(0, 0, 0, 0);
-    const finalDate = new Date(endDate);
-    finalDate.setHours(0, 0, 0, 0);
-
-    while (currentDate.getTime() <= finalDate.getTime()) {
-      dates.push(new Date(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return dates;
-  }
-
-  private normalizeBonusOptions(
-    value: Prisma.JsonValue | null | undefined,
-  ): number[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return Array.from(
-      new Set(
-        value
-          .map((item) => Number(item))
-          .filter((num) => !Number.isNaN(num) && num >= 0),
-      ),
-    ).sort((a, b) => a - b);
-  }
-
-  private formatDateKey(value: Date | string): string {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
-
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
-  }
-
-  private calculateShiftHours(
-    startTimeValue: Date,
-    endTimeValue: Date,
-  ): number {
-    const startTime = new Date(startTimeValue);
-    const endTime = new Date(endTimeValue);
-
-    if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-      return 0;
-    }
-
-    let diffMs = endTime.getTime() - startTime.getTime();
-    if (diffMs < 0) {
-      diffMs += 24 * 60 * 60 * 1000;
-    }
-
-    return diffMs > 0 ? Number((diffMs / (1000 * 60 * 60)).toFixed(2)) : 0;
-  }
-
-  private async createAndLogShifts(params: {
-    serviceProviderId: string;
-    createdByEmployeeId?: string | null;
-    assignedStaffId?: string | null;
-    postingTitle: string;
-    shiftType: any;
-    professionRole: any;
-    isUrgent?: boolean;
-    shiftDates: Date[];
-    startTimeValue: string | Date;
-    endTimeValue: string | Date;
-    facilityName?: string;
-    fullAddress?: string | null;
-    latitude?: number | null;
-    longitude?: number | null;
-    payRateHourly: number;
-    signingBonus?: number | null;
-    internalPoNumber?: string | null;
-    emergencyBonus?: number;
-    notes?: string | null;
-    status?: any;
-    requestingUserId?: string;
-  }) {
-    const created = await this.prisma.$transaction(
-      params.shiftDates.map((shiftDate) =>
-        this.prisma.shift.create({
-          data: {
-            service_provider_id: params.serviceProviderId,
-            created_by_employee_id: params.createdByEmployeeId ?? undefined,
-            assigned_staff_id: params.assignedStaffId ?? null,
-            posting_title: params.postingTitle,
-            shift_type: params.shiftType,
-            profession_role: params.professionRole,
-            is_urgent: params.isUrgent ?? false,
-            start_date: shiftDate,
-            end_date: shiftDate,
-            start_time: new Date(params.startTimeValue),
-            end_time: new Date(params.endTimeValue),
-            facility_name: params.facilityName,
-            full_address: params.fullAddress ?? null,
-            latitude: params.latitude ?? null,
-            longitude: params.longitude ?? null,
-            pay_rate_hourly: params.payRateHourly,
-            signing_bonus: params.signingBonus ?? null,
-            internal_po_number: params.internalPoNumber ?? null,
-            emergency_bonus: params.emergencyBonus ?? 0,
-            notes: params.notes ?? null,
-            status: params.status ?? ShiftStatus.published,
-          },
-          select: {
-            id: true,
-            posting_title: true,
-            shift_type: true,
-            profession_role: true,
-            start_date: true,
-            start_time: true,
-            facility_name: true,
-            status: true,
-            created_at: true,
-          },
-        }),
-      ),
-    );
-
-    await Promise.all(
-      created.map((c) =>
-        this.activityLogService.logShiftCreate(
-          params.requestingUserId ?? '',
-          c.id,
-          params.postingTitle,
-          params.facilityName,
-          params.emergencyBonus ?? 0,
-        ),
-      ),
-    );
-
-    return created;
   }
 }

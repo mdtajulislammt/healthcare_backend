@@ -162,10 +162,16 @@ export class ShiftApplicationService {
                 roles: true,
                 mobile_code: true,
                 mobile_number: true,
-                user: { 
+                user: {
                   select: {
                     id: true,
                     email: true,
+                  },
+                },
+                reviews: {
+                  where: { status: 'approved' },
+                  select: {
+                    rating: true,
                   },
                 },
               },
@@ -179,14 +185,29 @@ export class ShiftApplicationService {
 
       const storage = appConfig().storageUrl.staff;
       const formatted = applications.map((application) => {
+        const staffReviews = application.staff?.reviews ?? [];
+        const reviewCount = staffReviews.length;
+        const avgRating = reviewCount
+          ? staffReviews.reduce((s, r) => s + (r.rating ?? 0), 0) / reviewCount
+          : null;
+
         const staff = application.staff
           ? {
-              ...application.staff,
+              id: application.staff.id,
+              first_name: application.staff.first_name,
+              last_name: application.staff.last_name,
+              roles: application.staff.roles,
+              mobile_code: application.staff.mobile_code,
+              mobile_number: application.staff.mobile_number,
+              user: application.staff.user,
               photo_url: application.staff.photo_url
                 ? SojebStorage.url(storage + application.staff.photo_url)
                 : null,
+              avg_rating: avgRating !== null ? Number(avgRating.toFixed(1)) : null,
+              review_count: reviewCount,
             }
           : null;
+
         return {
           ...application,
           staff,
@@ -593,6 +614,7 @@ export class ShiftApplicationService {
               cv_url: true,
               roles: true,
               right_to_work_status: true,
+              experience: true,
               user: {
                 select: {
                   id: true,
@@ -630,6 +652,15 @@ export class ShiftApplicationService {
                 },
               },
               dbs_info: true,
+              reviews: {
+                where: { status: 'approved' },
+                select: {
+                  id: true,
+                  rating: true,
+                  feedback: true,
+                  created_at: true,
+                },
+              },
             },
           },
         },
@@ -654,6 +685,12 @@ export class ShiftApplicationService {
       }
 
       const storageConfig = appConfig().storageUrl;
+      const staffReviews = staffProfile.reviews ?? [];
+      const staffReviewCount = staffReviews.length;
+      const staffAvgRating = staffReviewCount
+        ? staffReviews.reduce((s, r) => s + (r.rating ?? 0), 0) / staffReviewCount
+        : null;
+
       const staff = {
         ...staffProfile,
         photo_url: staffProfile.photo_url
@@ -671,6 +708,8 @@ export class ShiftApplicationService {
                 )
               : null,
           })) ?? [],
+        avg_rating: staffAvgRating !== null ? Number(staffAvgRating.toFixed(1)) : null,
+        review_count: staffReviewCount,
       };
 
       const applicationData = {

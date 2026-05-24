@@ -1469,4 +1469,34 @@ export class StaffService {
       );
     }
   }
+
+  async updateAdminNote(id: string, admin_note: string) {
+    try {
+     
+      const staff = await this.prisma.staffProfile.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!staff) throw new NotFoundException('Staff not found');
+
+      const updated = await this.prisma.staffProfile.update({
+        where: { id },
+        data: { admin_note },
+        select: {
+          id: true,
+          admin_note: true,
+          updated_at: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Admin note updated successfully',
+        data: updated,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Failed to update admin note');
+    }
+  }
 }

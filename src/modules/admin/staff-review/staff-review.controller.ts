@@ -5,9 +5,12 @@ import {
   Param,
   Query,
   UseGuards,
+  Patch,
+  Body,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StaffReviewService } from './staff-review.service';
+import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
@@ -53,5 +56,11 @@ export class StaffReviewController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.staffReviewService.remove(id || '');
+  }
+
+  @ApiOperation({ summary: 'Update staff review status' })
+  @Patch(':id/status')
+  updateStatus(@Param('id') id: string, @Body() body: UpdateReviewStatusDto) {
+    return this.staffReviewService.updateStatus(id || '', body.status);
   }
 }

@@ -3,7 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { Prisma, StaffPerformanceReview } from '@prisma/client';
+import { Prisma, StaffPerformanceReview, ReviewStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -119,6 +119,7 @@ export class StaffReviewService {
             shift_id: true,
             rating: true,
             feedback: true,
+            status: true,
             admin_alert: true,
             created_by: true,
             created_at: true,
@@ -243,6 +244,7 @@ export class StaffReviewService {
           shift_id: true,
           rating: true,
           feedback: true,
+          status: true,
           admin_alert: true,
           created_by: true,
           created_at: true,
@@ -310,6 +312,39 @@ export class StaffReviewService {
         throw error;
       }
       throw new InternalServerErrorException('Failed to fetch staff review');
+    }
+  }
+
+  async updateStatus(id: string, status: ReviewStatus) {
+    try {
+      if (!id || !id.trim()) {
+        throw new BadRequestException('Review ID is required');
+      }
+
+      const review = await this.prisma.staffPerformanceReview.findUnique({
+        where: { id },
+        select: { id: true, status: true },
+      });
+
+      if (!review) {
+        throw new BadRequestException('Staff review not found');
+      }
+
+      const updated = await this.prisma.staffPerformanceReview.update({
+        where: { id },
+        data: { status },
+      });
+
+      return {
+        success: true,
+        message: 'Staff review status updated successfully',
+        data: updated,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update review status');
     }
   }
 }
