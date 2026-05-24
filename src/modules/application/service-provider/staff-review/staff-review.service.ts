@@ -66,11 +66,13 @@ export class StaffReviewService {
           rating: dto.rating,
           feedback: dto.feedback ?? null,
           admin_alert: adminAlert,
+          status: 'pending',
         },
         update: {
           rating: dto.rating,
           feedback: dto.feedback ?? null,
           admin_alert: adminAlert,
+          status: 'pending',
           created_at: new Date(),
         },
         include: {

@@ -21,6 +21,7 @@ import { Roles } from 'src/common/guard/role/roles.decorator';
 import { UpdateStaffStatusDto } from './dto/update-staff-status.dto';
 import { UpdateCertificateStatusDto } from './dto/update-certificate-status.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { UpdateAdminNoteDto } from './dto/update-admin-note.dto';
 
 @Controller('admin/staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -148,5 +149,13 @@ export class StaffController {
       certificateId,
       dto.verified_status,
     );
+  }
+
+  @Patch('admin-note/:staffId')
+  async updateAdminNote(
+    @Param('staffId') staffId: string,
+    @Body() dto: UpdateAdminNoteDto,
+  ) {
+    return this.staffService.updateAdminNote(staffId, dto.admin_note);
   }
 }

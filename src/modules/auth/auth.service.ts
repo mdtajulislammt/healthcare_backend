@@ -127,7 +127,7 @@ export class AuthService {
         }
       } else if (user.type === 'admin') {
         if (user.admin_profile) {
-          name = `${user.admin_profile.first_name} ${user.admin_profile.last_name}`;
+          name = `${user.admin_profile.first_name} ${user.admin_profile.last_name || ''}`;
           if (user.admin_profile.photo_url) {
             avatar_url = SojebStorage.url(
               appConfig().storageUrl.avatar + user.admin_profile.photo_url,
