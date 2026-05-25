@@ -203,7 +203,8 @@ export class ShiftApplicationService {
               photo_url: application.staff.photo_url
                 ? SojebStorage.url(storage + application.staff.photo_url)
                 : null,
-              avg_rating: avgRating !== null ? Number(avgRating.toFixed(1)) : null,
+              avg_rating:
+                avgRating !== null ? Number(avgRating.toFixed(1)) : null,
               review_count: reviewCount,
             }
           : null;
@@ -572,6 +573,9 @@ export class ShiftApplicationService {
 
   async viewApplicantProfile(applicationId: string, user_id: string) {
     try {
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
       const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
         where: { user_id },
         select: { id: true },
@@ -619,6 +623,22 @@ export class ShiftApplicationService {
                 select: {
                   id: true,
                   email: true,
+                  activity_logs: {
+                    where: {
+                      created_at: { gte: twelveMonthsAgo },
+                    },
+                    select: {
+                      id: true,
+                      action_type: true,
+                      entity_type: true,
+                      entity_id: true,
+                      description: true,
+                      metadata: true,
+                      created_at: true,
+                    },
+                    orderBy: { created_at: 'desc' },
+                    take: 50, // limit to last 50 logs
+                  },
                 },
               },
               certificates: {
@@ -639,18 +659,6 @@ export class ShiftApplicationService {
                   end_date: true,
                 },
               },
-              current_address: {
-                select: {
-                  id: true,
-                  address: true,
-                  city: true,
-                  state: true,
-                  zip: true,
-                  country: true,
-                  from_date: true,
-                  to_date: true,
-                },
-              },
               dbs_info: true,
               reviews: {
                 where: { status: 'approved' },
@@ -660,6 +668,58 @@ export class ShiftApplicationService {
                   feedback: true,
                   created_at: true,
                 },
+              },
+              // --- Performance: last 12 months ---
+              timesheets: {
+                where: {
+                  status: { in: ['approved', 'invoiced', 'paid'] },
+                  created_at: { gte: twelveMonthsAgo },
+                },
+                select: {
+                  total_hours: true,
+                  shift: {
+                    select: {
+                      start_time: true,
+                      attendance: {
+                        select: {
+                          check_in_time: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              applications: {
+                where: {
+                  applied_at: { gte: twelveMonthsAgo },
+                },
+                select: {
+                  status: true,
+                },
+              },
+              shifts_assigned: {
+                where: {
+                  start_date: { gte: twelveMonthsAgo },
+                  status: { in: ['completed', 'assigned'] },
+                },
+                select: {
+                  id: true,
+                  posting_title: true,
+                  status: true,
+                  facility_name: true,
+                  start_date: true,
+                  start_time: true,
+                  end_time: true,
+                  profession_role: true,
+                  is_urgent: true,
+                  timesheet: {
+                    select: {
+                      total_hours: true,
+                      total_pay: true,
+                    },
+                  },
+                },
+                orderBy: { start_date: 'desc' },
               },
             },
           },
@@ -685,12 +745,91 @@ export class ShiftApplicationService {
       }
 
       const storageConfig = appConfig().storageUrl;
+
+      // --- Ratings ---
       const staffReviews = staffProfile.reviews ?? [];
       const staffReviewCount = staffReviews.length;
       const staffAvgRating = staffReviewCount
-        ? staffReviews.reduce((s, r) => s + (r.rating ?? 0), 0) / staffReviewCount
+        ? staffReviews.reduce((s, r) => s + (r.rating ?? 0), 0) /
+          staffReviewCount
         : null;
 
+      // --- Performance Stats ---
+      const timesheets = staffProfile.timesheets ?? [];
+      const applications = staffProfile.applications ?? [];
+
+      const totalShifts = timesheets.length;
+
+      const totalHours = timesheets.reduce(
+        (sum, t) => sum + (t.total_hours ?? 0),
+        0,
+      );
+
+      const shiftsWithAttendance = timesheets.filter(
+        (t) => t.shift?.attendance?.check_in_time,
+      );
+      const onTimeCount = shiftsWithAttendance.filter((t) => {
+        const checkIn = new Date(t.shift.attendance.check_in_time).getTime();
+        const shiftStart = new Date(t.shift.start_time).getTime();
+        const fiveMinutes = 5 * 60 * 1000;
+        return checkIn <= shiftStart + fiveMinutes;
+      }).length;
+
+      const onTimeRate =
+        shiftsWithAttendance.length > 0
+          ? Math.round((onTimeCount / shiftsWithAttendance.length) * 100)
+          : null;
+
+      const totalApplications = applications.length;
+      const cancelledCount = applications.filter(
+        (a) => a.status === 'cancelled',
+      ).length;
+      const cancellationRate =
+        totalApplications > 0
+          ? Number(((cancelledCount / totalApplications) * 100).toFixed(1))
+          : null;
+
+      const performance = {
+        period: 'last_12_months',
+        total_shifts: totalShifts,
+        total_hours: Number(totalHours.toFixed(1)),
+        on_time_rate: onTimeRate !== null ? `${onTimeRate}%` : null,
+        cancellation_rate:
+          cancellationRate !== null ? `${cancellationRate}%` : null,
+      };
+
+      // --- Shift History ---
+      const shiftHistory = (staffProfile.shifts_assigned ?? []).map((shift) => {
+        const hours = shift.timesheet?.total_hours ?? null;
+        const pay = shift.timesheet?.total_pay ?? null;
+
+        return {
+          id: shift.id,
+          posting_title: shift.posting_title,
+          profession_role: shift.profession_role,
+          is_urgent: shift.is_urgent,
+          status: shift.status,
+          facility_name: shift.facility_name,
+          start_date: shift.start_date,
+          duration_hours: hours !== null ? Number(hours.toFixed(1)) : null,
+          total_pay: pay !== null ? Number(pay.toFixed(2)) : null,
+        };
+      });
+
+      // --- Activity Log ---
+      const activityLogs = (staffProfile.user?.activity_logs ?? []).map(
+        (log) => ({
+          id: log.id,
+          action_type: log.action_type,
+          entity_type: log.entity_type ?? null,
+          entity_id: log.entity_id ?? null,
+          description: log.description,
+          metadata: log.metadata ?? null,
+          created_at: log.created_at,
+        }),
+      );
+
+      // --- Build Staff Object ---
       const staff = {
         ...staffProfile,
         photo_url: staffProfile.photo_url
@@ -708,8 +847,12 @@ export class ShiftApplicationService {
                 )
               : null,
           })) ?? [],
-        avg_rating: staffAvgRating !== null ? Number(staffAvgRating.toFixed(1)) : null,
+        avg_rating:
+          staffAvgRating !== null ? Number(staffAvgRating.toFixed(1)) : null,
         review_count: staffReviewCount,
+        performance,
+        shift_history: shiftHistory,
+        activity_logs: activityLogs,
       };
 
       const applicationData = {
