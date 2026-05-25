@@ -1472,7 +1472,6 @@ export class StaffService {
 
   async updateAdminNote(id: string, admin_note: string) {
     try {
-     
       const staff = await this.prisma.staffProfile.findUnique({
         where: { id },
         select: { id: true },
