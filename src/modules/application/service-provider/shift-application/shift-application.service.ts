@@ -618,7 +618,9 @@ export class ShiftApplicationService {
               cv_url: true,
               roles: true,
               right_to_work_status: true,
+              nmc_pin: true,
               experience: true,
+              created_at: true,
               user: {
                 select: {
                   id: true,
@@ -720,6 +722,7 @@ export class ShiftApplicationService {
                   },
                 },
                 orderBy: { start_date: 'desc' },
+                take: 5,
               },
             },
           },
@@ -744,6 +747,23 @@ export class ShiftApplicationService {
         );
       }
 
+      const preference = await this.prisma.providerStaffPreference.findMany({
+        where: {
+          provider_id: serviceProvider.id,
+          staff_id: staffProfile.id,
+        },
+        select: {
+          preference_type: true,
+        },
+      });
+
+      const is_favorite = preference.some(
+        (p) => p.preference_type === 'favorite',
+      );
+      const is_blocked = preference.some(
+        (p) => p.preference_type === 'blocked',
+      );
+
       const storageConfig = appConfig().storageUrl;
 
       // --- Ratings ---
@@ -756,6 +776,7 @@ export class ShiftApplicationService {
 
       // --- Performance Stats ---
       const timesheets = staffProfile.timesheets ?? [];
+
       const applications = staffProfile.applications ?? [];
 
       const totalShifts = timesheets.length;
@@ -850,6 +871,8 @@ export class ShiftApplicationService {
         avg_rating:
           staffAvgRating !== null ? Number(staffAvgRating.toFixed(1)) : null,
         review_count: staffReviewCount,
+        is_favorite,
+        is_blocked,
         performance,
         shift_history: shiftHistory,
         activity_logs: activityLogs,
