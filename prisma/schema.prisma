@@ -520,10 +520,13 @@ model ServiceProviderInfo {
   last_name                  String
   mobile_code                String?
   mobile_number              String?
+  second_mobile_code         String?
+  second_mobile_number       String?
   facility_name              String?
   brand_logo_url             String?
   agreed_to_terms            Boolean     @default(false)
   organization_name          String
+  register_manager_name      String?
   website                    String?
   cqc_provider_number        String
   vat_tax_id                 String?
@@ -598,6 +601,8 @@ model StaffProfile {
   experience      String?
   nmc_pin         String?
   agreed_to_terms Boolean  @default(false)
+  gender          String?
+  age             Int?
 
   // Step 2: Role & Work Status
   roles                StaffRole[] // additional roles (multi-select)
@@ -908,7 +913,7 @@ model ProviderStaffPreference {
 }
 
 model StaffPerformanceReview {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   provider_id String
   staff_id    String
   shift_id    String
@@ -916,8 +921,8 @@ model StaffPerformanceReview {
   feedback    String?
   status      ReviewStatus @default(pending) // pending, approved, rejected
   created_by  String? // employee_id of reviewer (optional)
-  admin_alert Boolean  @default(false) // trigger if rating < 3
-  created_at  DateTime @default(now())
+  admin_alert Boolean      @default(false) // trigger if rating < 3
+  created_at  DateTime     @default(now())
 
   // Relations
   provider ServiceProviderInfo @relation(fields: [provider_id], references: [id], onDelete: Cascade)

@@ -1,21 +1,21 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma, ProfessionRole } from '@prisma/client';
-import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
-import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
+import * as bcrypt from 'bcrypt';
+import { StringHelper } from 'src/common/helper/string.helper';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import { StripePayment } from 'src/common/lib/Payment/stripe/StripePayment';
 import appConfig from 'src/config/app.config';
-import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdatePayRateByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rate-by-role.dto';
 import { UpdatePayRatesByRoleDto } from 'src/modules/admin/service-provider/dto/update-pay-rates-by-role.dto';
-import { StringHelper } from 'src/common/helper/string.helper';
-import { StripePayment } from 'src/common/lib/Payment/stripe/StripePayment';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
+import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
+import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
 
 @Injectable()
 export class ServiceProviderService {
@@ -111,6 +111,10 @@ export class ServiceProviderService {
             last_name: createServiceProviderDto.last_name,
             mobile_code: createServiceProviderDto.mobile_code,
             mobile_number: createServiceProviderDto.mobile_number,
+            second_mobile_code: createServiceProviderDto.second_mobile_code,
+            second_mobile_number: createServiceProviderDto.second_mobile_number,
+            register_manager_name:
+              createServiceProviderDto.register_manager_name,
             organization_name: createServiceProviderDto.organization_name,
             website: createServiceProviderDto.website,
             cqc_provider_number: createServiceProviderDto.cqc_provider_number,
@@ -469,6 +473,21 @@ export class ServiceProviderService {
 
       if (brandLogoFileName !== undefined) {
         updatePayload.brand_logo_url = brandLogoFileName;
+      }
+
+      if (updateServiceProviderDto.second_mobile_code !== undefined) {
+        updatePayload.second_mobile_code =
+          updateServiceProviderDto.second_mobile_code;
+      }
+
+      if (updateServiceProviderDto.second_mobile_number !== undefined) {
+        updatePayload.second_mobile_number =
+          updateServiceProviderDto.second_mobile_number;
+      }
+
+      if (updateServiceProviderDto.register_manager_name !== undefined) {
+        updatePayload.register_manager_name =
+          updateServiceProviderDto.register_manager_name;
       }
 
       const agreedToTerms =
@@ -898,17 +917,38 @@ export class ServiceProviderService {
 
   async getStats() {
     try {
+      const andBaseCondition = {
+        user: {
+          deleted_at: null,
+        },
+      };
+
       const [total, pending, active, suspended] =
         await this.prisma.$transaction([
-          this.prisma.serviceProviderInfo.count(),
+          // total (same base condition)
           this.prisma.serviceProviderInfo.count({
-            where: { user: { status: 0 } },
+            where: andBaseCondition,
           }),
+
+          // pending
           this.prisma.serviceProviderInfo.count({
-            where: { user: { status: 1 } },
+            where: {
+              AND: [andBaseCondition, { user: { status: 0 } }],
+            },
           }),
+
+          // active
           this.prisma.serviceProviderInfo.count({
-            where: { user: { status: 2 } },
+            where: {
+              AND: [andBaseCondition, { user: { status: 1 } }],
+            },
+          }),
+
+          // suspended
+          this.prisma.serviceProviderInfo.count({
+            where: {
+              AND: [andBaseCondition, { user: { status: 2 } }],
+            },
           }),
         ]);
 

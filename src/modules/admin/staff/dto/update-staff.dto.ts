@@ -1,8 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { PartialType } from '@nestjs/swagger';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
 import {
   IsDateString,
-  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -69,4 +67,10 @@ export class UpdateStaffDto extends PartialType(UpdateStaffProfileDto) {
   @IsNotEmpty()
   @ApiProperty({ description: 'Agree to terms', required: false })
   agreed_to_terms?: boolean;
+
+  @IsOptional()
+  gender?: string;
+
+  @IsOptional()
+  age?: number;
 }

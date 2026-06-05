@@ -1,19 +1,18 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { CertificateVerificationStatus, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { CreateStaffDto } from './dto/create-staff.dto';
-import { UpdateStaffDto } from './dto/update-staff.dto';
-import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
-import appConfig from 'src/config/app.config';
-import { CertificateVerificationStatus } from '@prisma/client';
 import { calculateStaffProfileCompletion } from 'src/common/helper/profile-completion.helper';
 import { StringHelper } from 'src/common/helper/string.helper';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
+import appConfig from 'src/config/app.config';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { CreateStaffDto } from './dto/create-staff.dto';
+import { UpdateStaffDto } from './dto/update-staff.dto';
 
 @Injectable()
 export class StaffService {
@@ -336,6 +335,8 @@ export class StaffService {
             agreed_to_terms: agreedStaff ?? true,
             experience: createStaffDto.experience,
             nmc_pin: createStaffDto.nmc_pin,
+            gender: createStaffDto.gender,
+            age: createStaffDto.age,
           },
         });
 
@@ -835,6 +836,14 @@ export class StaffService {
 
       if (updateStaffDto.agreed_to_terms !== undefined) {
         updatePayload.agreed_to_terms = updateStaffDto.agreed_to_terms;
+      }
+
+      if (updateStaffDto.gender !== undefined) {
+        updatePayload.gender = updateStaffDto.gender;
+      }
+
+      if (updateStaffDto.age !== undefined) {
+        updatePayload.age = updateStaffDto.age;
       }
 
       if (staffPhotoFileName !== undefined) {
