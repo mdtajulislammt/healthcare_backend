@@ -573,9 +573,7 @@ export class ShiftApplicationService {
 
   async viewApplicantProfile(applicationId: string, user_id: string) {
     try {
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
-
+      // ─── Resolve Service Provider ─────────────────────────────────────────────
       const serviceProvider = await this.prisma.serviceProviderInfo.findFirst({
         where: { user_id },
         select: { id: true },
@@ -587,6 +585,11 @@ export class ShiftApplicationService {
         );
       }
 
+      // ─── Date Range ───────────────────────────────────────────────────────────
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+      // ─── Fetch Application ────────────────────────────────────────────────────
       const application = await this.prisma.shiftApplication.findUnique({
         where: { id: applicationId },
         include: {
@@ -626,9 +629,7 @@ export class ShiftApplicationService {
                   id: true,
                   email: true,
                   activity_logs: {
-                    where: {
-                      created_at: { gte: twelveMonthsAgo },
-                    },
+                    where: { created_at: { gte: twelveMonthsAgo } },
                     select: {
                       id: true,
                       action_type: true,
@@ -639,7 +640,7 @@ export class ShiftApplicationService {
                       created_at: true,
                     },
                     orderBy: { created_at: 'desc' },
-                    take: 50, // limit to last 50 logs
+                    take: 50,
                   },
                 },
               },
@@ -671,33 +672,32 @@ export class ShiftApplicationService {
                   created_at: true,
                 },
               },
-              // --- Performance: last 12 months ---
               timesheets: {
                 where: {
-                  status: { in: ['approved', 'invoiced', 'paid'] },
+                  status: {
+                    in: [
+                      'approved',
+                      'invoiced',
+                      'paid',
+                      'submitted',
+                      'under_review',
+                    ],
+                  },
                   created_at: { gte: twelveMonthsAgo },
                 },
                 select: {
                   total_hours: true,
                   shift: {
                     select: {
+                      id: true,
                       start_time: true,
-                      attendance: {
-                        select: {
-                          check_in_time: true,
-                        },
-                      },
                     },
                   },
                 },
               },
               applications: {
-                where: {
-                  applied_at: { gte: twelveMonthsAgo },
-                },
-                select: {
-                  status: true,
-                },
+                where: { applied_at: { gte: twelveMonthsAgo } },
+                select: { status: true },
               },
               shifts_assigned: {
                 where: {
@@ -729,8 +729,9 @@ export class ShiftApplicationService {
         },
       });
 
+      // ─── Guards ───────────────────────────────────────────────────────────────
       if (!application) {
-        throw new NotFoundException('Application not found');
+        throw new NotFoundException('Application not found.');
       }
 
       if (application.shift.service_provider_id !== serviceProvider.id) {
@@ -743,88 +744,95 @@ export class ShiftApplicationService {
 
       if (!staffProfile) {
         throw new NotFoundException(
-          'Staff profile not found for this application',
+          'Staff profile not found for this application.',
         );
       }
 
-      const preference = await this.prisma.providerStaffPreference.findMany({
-        where: {
-          provider_id: serviceProvider.id,
-          staff_id: staffProfile.id,
-        },
-        select: {
-          preference_type: true,
-        },
-      });
+      // ─── Parallel Queries: Preference + Attendance ────────────────────────────
+      const timesheetShiftIds = (staffProfile.timesheets ?? [])
+        .map((t) => t.shift?.id)
+        .filter(Boolean) as string[];
 
-      const is_favorite = preference.some(
+      const [preferences, attendances] = await Promise.all([
+        this.prisma.providerStaffPreference.findMany({
+          where: {
+            provider_id: serviceProvider.id,
+            staff_id: staffProfile.id,
+          },
+          select: { preference_type: true },
+        }),
+        timesheetShiftIds.length
+          ? this.prisma.shiftAttendance.findMany({
+              where: { shift_id: { in: timesheetShiftIds } },
+              select: {
+                shift_id: true,
+                check_in_time: true,
+                shift: {
+                  select: { start_time: true },
+                },
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      // ─── Preference Flags ─────────────────────────────────────────────────────
+      const is_favorite = preferences.some(
         (p) => p.preference_type === 'favorite',
       );
-      const is_blocked = preference.some(
+      const is_blocked = preferences.some(
         (p) => p.preference_type === 'blocked',
       );
 
-      const storageConfig = appConfig().storageUrl;
-
-      // --- Ratings ---
-      const staffReviews = staffProfile.reviews ?? [];
-      const staffReviewCount = staffReviews.length;
-      const staffAvgRating = staffReviewCount
-        ? staffReviews.reduce((s, r) => s + (r.rating ?? 0), 0) /
-          staffReviewCount
+      // ─── Ratings ──────────────────────────────────────────────────────────────
+      const reviews = staffProfile.reviews ?? [];
+      const reviewCount = reviews.length;
+      const avgRatingRaw = reviewCount
+        ? reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0) / reviewCount
         : null;
+      const avg_rating =
+        avgRatingRaw !== null ? Number(avgRatingRaw.toFixed(1)) : null;
 
-      // --- Performance Stats ---
+      // ─── Performance Stats ────────────────────────────────────────────────────
       const timesheets = staffProfile.timesheets ?? [];
-
       const applications = staffProfile.applications ?? [];
 
-      const totalShifts = timesheets.length;
-
-      const totalHours = timesheets.reduce(
-        (sum, t) => sum + (t.total_hours ?? 0),
-        0,
+      const total_shifts = timesheets.length;
+      const total_hours = Number(
+        timesheets.reduce((sum, t) => sum + (t.total_hours ?? 0), 0).toFixed(1),
       );
 
-      const shiftsWithAttendance = timesheets.filter(
-        (t) => t.shift?.attendance?.check_in_time,
-      );
-      const onTimeCount = shiftsWithAttendance.filter((t) => {
-        const checkIn = new Date(t.shift.attendance.check_in_time).getTime();
-        const shiftStart = new Date(t.shift.start_time).getTime();
-        const fiveMinutes = 5 * 60 * 1000;
-        return checkIn <= shiftStart + fiveMinutes;
+      const attendedShifts = attendances.filter((a) => a.check_in_time);
+
+      const onTimeCount = attendedShifts.filter((a) => {
+        const checkIn = new Date(a.check_in_time!).getTime();
+        const shiftStart = new Date(a.shift.start_time).getTime();
+        return checkIn <= shiftStart + 15 * 60 * 1000; // within 5 min
       }).length;
 
-      const onTimeRate =
-        shiftsWithAttendance.length > 0
-          ? Math.round((onTimeCount / shiftsWithAttendance.length) * 100)
+      const on_time_rate =
+        attendedShifts.length > 0
+          ? `${Math.round((onTimeCount / attendedShifts.length) * 100)}%`
           : null;
 
-      const totalApplications = applications.length;
       const cancelledCount = applications.filter(
         (a) => a.status === 'cancelled',
       ).length;
-      const cancellationRate =
-        totalApplications > 0
-          ? Number(((cancelledCount / totalApplications) * 100).toFixed(1))
+      const cancellation_rate =
+        applications.length > 0
+          ? `${Number(((cancelledCount / applications.length) * 100).toFixed(1))}%`
           : null;
 
       const performance = {
         period: 'last_12_months',
-        total_shifts: totalShifts,
-        total_hours: Number(totalHours.toFixed(1)),
-        on_time_rate: onTimeRate !== null ? `${onTimeRate}%` : null,
-        cancellation_rate:
-          cancellationRate !== null ? `${cancellationRate}%` : null,
+        total_shifts,
+        total_hours,
+        on_time_rate,
+        cancellation_rate,
       };
 
-      // --- Shift History ---
-      const shiftHistory = (staffProfile.shifts_assigned ?? []).map((shift) => {
-        const hours = shift.timesheet?.total_hours ?? null;
-        const pay = shift.timesheet?.total_pay ?? null;
-
-        return {
+      // ─── Shift History ────────────────────────────────────────────────────────
+      const shift_history = (staffProfile.shifts_assigned ?? []).map(
+        (shift) => ({
           id: shift.id,
           posting_title: shift.posting_title,
           profession_role: shift.profession_role,
@@ -832,13 +840,19 @@ export class ShiftApplicationService {
           status: shift.status,
           facility_name: shift.facility_name,
           start_date: shift.start_date,
-          duration_hours: hours !== null ? Number(hours.toFixed(1)) : null,
-          total_pay: pay !== null ? Number(pay.toFixed(2)) : null,
-        };
-      });
+          duration_hours:
+            shift.timesheet?.total_hours != null
+              ? Number(shift.timesheet.total_hours.toFixed(1))
+              : null,
+          total_pay:
+            shift.timesheet?.total_pay != null
+              ? Number(shift.timesheet.total_pay.toFixed(2))
+              : null,
+        }),
+      );
 
-      // --- Activity Log ---
-      const activityLogs = (staffProfile.user?.activity_logs ?? []).map(
+      // ─── Activity Logs ────────────────────────────────────────────────────────
+      const activity_logs = (staffProfile.user?.activity_logs ?? []).map(
         (log) => ({
           id: log.id,
           action_type: log.action_type,
@@ -850,48 +864,42 @@ export class ShiftApplicationService {
         }),
       );
 
-      // --- Build Staff Object ---
+      // ─── Storage URLs ─────────────────────────────────────────────────────────
+      const storageConfig = appConfig().storageUrl;
+
+      const resolveUrl = (base: string, path: string | null) =>
+        path ? SojebStorage.url(base + path) : null;
+
+      // ─── Build Response ───────────────────────────────────────────────────────
       const staff = {
         ...staffProfile,
-        photo_url: staffProfile.photo_url
-          ? SojebStorage.url(storageConfig.staff + staffProfile.photo_url)
-          : null,
-        cv_url: staffProfile.cv_url
-          ? SojebStorage.url(storageConfig.cv + staffProfile.cv_url)
-          : null,
-        certificates:
-          staffProfile.certificates?.map((certificate) => ({
-            ...certificate,
-            file_url: certificate.file_url
-              ? SojebStorage.url(
-                  storageConfig.certificate + certificate.file_url,
-                )
-              : null,
-          })) ?? [],
-        avg_rating:
-          staffAvgRating !== null ? Number(staffAvgRating.toFixed(1)) : null,
-        review_count: staffReviewCount,
+        photo_url: resolveUrl(storageConfig.staff, staffProfile.photo_url),
+        cv_url: resolveUrl(storageConfig.cv, staffProfile.cv_url),
+        avg_rating,
+        review_count: reviewCount,
         is_favorite,
         is_blocked,
         performance,
-        shift_history: shiftHistory,
-        activity_logs: activityLogs,
-      };
-
-      const applicationData = {
-        id: application.id,
-        status: application.status,
-        applied_at: application.applied_at,
-        reviewed_at: application.reviewed_at,
-        notes: application.notes,
-        shift: application.shift,
+        shift_history,
+        activity_logs,
+        certificates: (staffProfile.certificates ?? []).map((cert) => ({
+          ...cert,
+          file_url: resolveUrl(storageConfig.certificate, cert.file_url),
+        })),
       };
 
       return {
         success: true,
-        message: 'Applicant profile fetched successfully',
+        message: 'Applicant profile fetched successfully.',
         data: {
-          application: applicationData,
+          application: {
+            id: application.id,
+            status: application.status,
+            applied_at: application.applied_at,
+            reviewed_at: application.reviewed_at,
+            notes: application.notes,
+            shift: application.shift,
+          },
           staff,
         },
       };
