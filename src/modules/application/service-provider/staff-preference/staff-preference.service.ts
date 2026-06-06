@@ -35,15 +35,39 @@ export class StaffPreferenceService {
         throw new NotFoundException('Staff profile not found.');
       }
 
-      // Determine the opposite preference type
       const oppositePreferenceType =
         preferenceType === StaffPreferenceType.favorite
           ? StaffPreferenceType.blocked
           : StaffPreferenceType.favorite;
 
-      // Use transaction to ensure atomicity
-      const preference = await this.prisma.$transaction(async (tx) => {
-        // Delete opposite preference if exists
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Check if this exact preference already exists
+        const existing = await tx.providerStaffPreference.findUnique({
+          where: {
+            provider_id_staff_id_preference_type: {
+              provider_id: serviceProviderId,
+              staff_id: staffId,
+              preference_type: preferenceType,
+            },
+          },
+        });
+
+        // --- TOGGLE OFF: already exists → delete it ---
+        if (existing) {
+          await tx.providerStaffPreference.delete({
+            where: {
+              provider_id_staff_id_preference_type: {
+                provider_id: serviceProviderId,
+                staff_id: staffId,
+                preference_type: preferenceType,
+              },
+            },
+          });
+
+          return { toggled: false, preference: null };
+        }
+
+        // --- TOGGLE ON: doesn't exist → delete opposite, then create ---
         await tx.providerStaffPreference.deleteMany({
           where: {
             provider_id: serviceProviderId,
@@ -52,22 +76,11 @@ export class StaffPreferenceService {
           },
         });
 
-        // Upsert the new preference
-        return tx.providerStaffPreference.upsert({
-          where: {
-            provider_id_staff_id_preference_type: {
-              provider_id: serviceProviderId,
-              staff_id: staffId,
-              preference_type: preferenceType,
-            },
-          },
-          create: {
+        const preference = await tx.providerStaffPreference.create({
+          data: {
             provider_id: serviceProviderId,
             staff_id: staffId,
             preference_type: preferenceType,
-            reason: reason?.trim() || null,
-          },
-          update: {
             reason: reason?.trim() || null,
           },
           include: {
@@ -80,15 +93,35 @@ export class StaffPreferenceService {
             },
           },
         });
+
+        return { toggled: true, preference };
       });
+
+      // --- Response based on toggle state ---
+      const staffName = `${staff.first_name} ${staff.last_name}`;
+
+      if (!result.toggled) {
+        return {
+          success: true,
+          is_favorite: false,
+          is_blocked: false,
+          message:
+            preferenceType === StaffPreferenceType.favorite
+              ? `${staffName} removed from favorites`
+              : `${staffName} has been unblocked`,
+          data: null,
+        };
+      }
 
       return {
         success: true,
+        is_favorite: preferenceType === StaffPreferenceType.favorite,
+        is_blocked: preferenceType === StaffPreferenceType.blocked,
         message:
-          preferenceType === 'favorite'
-            ? 'Staff added to favorites successfully'
-            : 'Staff blocked successfully',
-        data: preference,
+          preferenceType === StaffPreferenceType.favorite
+            ? `${staffName} added to favorites`
+            : `${staffName} has been blocked`,
+        data: result.preference,
       };
     } catch (error) {
       if (
