@@ -21,14 +21,28 @@ export class XeroService {
       clientSecret: config.clientSecret || '',
       redirectUris: config.redirectUri ? [config.redirectUri] : [],
       scopes: [
-        'accounting.transactions',
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        // Contacts (for creating/syncing service provider contacts)
         'accounting.contacts',
+        'accounting.contacts.read',
+        // Invoices (for creating invoices from timesheets)
+        'accounting.invoices',
+        'accounting.invoices.read',
+        // Payments
+        'accounting.payments',
+        'accounting.payments.read',
+        // Settings
         'accounting.settings',
-        'offline_access', // Required to get refresh token
+        'accounting.settings.read',
+        // Attachments (optional, for invoice attachments)
+        'accounting.attachments',
+        'accounting.attachments.read',
       ],
     });
   }
-
   /**
    * Check if Xero is connected
    */
@@ -127,6 +141,7 @@ export class XeroService {
   async getAuthorizationUrl(): Promise<string> {
     try {
       const consentUrl = await this.xeroClient.buildConsentUrl();
+      this.logger.log('Xero consent URL: ' + consentUrl);
       return consentUrl;
     } catch (error) {
       this.logger.error('Failed to build Xero consent URL', error);
