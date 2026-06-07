@@ -9,6 +9,7 @@ import {
   IsString,
   Min,
 } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProfessionRole, ShiftStatus, ShiftType } from '@prisma/client';
 
 export class CreateShiftDto {
@@ -27,6 +28,7 @@ export class CreateShiftDto {
   @IsNotEmpty()
   @IsString()
   posting_title: string;
+
 
   @IsEnum(ShiftType)
   shift_type: ShiftType;
@@ -79,6 +81,12 @@ export class CreateShiftDto {
   @IsString()
   notes?: string;
 
+  @ApiPropertyOptional({
+    enum: ShiftStatus,
+    enumName: 'ShiftStatus',
+    example: ShiftStatus.draft,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(ShiftStatus)
   status?: ShiftStatus;
