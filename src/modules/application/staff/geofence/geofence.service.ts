@@ -259,6 +259,8 @@ export class GeofenceService {
           facility_name: true,
           latitude: true,
           longitude: true,
+          start_date: true,
+          start_time: true,
         },
       });
 
@@ -270,6 +272,35 @@ export class GeofenceService {
       if (shift.assigned_staff_id !== staff_id) {
         throw new ForbiddenException(
           'You are not assigned to this shift. Only assigned staff can check in.',
+        );
+      }
+
+      // ─── Date Validation ──────────────────────────────────────────────────────
+      const now = new Date();
+
+      const shiftStartDate = new Date(shift.start_date);
+
+      // Normalize both to date only (ignore time) for comparison
+      const todayDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      );
+      const shiftDate = new Date(
+        shiftStartDate.getFullYear(),
+        shiftStartDate.getMonth(),
+        shiftStartDate.getDate(),
+      );
+
+      if (todayDate < shiftDate) {
+        throw new BadRequestException(
+          `You can only check in on the shift date (${shiftDate.toDateString()}). Today is ${todayDate.toDateString()}.`,
+        );
+      }
+
+      if (todayDate > shiftDate) {
+        throw new BadRequestException(
+          `This shift date has passed (${shiftDate.toDateString()}). Check-in is no longer available.`,
         );
       }
 
