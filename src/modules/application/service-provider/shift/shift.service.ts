@@ -25,6 +25,7 @@ import {
   getShiftDates,
   normalizeBonusOptions,
 } from './utils/shift.utils';
+import { calculateRating } from 'src/common/helper/rating.helper';
 
 @Injectable()
 export class ShiftService {
@@ -228,176 +229,174 @@ export class ShiftService {
     }
   }
 
-async findAll(
-  requestingUserId: string,
-  {
-    page = 1,
-    limit = 10,
-    search = '',
-    filter,
-    status,
-  }: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    filter?: 'with_applicants' | 'without_applicants';
-    status?: ShiftStatus;
-  } = {},
-) {
-  try {
-    const { serviceProviderId } =
-      await this.providerContextHelper.resolveFromUser(requestingUserId);
+  async findAll(
+    requestingUserId: string,
+    {
+      page = 1,
+      limit = 10,
+      search = '',
+      filter,
+      status,
+    }: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      filter?: 'with_applicants' | 'without_applicants';
+      status?: ShiftStatus;
+    } = {},
+  ) {
+    try {
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(requestingUserId);
 
-    const currentPage = Math.max(Number(page) || 1, 1);
-    const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
-    if (Number.isNaN(currentPage) || Number.isNaN(pageSize)) {
-      throw new BadRequestException('Invalid pagination parameters');
-    }
-    const skip = (currentPage - 1) * pageSize;
+      const currentPage = Math.max(Number(page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
+      if (Number.isNaN(currentPage) || Number.isNaN(pageSize)) {
+        throw new BadRequestException('Invalid pagination parameters');
+      }
+      const skip = (currentPage - 1) * pageSize;
 
-    // ─── Validate status if provided ──────────────────────────────────────
-    const validStatuses = Object.values(ShiftStatus);
-    if (status && !validStatuses.includes(status)) {
-      throw new BadRequestException(
-        `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-      );
-    }
+      // ─── Validate status if provided ──────────────────────────────────────
+      const validStatuses = Object.values(ShiftStatus);
+      if (status && !validStatuses.includes(status)) {
+        throw new BadRequestException(
+          `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        );
+      }
 
-    const searchCondition: Prisma.ShiftWhereInput = search
-      ? {
-          OR: [
-            {
-              posting_title: {
-                contains: search,
-                mode: 'insensitive' as Prisma.QueryMode,
+      const searchCondition: Prisma.ShiftWhereInput = search
+        ? {
+            OR: [
+              {
+                posting_title: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+              {
+                facility_name: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+              {
+                full_address: {
+                  contains: search,
+                  mode: 'insensitive' as Prisma.QueryMode,
+                },
+              },
+            ],
+          }
+        : {};
+
+      // ─── Applicant Filter ─────────────────────────────────────────────────
+      const applicantFilterCondition: Prisma.ShiftWhereInput =
+        filter === 'with_applicants'
+          ? { applications: { some: {} } }
+          : filter === 'without_applicants'
+            ? { applications: { none: {} } }
+            : {};
+
+      // ─── Status Filter ────────────────────────────────────────────────────
+      const statusCondition: Prisma.ShiftWhereInput = status ? { status } : {};
+
+      const where: Prisma.ShiftWhereInput = {
+        service_provider_id: serviceProviderId,
+        ...statusCondition,
+        ...applicantFilterCondition,
+        ...searchCondition,
+      };
+
+      const [total, itemsRaw] = await this.prisma.$transaction([
+        this.prisma.shift.count({ where }),
+        this.prisma.shift.findMany({
+          where,
+          select: {
+            id: true,
+            posting_title: true,
+            shift_type: true,
+            profession_role: true,
+            is_urgent: true,
+            start_date: true,
+            end_date: true,
+            start_time: true,
+            end_time: true,
+            facility_name: true,
+            full_address: true,
+            pay_rate_hourly: true,
+            status: true,
+            notes: true,
+            created_at: true,
+            assigned_staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+                reviews: {
+                  where: { status: 'approved' },
+                  select: { rating: true },
+                },
+                _count: {
+                  select: { reviews: true },
+                },
               },
             },
-            {
-              facility_name: {
-                contains: search,
-                mode: 'insensitive' as Prisma.QueryMode,
-              },
-            },
-            {
-              full_address: {
-                contains: search,
-                mode: 'insensitive' as Prisma.QueryMode,
-              },
-            },
-          ],
-        }
-      : {};
-
-    // ─── Applicant Filter ─────────────────────────────────────────────────
-    const applicantFilterCondition: Prisma.ShiftWhereInput =
-      filter === 'with_applicants'
-        ? { applications: { some: {} } }
-        : filter === 'without_applicants'
-          ? { applications: { none: {} } }
-          : {};
-
-    // ─── Status Filter ────────────────────────────────────────────────────
-    const statusCondition: Prisma.ShiftWhereInput = status
-      ? { status }
-      : {};
-
-    const where: Prisma.ShiftWhereInput = {
-      service_provider_id: serviceProviderId,
-      ...statusCondition,
-      ...applicantFilterCondition,
-      ...searchCondition,
-    };
-
-    const [total, itemsRaw] = await this.prisma.$transaction([
-      this.prisma.shift.count({ where }),
-      this.prisma.shift.findMany({
-        where,
-        select: {
-          id: true,
-          posting_title: true,
-          shift_type: true,
-          profession_role: true,
-          is_urgent: true,
-          start_date: true,
-          end_date: true,
-          start_time: true,
-          end_time: true,
-          facility_name: true,
-          full_address: true,
-          pay_rate_hourly: true,
-          status: true,
-          notes: true,
-          created_at: true,
-          assigned_staff: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              photo_url: true,
-              reviews: {
-                select: { rating: true },
-              },
-              _count: {
-                select: { reviews: true },
-              },
-            },
+            _count: { select: { applications: true } },
           },
-          _count: { select: { applications: true } },
-        },
-        orderBy: { created_at: 'desc' },
-        skip,
-        take: pageSize,
-      }),
-    ]);
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: pageSize,
+        }),
+      ]);
 
-    const items = itemsRaw.map((s) => {
-      const avgRating = s.assigned_staff?.reviews?.length
-        ? s.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) /
-          s.assigned_staff.reviews.length
-        : null;
+      const items = itemsRaw.map((s) => {
+        const { avg_rating, review_count } = calculateRating(
+          s.assigned_staff?.reviews ?? [],
+        );
 
-      const totalHours = calculateShiftHours(s.start_time, s.end_time);
+        const totalHours = calculateShiftHours(s.start_time, s.end_time);
+
+        return {
+          ...s,
+          total_hours: totalHours,
+          assigned_staff: s.assigned_staff
+            ? {
+                id: s.assigned_staff.id,
+                first_name: s.assigned_staff.first_name,
+                last_name: s.assigned_staff.last_name,
+                avg_rating: avg_rating,
+                review_count: review_count,
+                photo_url: s.assigned_staff.photo_url
+                  ? SojebStorage.url(
+                      appConfig().storageUrl.staff + s.assigned_staff.photo_url,
+                    )
+                  : null,
+              }
+            : null,
+          applications_count: s._count?.applications ?? 0,
+          _count: undefined,
+        };
+      });
 
       return {
-        ...s,
-        total_hours: totalHours,
-        assigned_staff: s.assigned_staff
-          ? {
-              id: s.assigned_staff.id,
-              first_name: s.assigned_staff.first_name,
-              last_name: s.assigned_staff.last_name,
-              avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
-              photo_url: s.assigned_staff.photo_url
-                ? SojebStorage.url(
-                    appConfig().storageUrl.staff + s.assigned_staff.photo_url,
-                  )
-                : null,
-              review_count: s.assigned_staff?._count?.reviews ?? 0,
-            }
-          : null,
-        applications_count: s._count?.applications ?? 0,
-        _count: undefined,
+        success: true,
+        message: 'Shifts fetched successfully',
+        data: items,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+          filter: filter ?? null,
+          status: status ?? null,
+        },
       };
-    });
-
-    return {
-      success: true,
-      message: 'Shifts fetched successfully',
-      data: items,
-      meta: {
-        total,
-        page: currentPage,
-        limit: pageSize,
-        totalPages: Math.ceil(total / pageSize) || 1,
-        filter: filter ?? null,
-        status: status ?? null,
-      },
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    throw new InternalServerErrorException('Failed to fetch shifts');
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Failed to fetch shifts');
+    }
   }
-}
 
   async findOne(
     id: string,
@@ -456,7 +455,8 @@ async findAll(
               mobile_number: true,
               user: { select: { email: true } },
               reviews: {
-                select: { rating: true },
+                where: { status: 'approved' },
+                select: { rating: true, feedback: true, created_at: true },
               },
             },
           },
@@ -503,6 +503,7 @@ async findAll(
             },
           },
           reviews: {
+            where: { status: 'approved' },
             select: {
               id: true,
               rating: true,
@@ -550,7 +551,10 @@ async findAll(
       if (staffIds && staffIds.length) {
         const ratings = await this.prisma.staffPerformanceReview.groupBy({
           by: ['staff_id'],
-          where: { staff_id: { in: staffIds } },
+          where: {
+            staff_id: { in: staffIds },
+            status: 'approved', // ← add this
+          },
           _avg: { rating: true },
           _count: { id: true },
         });
@@ -598,10 +602,9 @@ async findAll(
       // Calculate average rating for assigned staff
       let assignedStaffWithRating = null;
       if (shift.assigned_staff) {
-        const avgRating = shift.assigned_staff.reviews?.length
-          ? shift.assigned_staff.reviews.reduce((sum, r) => sum + r.rating, 0) /
-            shift.assigned_staff.reviews.length
-          : null;
+        const { avg_rating, review_count } = calculateRating(
+          shift.assigned_staff.reviews ?? [],
+        );
 
         assignedStaffWithRating = {
           id: shift.assigned_staff.id,
@@ -613,7 +616,8 @@ async findAll(
           mobile_code: shift.assigned_staff.mobile_code,
           mobile_number: shift.assigned_staff.mobile_number,
           email: shift.assigned_staff.user?.email ?? null,
-          avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+          avg_rating: avg_rating,
+          review_count: review_count,
         };
       }
 

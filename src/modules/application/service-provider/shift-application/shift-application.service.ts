@@ -15,6 +15,7 @@ import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
+import { calculateRating } from 'src/common/helper/rating.helper';
 
 @Injectable()
 export class ShiftApplicationService {
@@ -640,7 +641,7 @@ export class ShiftApplicationService {
                       created_at: true,
                     },
                     orderBy: { created_at: 'desc' },
-                    take: 50,
+                    take: 20,
                   },
                 },
               },
@@ -784,13 +785,9 @@ export class ShiftApplicationService {
       );
 
       // ─── Ratings ──────────────────────────────────────────────────────────────
-      const reviews = staffProfile.reviews ?? [];
-      const reviewCount = reviews.length;
-      const avgRatingRaw = reviewCount
-        ? reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0) / reviewCount
-        : null;
-      const avg_rating =
-        avgRatingRaw !== null ? Number(avgRatingRaw.toFixed(1)) : null;
+      const { avg_rating, review_count } = calculateRating(
+        staffProfile.reviews ?? [],
+      );
 
       // ─── Performance Stats ────────────────────────────────────────────────────
       const timesheets = staffProfile.timesheets ?? [];
@@ -876,7 +873,7 @@ export class ShiftApplicationService {
         photo_url: resolveUrl(storageConfig.staff, staffProfile.photo_url),
         cv_url: resolveUrl(storageConfig.cv, staffProfile.cv_url),
         avg_rating,
-        review_count: reviewCount,
+        review_count,
         is_favorite,
         is_blocked,
         performance,
