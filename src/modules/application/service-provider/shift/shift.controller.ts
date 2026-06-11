@@ -39,31 +39,31 @@ export class ShiftController {
     return this.shiftService.create(createShiftDto, userId);
   }
 
-    @Get()
-    @RequireEmployeePermission(
-      EmployeePermissionType.post_new_shifts,
-      EmployeePermissionType.assign_shift_applicants,
-    )
-    findAll(
-      @Req() req: Request,
-      @Query('page') page?: string,
-      @Query('limit') limit?: string,
-      @Query('search') search?: string,
-      @Query('filter') filter?: 'with_applicants' | 'without_applicants',
-      @Query('status') status?: string,
-    ) {
-      const userId = req.user?.userId;
-      if (!userId) {
-        throw new BadRequestException('User not authenticated');
-      }
-      return this.shiftService.findAll(userId, {
-        page: page ? Number(page) : undefined,
-        limit: limit ? Number(limit) : undefined,
-        search,
-        filter,
-        status: status as ShiftStatus,
-      });
+  @Get()
+  @RequireEmployeePermission(
+    EmployeePermissionType.post_new_shifts,
+    EmployeePermissionType.assign_shift_applicants,
+  )
+  findAll(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('filter') filter?: 'with_applicants' | 'without_applicants',
+    @Query('status') status?: string,
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
     }
+    return this.shiftService.findAll(userId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      filter,
+      status: status as ShiftStatus,
+    });
+  }
 
   @Get('bonus-options')
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)

@@ -29,7 +29,6 @@ export class CreateShiftDto {
   @IsString()
   posting_title: string;
 
-
   @IsEnum(ShiftType)
   shift_type: ShiftType;
 
