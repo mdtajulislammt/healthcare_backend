@@ -31,140 +31,138 @@ export class ShiftTimesheetService {
     return 'This action adds a new shiftTimesheet';
   }
 
- async findAll(
-  user_id: string,
-  options?: { page?: number; limit?: number; status?: string },
-) {
-  try {
-    const { serviceProviderId } =
-      await this.providerContextHelper.resolveFromUser(user_id);
+  async findAll(
+    user_id: string,
+    options?: { page?: number; limit?: number; status?: string },
+  ) {
+    try {
+      const { serviceProviderId } =
+        await this.providerContextHelper.resolveFromUser(user_id);
 
-    const currentPage = Math.max(Number(options?.page) || 1, 1);
-    const pageSize = Math.min(Math.max(Number(options?.limit) || 10, 1), 100);
-    const skip = (currentPage - 1) * pageSize;
+      const currentPage = Math.max(Number(options?.page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(options?.limit) || 10, 1), 100);
+      const skip = (currentPage - 1) * pageSize;
 
-    const where: any = {
-      shift: {
-        service_provider_id: serviceProviderId,
-      },
-      status: options?.status || {
-        in: [
-          TimesheetStatus.submitted,
-          TimesheetStatus.under_review,
-          TimesheetStatus.pending_submission,
-          TimesheetStatus.approved,
-          TimesheetStatus.rejected,
-        ],
-      },
-    };
+      const where: any = {
+        shift: {
+          service_provider_id: serviceProviderId,
+        },
+        status: options?.status || {
+          in: [
+            TimesheetStatus.submitted,
+            TimesheetStatus.under_review,
+            TimesheetStatus.pending_submission,
+            TimesheetStatus.approved,
+            TimesheetStatus.rejected,
+          ],
+        },
+      };
 
-    const [total, timesheets] = await this.prisma.$transaction([
-      this.prisma.shiftTimesheet.count({ where }),
-      this.prisma.shiftTimesheet.findMany({
-        where,
-        select: {
-          id: true,
-          status: true,
-          total_hours: true,
-          total_pay: true,
-          hourly_rate: true,
-          clock_in_verified: true,
-          clock_out_verified: true,
-          staff_pay_status: true,
-          staff_paid_at: true,
-          approved_by: true,
-          submitted_at: true,
-          reviewed_at: true,
-          created_at: true,
-          xero_invoice_number: true,
-          xero_status: true,
-          xero_invoice_id: true,
-          shift: {
-            select: {
-              id: true,
-              posting_title: true,
-              facility_name: true,
-              start_date: true,
-              end_date: true,
-              attendance: {
-                select: {
-                  id: true,
-                  status: true,
-                  check_in_time: true,
-                  check_out_time: true,
-                  location_check: true,
+      const [total, timesheets] = await this.prisma.$transaction([
+        this.prisma.shiftTimesheet.count({ where }),
+        this.prisma.shiftTimesheet.findMany({
+          where,
+          select: {
+            id: true,
+            status: true,
+            total_hours: true,
+            total_pay: true,
+            hourly_rate: true,
+            clock_in_verified: true,
+            clock_out_verified: true,
+            staff_pay_status: true,
+            staff_paid_at: true,
+            approved_by: true,
+            submitted_at: true,
+            reviewed_at: true,
+            created_at: true,
+            xero_invoice_number: true,
+            xero_status: true,
+            xero_invoice_id: true,
+            shift: {
+              select: {
+                id: true,
+                posting_title: true,
+                facility_name: true,
+                start_date: true,
+                end_date: true,
+                attendance: {
+                  select: {
+                    id: true,
+                    status: true,
+                    check_in_time: true,
+                    check_out_time: true,
+                    location_check: true,
+                  },
                 },
               },
             },
-          },
-          staff: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              photo_url: true,
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+              },
             },
           },
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: pageSize,
+        }),
+      ]);
+
+      // ─── Resolve all unique approver names in parallel ────────────────────
+      const uniqueApproverIds = [
+        ...new Set(
+          timesheets.map((t) => t.approved_by).filter(Boolean) as string[],
+        ),
+      ];
+
+      const approverNameMap = new Map<string, string | null>();
+
+      await Promise.all(
+        uniqueApproverIds.map(async (approverId) => {
+          const name = await this.resolveApproverName(approverId);
+          approverNameMap.set(approverId, name);
+        }),
+      );
+
+      // ─── Format response ──────────────────────────────────────────────────
+      const formattedTimesheets = timesheets.map((timesheet) => ({
+        ...timesheet,
+        staff: {
+          ...timesheet.staff,
+          photo_url: timesheet.staff.photo_url
+            ? SojebStorage.url(
+                appConfig().storageUrl.staff + timesheet.staff.photo_url,
+              )
+            : null,
         },
-        orderBy: { created_at: 'desc' },
-        skip,
-        take: pageSize,
-      }),
-    ]);
-
-    // ─── Resolve all unique approver names in parallel ────────────────────
-    const uniqueApproverIds = [
-      ...new Set(
-        timesheets
-          .map((t) => t.approved_by)
-          .filter(Boolean) as string[],
-      ),
-    ];
-
-    const approverNameMap = new Map<string, string | null>();
-
-    await Promise.all(
-      uniqueApproverIds.map(async (approverId) => {
-        const name = await this.resolveApproverName(approverId);
-        approverNameMap.set(approverId, name);
-      }),
-    );
-
-    // ─── Format response ──────────────────────────────────────────────────
-    const formattedTimesheets = timesheets.map((timesheet) => ({
-      ...timesheet,
-      staff: {
-        ...timesheet.staff,
-        photo_url: timesheet.staff.photo_url
-          ? SojebStorage.url(
-              appConfig().storageUrl.staff + timesheet.staff.photo_url,
-            )
+        approved_by: timesheet.approved_by ?? null,
+        approved_by_name: timesheet.approved_by
+          ? (approverNameMap.get(timesheet.approved_by) ?? null)
           : null,
-      },
-      approved_by: timesheet.approved_by ?? null,
-      approved_by_name: timesheet.approved_by
-        ? (approverNameMap.get(timesheet.approved_by) ?? null)
-        : null,
-    }));
+      }));
 
-    return {
-      success: true,
-      message: 'Timesheets fetched successfully',
-      data: formattedTimesheets,
-      meta: {
-        total,
-        page: currentPage,
-        limit: pageSize,
-        totalPages: Math.ceil(total / pageSize) || 1,
-      },
-    };
-  } catch (error) {
-    if (error instanceof ForbiddenException) {
-      throw error;
+      return {
+        success: true,
+        message: 'Timesheets fetched successfully',
+        data: formattedTimesheets,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
+      };
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch timesheets.');
     }
-    throw new InternalServerErrorException('Failed to fetch timesheets.');
   }
-}
 
   findOne(id: string) {
     return `This action returns a #${id} shiftTimesheet`;
