@@ -675,17 +675,12 @@ export class EmployeeService {
         EmployeePermissionType.assign_shift_applicants,
         EmployeePermissionType.favorite_block_workers,
       ],
-      [EmployeeRole.hr_manager]: [
-        EmployeePermissionType.favorite_block_workers,
-        EmployeePermissionType.manage_team_permissions,
-      ],
       [EmployeeRole.finance_officer]: [
         EmployeePermissionType.approve_timesheets,
         EmployeePermissionType.view_invoices,
-      ],
-      [EmployeeRole.compliance_officer]: [
-        EmployeePermissionType.approve_timesheets,
         EmployeePermissionType.dispute_timesheets,
+        EmployeePermissionType.view_invoices,
+        EmployeePermissionType.add_emergency_bonus,
       ],
       [EmployeeRole.general_staff]: [],
     };
