@@ -24,6 +24,8 @@ export class StaffReviewService {
     staffId,
     providerId,
     shiftId,
+    status,
+    sortRating,
   }: {
     page?: number;
     limit?: number;
@@ -32,6 +34,8 @@ export class StaffReviewService {
     staffId?: string;
     providerId?: string;
     shiftId?: string;
+    status?: string;
+    sortRating?: 'asc' | 'desc';
   } = {}) {
     try {
       const currentPage = Math.max(Number(page) || 1, 1);
@@ -57,6 +61,7 @@ export class StaffReviewService {
         ...(staffId ? { staff_id: staffId } : {}),
         ...(providerId ? { provider_id: providerId } : {}),
         ...(shiftId ? { shift_id: shiftId } : {}),
+        ...(status ? { status: status as ReviewStatus } : {}),
         ...ratingCondition,
         ...(trimmedSearch
           ? {
@@ -112,7 +117,7 @@ export class StaffReviewService {
           : {}),
       };
 
-      const [total, items] = await this.prisma.$transaction([
+      const [total, items, allRatings] = await this.prisma.$transaction([
         this.prisma.staffPerformanceReview.count({ where }),
         this.prisma.staffPerformanceReview.findMany({
           where,
@@ -163,11 +168,30 @@ export class StaffReviewService {
               },
             },
           },
-          orderBy: { created_at: 'desc' },
+          orderBy: sortRating ? { rating: sortRating } : { created_at: 'desc' },
           skip,
           take: pageSize,
         }),
+        // Fetch all ratings (without pagination) to calculate breakdown
+        this.prisma.staffPerformanceReview.findMany({
+          where,
+          select: { rating: true },
+        }),
       ]);
+
+      // build rating breakdown 1-5 from all matching reviews
+      const ratingBreakdown = {
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 0,
+        5: 0,
+      };
+      for (const review of allRatings) {
+        if (review.rating >= 1 && review.rating <= 5) {
+          ratingBreakdown[review.rating]++;
+        }
+      }
 
       const data = items.map((review: StaffPerformanceReview & any) => ({
         ...review,
@@ -192,6 +216,7 @@ export class StaffReviewService {
           page: currentPage,
           limit: pageSize,
           totalPages: Math.ceil(total / pageSize) || 1,
+          ratingBreakdown,
         },
       };
     } catch (error) {

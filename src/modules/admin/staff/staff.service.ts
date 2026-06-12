@@ -178,6 +178,26 @@ export class StaffService {
         }
       }
 
+      // parse optional certificate expiries provided by admin as JSON
+      const certificateExpiries: Record<string, Date | undefined> = {};
+      if (createStaffDto.certificate_expiries) {
+        try {
+          const parsed =
+            typeof createStaffDto.certificate_expiries === 'string'
+              ? JSON.parse(createStaffDto.certificate_expiries)
+              : createStaffDto.certificate_expiries;
+          if (parsed && typeof parsed === 'object') {
+            for (const [k, v] of Object.entries(parsed)) {
+              if (!v) continue;
+              const d = new Date(String(v));
+              if (!isNaN(d.getTime())) certificateExpiries[k.toLowerCase()] = d;
+            }
+          }
+        } catch (err) {
+          // ignore parse errors
+        }
+      }
+
       const rolesNormalized = Array.isArray(createStaffDto.roles)
         ? createStaffDto.roles
         : typeof createStaffDto.roles === 'string'
@@ -337,16 +357,21 @@ export class StaffService {
             nmc_pin: createStaffDto.nmc_pin,
             gender: createStaffDto.gender,
             age: createStaffDto.age,
+            can_apply_to_shifts: createStaffDto.can_apply_to_shifts ?? true,
           },
         });
 
         const certificatesCreated = [];
         for (const [type, fileName] of Object.entries(certificateFileNames)) {
+          const expiryDate =
+            certificateExpiries[type] ??
+            certificateExpiries[type.toLowerCase()];
           const cert = await tx.staffCertificate.create({
             data: {
               staff_id: staffProfile.id,
               certificate_type: type as any,
               file_url: fileName,
+              expiry_date: expiryDate ?? undefined,
             },
           });
           certificatesCreated.push(cert);
@@ -844,6 +869,10 @@ export class StaffService {
 
       if (updateStaffDto.age !== undefined) {
         updatePayload.age = updateStaffDto.age;
+      }
+
+      if (updateStaffDto.can_apply_to_shifts !== undefined) {
+        updatePayload.can_apply_to_shifts = updateStaffDto.can_apply_to_shifts;
       }
 
       if (staffPhotoFileName !== undefined) {

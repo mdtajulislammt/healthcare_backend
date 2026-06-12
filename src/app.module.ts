@@ -4,6 +4,7 @@ import { MiddlewareConsumer, Module } from '@nestjs/common';
 // import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // internal imports
 import appConfig from './config/app.config';
@@ -40,6 +41,7 @@ import { PushNotificationModule } from './common/module/push-notification.module
       //   port: +appConfig().redis.port,
       // },
     }),
+    ScheduleModule.forRoot(),
     // disabling throttling for dev
     // ThrottlerModule.forRoot([
     //   {

@@ -133,4 +133,29 @@ export class MailService {
       console.log(error);
     }
   }
+
+  async sendCertificateExpiryEmail(params: {
+    to: string;
+    name: string;
+    expiredCertificates: { type: string; expiry_date?: string }[];
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Certificate expiry notification`;
+
+      await this.queue.add('sendCertificateExpiryEmail', {
+        to: params.to,
+        from,
+        subject,
+        template: 'certificate-expiry',
+        context: {
+          name: params.name,
+          expiredCertificates: params.expiredCertificates,
+          appName: appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }
