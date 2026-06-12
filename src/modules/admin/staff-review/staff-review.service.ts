@@ -5,12 +5,16 @@ import {
 } from '@nestjs/common';
 import { Prisma, StaffPerformanceReview, ReviewStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MailService } from 'src/mail/mail.service';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class StaffReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   async findAll({
     page = 1,
@@ -323,7 +327,7 @@ export class StaffReviewService {
 
       const review = await this.prisma.staffPerformanceReview.findUnique({
         where: { id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, rating: true, staff_id: true },
       });
 
       if (!review) {
@@ -334,6 +338,60 @@ export class StaffReviewService {
         where: { id },
         data: { status },
       });
+
+      if (status === 'approved' && updated.rating < 3) {
+        const staffProfile = await this.prisma.staffProfile.findUnique({
+          where: { id: review.staff_id },
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        });
+
+        await this.prisma.$transaction([
+          this.prisma.staffProfile.update({
+            where: { id: review.staff_id },
+            data: { can_apply_to_shifts: false },
+          }),
+          this.prisma.shift.updateMany({
+            where: {
+              assigned_staff_id: review.staff_id,
+              status: 'assigned',
+              start_date: { gte: new Date() },
+            },
+            data: {
+              assigned_staff_id: null,
+              status: 'published',
+            },
+          }),
+          this.prisma.shiftApplication.updateMany({
+            where: {
+              staff_id: review.staff_id,
+              status: 'accepted',
+              shift: {
+                is: {
+                  start_date: { gte: new Date() },
+                },
+              },
+            },
+            data: { status: 'cancelled' },
+          }),
+        ]);
+
+        if (staffProfile?.user?.email) {
+          await this.mailService.sendStaffSuspensionEmail({
+            email: staffProfile.user.email,
+            name: `${staffProfile.first_name} ${staffProfile.last_name}`,
+            rating: updated.rating,
+          });
+        }
+      }
 
       return {
         success: true,

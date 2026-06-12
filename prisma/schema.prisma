@@ -620,9 +620,10 @@ model StaffProfile {
   referees           StaffReferee[]
   educations         StaffEducation[]
 
-  profile_completion  Int     @default(0) // percentage (0–100)
-  is_profile_complete Boolean @default(false) // quick flag for checks
-  admin_note          String? // for internal use by admins/employees to add notes about the staff member
+  profile_completion     Int     @default(0) // percentage (0–100)
+  is_profile_complete    Boolean @default(false) // quick flag for checks
+  can_apply_to_shifts    Boolean @default(true)
+  admin_note             String? // for internal use by admins/employees to add notes about the staff member
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

@@ -107,4 +107,30 @@ export class MailService {
       console.log(error);
     }
   }
+
+  async sendStaffSuspensionEmail(params: {
+    email: string;
+    name: string;
+    rating: number;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Action required: shift application access restricted`;
+
+      await this.queue.add('sendStaffSuspensionEmail', {
+        to: params.email,
+        from,
+        subject,
+        template: 'staff-suspension',
+        context: {
+          name: params.name,
+          rating: params.rating,
+          loginUrl: `${appConfig().app.client_app_url}/login`,
+          appName: appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }

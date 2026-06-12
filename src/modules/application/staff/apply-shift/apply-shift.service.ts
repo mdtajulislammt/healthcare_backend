@@ -34,12 +34,23 @@ export class ApplyShiftService {
       // Get staff profile from user_id
       const staffProfile = await this.prisma.staffProfile.findUnique({
         where: { user_id },
-        select: { id: true, user_id: true, profile_completion: true },
+        select: {
+          id: true,
+          user_id: true,
+          profile_completion: true,
+          can_apply_to_shifts: true,
+        },
       });
 
       if (!staffProfile) {
         throw new BadRequestException(
           'Staff profile not found. Please complete your profile first.',
+        );
+      }
+
+      if (staffProfile.can_apply_to_shifts === false) {
+        throw new BadRequestException(
+          'Your account is currently blocked from applying to shifts. Please contact support for assistance.',
         );
       }
 
