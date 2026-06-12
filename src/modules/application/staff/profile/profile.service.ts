@@ -859,6 +859,18 @@ export class ProfileService {
       // Recalculate profile completion after certificate update
       await this.recalculateProfileCompletion(staff_id);
 
+      // If certificate has a valid future expiry, re-enable apply permission
+      if (certificate.expiry_date && certificate.expiry_date > new Date()) {
+        try {
+          await this.prisma.staffProfile.update({
+            where: { id: staff_id },
+            data: { can_apply_to_shifts: true },
+          });
+        } catch (err) {
+          // ignore
+        }
+      }
+
       return {
         success: true,
         message: existingCertificate

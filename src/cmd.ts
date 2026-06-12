@@ -4,9 +4,11 @@ import { CommandFactory } from 'nest-commander';
 // internal imports
 import { PrismaService } from './prisma/prisma.service';
 import { SeedCommand } from './command/seed.command';
+import { CheckCertExpiryCommand } from './command/check-cert-expiry.command';
+import { MailService } from './mail/mail.service';
 
 @Module({
-  providers: [SeedCommand, PrismaService],
+  providers: [SeedCommand, CheckCertExpiryCommand, PrismaService, MailService],
 })
 export class AppModule {}
 

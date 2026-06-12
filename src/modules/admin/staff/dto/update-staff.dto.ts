@@ -69,6 +69,13 @@ export class UpdateStaffDto extends PartialType(UpdateStaffProfileDto) {
   agreed_to_terms?: boolean;
 
   @IsOptional()
+  @ApiProperty({
+    description: 'Allow this staff to apply to shifts',
+    required: false,
+  })
+  can_apply_to_shifts?: boolean;
+
+  @IsOptional()
   gender?: string;
 
   @IsOptional()

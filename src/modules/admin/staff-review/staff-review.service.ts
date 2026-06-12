@@ -5,12 +5,16 @@ import {
 } from '@nestjs/common';
 import { Prisma, StaffPerformanceReview, ReviewStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MailService } from 'src/mail/mail.service';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class StaffReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   async findAll({
     page = 1,
@@ -20,6 +24,8 @@ export class StaffReviewService {
     staffId,
     providerId,
     shiftId,
+    status,
+    sortRating,
   }: {
     page?: number;
     limit?: number;
@@ -28,6 +34,8 @@ export class StaffReviewService {
     staffId?: string;
     providerId?: string;
     shiftId?: string;
+    status?: string;
+    sortRating?: 'asc' | 'desc';
   } = {}) {
     try {
       const currentPage = Math.max(Number(page) || 1, 1);
@@ -53,6 +61,7 @@ export class StaffReviewService {
         ...(staffId ? { staff_id: staffId } : {}),
         ...(providerId ? { provider_id: providerId } : {}),
         ...(shiftId ? { shift_id: shiftId } : {}),
+        ...(status ? { status: status as ReviewStatus } : {}),
         ...ratingCondition,
         ...(trimmedSearch
           ? {
@@ -108,7 +117,7 @@ export class StaffReviewService {
           : {}),
       };
 
-      const [total, items] = await this.prisma.$transaction([
+      const [total, items, allRatings] = await this.prisma.$transaction([
         this.prisma.staffPerformanceReview.count({ where }),
         this.prisma.staffPerformanceReview.findMany({
           where,
@@ -159,11 +168,30 @@ export class StaffReviewService {
               },
             },
           },
-          orderBy: { created_at: 'desc' },
+          orderBy: sortRating ? { rating: sortRating } : { created_at: 'desc' },
           skip,
           take: pageSize,
         }),
+        // Fetch all ratings (without pagination) to calculate breakdown
+        this.prisma.staffPerformanceReview.findMany({
+          where,
+          select: { rating: true },
+        }),
       ]);
+
+      // build rating breakdown 1-5 from all matching reviews
+      const ratingBreakdown = {
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 0,
+        5: 0,
+      };
+      for (const review of allRatings) {
+        if (review.rating >= 1 && review.rating <= 5) {
+          ratingBreakdown[review.rating]++;
+        }
+      }
 
       const data = items.map((review: StaffPerformanceReview & any) => ({
         ...review,
@@ -188,6 +216,7 @@ export class StaffReviewService {
           page: currentPage,
           limit: pageSize,
           totalPages: Math.ceil(total / pageSize) || 1,
+          ratingBreakdown,
         },
       };
     } catch (error) {
@@ -323,7 +352,7 @@ export class StaffReviewService {
 
       const review = await this.prisma.staffPerformanceReview.findUnique({
         where: { id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, rating: true, staff_id: true },
       });
 
       if (!review) {
@@ -334,6 +363,60 @@ export class StaffReviewService {
         where: { id },
         data: { status },
       });
+
+      if (status === 'approved' && updated.rating < 3) {
+        const staffProfile = await this.prisma.staffProfile.findUnique({
+          where: { id: review.staff_id },
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        });
+
+        await this.prisma.$transaction([
+          this.prisma.staffProfile.update({
+            where: { id: review.staff_id },
+            data: { can_apply_to_shifts: false },
+          }),
+          this.prisma.shift.updateMany({
+            where: {
+              assigned_staff_id: review.staff_id,
+              status: 'assigned',
+              start_date: { gte: new Date() },
+            },
+            data: {
+              assigned_staff_id: null,
+              status: 'published',
+            },
+          }),
+          this.prisma.shiftApplication.updateMany({
+            where: {
+              staff_id: review.staff_id,
+              status: 'accepted',
+              shift: {
+                is: {
+                  start_date: { gte: new Date() },
+                },
+              },
+            },
+            data: { status: 'cancelled' },
+          }),
+        ]);
+
+        if (staffProfile?.user?.email) {
+          await this.mailService.sendStaffSuspensionEmail({
+            email: staffProfile.user.email,
+            name: `${staffProfile.first_name} ${staffProfile.last_name}`,
+            rating: updated.rating,
+          });
+        }
+      }
 
       return {
         success: true,

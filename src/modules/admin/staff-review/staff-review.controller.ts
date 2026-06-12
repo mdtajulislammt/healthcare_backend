@@ -34,6 +34,8 @@ export class StaffReviewController {
     @Query('staffId') staffId?: string,
     @Query('providerId') providerId?: string,
     @Query('shiftId') shiftId?: string,
+    @Query('status') status?: string,
+    @Query('sortRating') sortRating?: string,
   ) {
     return this.staffReviewService.findAll({
       page: page ? Number(page) : undefined,
@@ -43,6 +45,8 @@ export class StaffReviewController {
       staffId,
       providerId,
       shiftId,
+      status,
+      sortRating: sortRating as 'asc' | 'desc' | undefined,
     });
   }
 

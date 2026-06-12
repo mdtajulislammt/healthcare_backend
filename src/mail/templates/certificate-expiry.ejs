@@ -1,0 +1,15 @@
+<p>Hi <%= name %>,</p>
+
+<p>The following staff certificates have expired or are past their expiry date:</p>
+
+<ul>
+  <% expiredCertificates.forEach(function(cert) { %>
+    <li>
+      <strong><%= cert.type %></strong> for <%= cert.staffName || 'Unknown staff' %> - expired on <%= cert.expiry_date || 'unknown' %>
+    </li>
+  <% }) %>
+</ul>
+
+<p>Please review the staff records and request updated certificates as necessary.</p>
+
+<p>Regards,<br/><%= appName %> team</p>
