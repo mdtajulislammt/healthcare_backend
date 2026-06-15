@@ -551,6 +551,7 @@ export class DashboardService {
                 id: true,
                 organization_name: true,
                 primary_address: true,
+                brand_logo_url: true,
               },
             },
           },
@@ -568,6 +569,16 @@ export class DashboardService {
               photo_url: review.staff.photo_url
                 ? SojebStorage.url(
                     appConfig().storageUrl.staff + review.staff.photo_url,
+                  )
+                : null,
+            }
+          : null,
+        provider: review.provider
+          ? {
+              ...review.provider,
+              brand_logo_url: review.provider.brand_logo_url
+                ? SojebStorage.url(
+                    appConfig().storageUrl.brand + review.provider.brand_logo_url,
                   )
                 : null,
             }

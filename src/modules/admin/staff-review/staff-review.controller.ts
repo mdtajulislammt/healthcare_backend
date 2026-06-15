@@ -41,10 +41,10 @@ export class StaffReviewController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
-      ratingBelow: ratingBelow ? Number(ratingBelow) : undefined,
       staffId,
       providerId,
       shiftId,
+      ratingBelow: ratingBelow ? Number(ratingBelow) : undefined,
       status,
       sortRating: sortRating as 'asc' | 'desc' | undefined,
     });

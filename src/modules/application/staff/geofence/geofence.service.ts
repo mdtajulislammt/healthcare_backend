@@ -292,17 +292,17 @@ export class GeofenceService {
         shiftStartDate.getDate(),
       );
 
-      if (todayDate < shiftDate) {
-        throw new BadRequestException(
-          `You can only check in on the shift date (${shiftDate.toDateString()}). Today is ${todayDate.toDateString()}.`,
-        );
-      }
+      // if (todayDate < shiftDate) {
+      //   throw new BadRequestException(
+      //     `You can only check in on the shift date (${shiftDate.toDateString()}). Today is ${todayDate.toDateString()}.`,
+      //   );
+      // }
 
-      if (todayDate > shiftDate) {
-        throw new BadRequestException(
-          `This shift date has passed (${shiftDate.toDateString()}). Check-in is no longer available.`,
-        );
-      }
+      // if (todayDate > shiftDate) {
+      //   throw new BadRequestException(
+      //     `This shift date has passed (${shiftDate.toDateString()}). Check-in is no longer available.`,
+      //   );
+      // }
 
       // If coordinates provided, automatically verify geofence if within radius
       if (latitude !== undefined && longitude !== undefined) {
