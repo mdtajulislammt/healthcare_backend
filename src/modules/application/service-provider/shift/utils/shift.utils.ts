@@ -22,13 +22,13 @@ export function getShiftDates(startDateValue: string, endDateValue?: string) {
 
   const dates: Date[] = [];
   const currentDate = new Date(startDate);
-  currentDate.setHours(0, 0, 0, 0);
+  currentDate.setUTCHours(0, 0, 0, 0);
   const finalDate = new Date(endDate);
-  finalDate.setHours(0, 0, 0, 0);
+  finalDate.setUTCHours(0, 0, 0, 0);
 
   while (currentDate.getTime() <= finalDate.getTime()) {
     dates.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   return dates;
@@ -56,9 +56,9 @@ export function formatDateKey(value: Date | string): string {
     return '';
   }
 
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getUTCDate()}`.padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }
