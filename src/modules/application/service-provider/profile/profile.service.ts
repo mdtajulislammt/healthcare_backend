@@ -340,6 +340,7 @@ export class ProfileService {
                   updated_at: true,
                 },
               },
+              
             },
           },
         },
