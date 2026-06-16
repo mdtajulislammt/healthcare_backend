@@ -578,7 +578,8 @@ export class DashboardService {
               ...review.provider,
               brand_logo_url: review.provider.brand_logo_url
                 ? SojebStorage.url(
-                    appConfig().storageUrl.brand + review.provider.brand_logo_url,
+                    appConfig().storageUrl.brand +
+                      review.provider.brand_logo_url,
                   )
                 : null,
             }

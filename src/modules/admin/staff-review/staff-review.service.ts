@@ -165,7 +165,7 @@ export class StaffReviewService {
                 id: true,
                 organization_name: true,
                 primary_address: true,
-                brand_logo_url:true
+                brand_logo_url: true,
               },
             },
           },
@@ -211,7 +211,8 @@ export class StaffReviewService {
               ...review.provider,
               brand_logo_url: review.provider.brand_logo_url
                 ? SojebStorage.url(
-                    appConfig().storageUrl.brand + review.provider.brand_logo_url,
+                    appConfig().storageUrl.brand +
+                      review.provider.brand_logo_url,
                   )
                 : null,
             }
@@ -351,7 +352,8 @@ export class StaffReviewService {
                 ...review.provider,
                 brand_logo_url: review.provider.brand_logo_url
                   ? SojebStorage.url(
-                      appConfig().storageUrl.brand + review.provider.brand_logo_url,
+                      appConfig().storageUrl.brand +
+                        review.provider.brand_logo_url,
                     )
                   : null,
               }
