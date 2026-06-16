@@ -4,7 +4,11 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { CertificateVerificationStatus, Prisma, CertificateType } from '@prisma/client';
+import {
+  CertificateVerificationStatus,
+  Prisma,
+  CertificateType,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { calculateStaffProfileCompletion } from 'src/common/helper/profile-completion.helper';
 import { StringHelper } from 'src/common/helper/string.helper';

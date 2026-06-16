@@ -734,7 +734,9 @@ export class EmployeeService {
 
       // Verify service provider access
       if (employee.service_provider_info.user_id !== serviceProviderUserId) {
-        throw new ForbiddenException('You do not have permission to delete this employee');
+        throw new ForbiddenException(
+          'You do not have permission to delete this employee',
+        );
       }
 
       // Delete in transaction to ensure cleanup

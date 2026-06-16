@@ -38,9 +38,7 @@ export class UserService {
 
   async createAdminUser(createAdminUserDto: CreateAdminUserDto) {
     try {
-      const email = String(createAdminUserDto.email ?? '')
-        .trim()
-        .toLowerCase();
+      const email = String(createAdminUserDto.email ?? '').trim();
       const password = String(createAdminUserDto.password ?? '').trim();
 
       if (!email) {
@@ -259,7 +257,10 @@ export class UserService {
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to fetch admin users',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch admin users',
       };
     }
   }
