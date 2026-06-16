@@ -11,6 +11,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -145,5 +146,16 @@ export class EmployeeController {
 
     const isActiveBool = isActive === 'true' || isActive === '1';
     return this.employeeService.updateStatus(user_id, id, isActiveBool);
+  }
+
+  @ApiOperation({ summary: 'Delete an employee' })
+  @Delete(':id')
+  async remove(@Req() req: Request, @Param('id') id: string) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.employeeService.remove(user_id, id);
   }
 }

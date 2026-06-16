@@ -712,6 +712,77 @@ export class EmployeeService {
   }
 
   /**
+   * Delete an employee for a service provider
+   */
+  async remove(serviceProviderUserId: string, employeeId: string) {
+    try {
+      const employee = await this.prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+          service_provider_info: {
+            select: {
+              id: true,
+              user_id: true,
+            },
+          },
+        },
+      });
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      // Verify service provider access
+      if (employee.service_provider_info.user_id !== serviceProviderUserId) {
+        throw new ForbiddenException('You do not have permission to delete this employee');
+      }
+
+      // Delete in transaction to ensure cleanup
+      await this.prisma.$transaction(async (tx) => {
+        // Disconnect from Shifts
+        await tx.shift.updateMany({
+          where: { created_by_employee_id: employeeId },
+          data: { created_by_employee_id: null },
+        });
+
+        // Disconnect from Staff Preferences
+        await tx.providerStaffPreference.updateMany({
+          where: { set_by_employee_id: employeeId },
+          data: { set_by_employee_id: null },
+        });
+
+        // Delete the employee (cascades to EmployeePermission)
+        await tx.employee.delete({
+          where: { id: employeeId },
+        });
+
+        // Soft-delete the linked User if it exists
+        if (employee.user_id) {
+          await tx.user.update({
+            where: { id: employee.user_id },
+            data: { deleted_at: new Date() },
+          });
+        }
+      });
+
+      return {
+        success: true,
+        message: 'Employee deleted successfully',
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to delete employee',
+      );
+    }
+  }
+
+  /**
    * Get default permissions for a role
    */
   private getDefaultPermissionsForRole(
