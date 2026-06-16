@@ -145,6 +145,125 @@ export class UserService {
     }
   }
 
+  async deleteAdminUser(id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { id: true, type: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      if (user.type !== 'admin') {
+        throw new BadRequestException('User is not an admin');
+      }
+
+      // Delete in transaction to mimic creation flow
+      await this.prisma.$transaction(async (tx) => {
+        // Delete role users connection
+        await tx.roleUser.deleteMany({
+          where: { user_id: id },
+        });
+
+        // Delete admin profile
+        await tx.adminProfile.deleteMany({
+          where: { user_id: id },
+        });
+
+        // Delete user
+        await tx.user.delete({
+          where: { id },
+        });
+      });
+
+      return {
+        success: true,
+        message: 'Admin user deleted successfully',
+      };
+    } catch (error) {
+      const message =
+        error instanceof BadRequestException
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to delete admin user';
+
+      return {
+        success: false,
+        message: message,
+      };
+    }
+  }
+
+  async findAllAdmins() {
+    try {
+      const admins = await this.prisma.user.findMany({
+        where: {
+          type: 'admin',
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          type: true,
+          status: true,
+          created_at: true,
+          updated_at: true,
+          admin_profile: {
+            select: {
+              first_name: true,
+              last_name: true,
+              photo_url: true,
+              mobile_code: true,
+              mobile_number: true,
+              date_of_birth: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      const formattedAdmins = admins.map((admin) => {
+        let avatar_url = null;
+        if (admin.admin_profile?.photo_url) {
+          avatar_url = SojebStorage.url(
+            appConfig().storageUrl.avatar + admin.admin_profile.photo_url,
+          );
+        }
+
+        return {
+          id: admin.id,
+          email: admin.email,
+          type: admin.type,
+          status: admin.status,
+          first_name: admin.admin_profile?.first_name || '',
+          last_name: admin.admin_profile?.last_name || '',
+          mobile_code: admin.admin_profile?.mobile_code || null,
+          mobile_number: admin.admin_profile?.mobile_number || null,
+          date_of_birth: admin.admin_profile?.date_of_birth || null,
+          avatar_url,
+          created_at: admin.created_at,
+          updated_at: admin.updated_at,
+        };
+      });
+
+      return {
+        success: true,
+        message: 'Admin users fetched successfully',
+        data: formattedAdmins,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to fetch admin users',
+      };
+    }
+  }
+
   async findAll({
     q,
     type,

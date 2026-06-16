@@ -55,6 +55,34 @@ export class UserController {
     }
   }
 
+  @ApiResponse({ description: 'Delete an admin user' })
+  @Delete('admin/:id')
+  async deleteAdminUser(@Param('id') id: string) {
+    try {
+      const result = await this.userService.deleteAdminUser(id);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'An error occurred',
+      };
+    }
+  }
+
+  @ApiResponse({ description: 'Get all admin users' })
+  @Get('admin')
+  async findAllAdmins() {
+    try {
+      const result = await this.userService.findAllAdmins();
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'An error occurred',
+      };
+    }
+  }
+
   @ApiResponse({ description: 'Get all users' })
   @Get()
   async findAll(
