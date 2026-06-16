@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -20,8 +21,9 @@ import { Role } from 'src/common/guard/role/role.enum';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { UpdateStaffStatusDto } from './dto/update-staff-status.dto';
 import { UpdateCertificateStatusDto } from './dto/update-certificate-status.dto';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { UpdateAdminNoteDto } from './dto/update-admin-note.dto';
+import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
 
 @Controller('admin/staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -149,6 +151,21 @@ export class StaffController {
       certificateId,
       dto.verified_status,
     );
+  }
+
+  @Patch('certificates/:certificateId')
+  @UseInterceptors(FileInterceptor('file'))
+  async updateCertificate(
+    @Param('certificateId') certificateId: string,
+    @Body() dto: UpdateStaffCertificateDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.staffService.updateCertificate(certificateId, dto, file);
+  }
+
+  @Delete('certificates/:certificateId')
+  async deleteCertificate(@Param('certificateId') certificateId: string) {
+    return this.staffService.deleteCertificate(certificateId);
   }
 
   @Patch('admin-note/:staffId')
