@@ -30,11 +30,11 @@ export class StaffReviewController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('ratingBelow') ratingBelow?: string,
     @Query('staffId') staffId?: string,
     @Query('providerId') providerId?: string,
     @Query('shiftId') shiftId?: string,
     @Query('status') status?: string,
+    @Query('ratingBelow') ratingBelow?: string,
     @Query('sortRating') sortRating?: string,
   ) {
     return this.staffReviewService.findAll({
