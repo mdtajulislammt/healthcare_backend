@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { CertificateVerificationStatus, Prisma } from '@prisma/client';
+import { CertificateVerificationStatus, Prisma, CertificateType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { calculateStaffProfileCompletion } from 'src/common/helper/profile-completion.helper';
 import { StringHelper } from 'src/common/helper/string.helper';
@@ -13,6 +13,7 @@ import appConfig from 'src/config/app.config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
 
 @Injectable()
 export class StaffService {
@@ -1482,6 +1483,150 @@ export class StaffService {
         throw error;
       throw new InternalServerErrorException(
         'Failed to update certificate status',
+      );
+    }
+  }
+
+  async updateCertificate(
+    certificateId: string,
+    dto: UpdateStaffCertificateDto,
+    file?: Express.Multer.File,
+  ) {
+    try {
+      const cert = await this.prisma.staffCertificate.findUnique({
+        where: { id: certificateId },
+        select: { id: true, file_url: true, staff_id: true },
+      });
+
+      if (!cert) {
+        throw new NotFoundException('Certificate not found');
+      }
+
+      const updateData: any = {};
+
+      if (dto.certificate_type) {
+        updateData.certificate_type = dto.certificate_type;
+      }
+
+      if (dto.expiry_date !== undefined) {
+        if (dto.expiry_date === '' || dto.expiry_date === 'null') {
+          updateData.expiry_date = null;
+        } else {
+          const parsedDate = new Date(dto.expiry_date);
+          if (isNaN(parsedDate.getTime())) {
+            throw new BadRequestException('Invalid expiry_date value');
+          }
+          updateData.expiry_date = parsedDate;
+        }
+      }
+
+      if (dto.verified_status) {
+        updateData.verified_status = dto.verified_status;
+      }
+
+      if (file) {
+        // If an old file exists, delete it
+        if (cert.file_url) {
+          try {
+            await SojebStorage.delete(
+              appConfig().storageUrl.certificate + cert.file_url,
+            );
+          } catch (error) {
+            console.error('Failed to delete old certificate file:', error);
+          }
+        }
+
+        const fileName = `${StringHelper.randomString()}${file.originalname}`;
+        await SojebStorage.put(
+          appConfig().storageUrl.certificate + fileName,
+          file.buffer,
+        );
+        updateData.file_url = fileName;
+        updateData.uploaded_at = new Date();
+      }
+
+      const updated = await this.prisma.staffCertificate.update({
+        where: { id: certificateId },
+        data: updateData,
+        select: {
+          id: true,
+          staff_id: true,
+          certificate_type: true,
+          file_url: true,
+          uploaded_at: true,
+          verified_status: true,
+          expiry_date: true,
+        },
+      });
+
+      // Recalculate staff profile completion percentage
+      await this.recalculateProfileCompletion(cert.staff_id);
+
+      // Return formatted url for client
+      if (updated.file_url) {
+        updated.file_url = SojebStorage.url(
+          appConfig().storageUrl.certificate + updated.file_url,
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Certificate updated successfully',
+        data: updated,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to update certificate',
+      );
+    }
+  }
+
+  async deleteCertificate(certificateId: string) {
+    try {
+      const cert = await this.prisma.staffCertificate.findUnique({
+        where: { id: certificateId },
+        select: { id: true, file_url: true, staff_id: true },
+      });
+
+      if (!cert) {
+        throw new NotFoundException('Certificate not found');
+      }
+
+      // Delete the file from storage if it exists
+      if (cert.file_url) {
+        try {
+          await SojebStorage.delete(
+            appConfig().storageUrl.certificate + cert.file_url,
+          );
+        } catch (error) {
+          console.error('Failed to delete certificate file:', error);
+        }
+      }
+
+      // Delete from database
+      await this.prisma.staffCertificate.delete({
+        where: { id: certificateId },
+      });
+
+      // Recalculate profile completion
+      await this.recalculateProfileCompletion(cert.staff_id);
+
+      return {
+        success: true,
+        message: 'Certificate deleted successfully',
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to delete certificate',
       );
     }
   }
