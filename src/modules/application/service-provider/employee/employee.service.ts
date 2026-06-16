@@ -216,8 +216,18 @@ export class EmployeeService {
   /**
    * Get all employees for a service provider
    */
-  async findAll(serviceProviderUserId: string, serviceProviderId?: string) {
+  async findAll(
+    serviceProviderUserId: string,
+    options: {
+      serviceProviderId?: string;
+      page?: number;
+      limit?: number;
+      search?: string;
+    } = {},
+  ) {
     try {
+      const { serviceProviderId, page = 1, limit = 10, search = '' } = options;
+
       // Get service provider info from authenticated user
       const user = await this.prisma.user.findUnique({
         where: { id: serviceProviderUserId },
@@ -254,26 +264,65 @@ export class EmployeeService {
         throw new NotFoundException('Service provider not found');
       }
 
-      const employees = await this.prisma.employee.findMany({
-        where: {
-          service_provider_id: finalServiceProviderId,
-        },
-        include: {
-          permissions: {
-            where: {
-              is_granted: true,
+      const currentPage = Math.max(Number(page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
+      const skip = (currentPage - 1) * pageSize;
+      const trimmedSearch = search?.trim();
+
+      const andConditions: any[] = [
+        { service_provider_id: finalServiceProviderId },
+      ];
+
+      if (trimmedSearch) {
+        andConditions.push({
+          OR: [
+            {
+              first_name: {
+                contains: trimmedSearch,
+                mode: 'insensitive',
+              },
             },
-            select: {
-              id: true,
-              permission: true,
-              is_granted: true,
+            {
+              last_name: {
+                contains: trimmedSearch,
+                mode: 'insensitive',
+              },
+            },
+            {
+              email: {
+                contains: trimmedSearch,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        });
+      }
+
+      const where = { AND: andConditions };
+
+      const [total, employees] = await this.prisma.$transaction([
+        this.prisma.employee.count({ where }),
+        this.prisma.employee.findMany({
+          where,
+          include: {
+            permissions: {
+              where: {
+                is_granted: true,
+              },
+              select: {
+                id: true,
+                permission: true,
+                is_granted: true,
+              },
             },
           },
-        },
-        orderBy: {
-          created_at: 'desc',
-        },
-      });
+          orderBy: {
+            created_at: 'desc',
+          },
+          skip,
+          take: pageSize,
+        }),
+      ]);
 
       // Fetch user data separately for each employee and format photo URLs
       const employeesWithUsers = await Promise.all(
@@ -311,9 +360,18 @@ export class EmployeeService {
         success: true,
         message: 'Employees fetched successfully',
         data: employeesWithUsers,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
       };
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
       throw new BadRequestException(

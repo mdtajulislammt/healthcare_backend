@@ -58,13 +58,21 @@ export class EmployeeController {
   async findAll(
     @Req() req: Request,
     @Query('service_provider_id') serviceProviderId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
 
-    return this.employeeService.findAll(user_id, serviceProviderId);
+    return this.employeeService.findAll(user_id, {
+      serviceProviderId,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+    });
   }
 
   @ApiOperation({ summary: 'Get employee by ID' })
