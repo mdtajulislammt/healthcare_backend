@@ -620,19 +620,34 @@ export class GeofenceService {
       // Update ShiftAttendance with check-out
       const checkOutTime = new Date();
 
-      // Calculate total hours from shift start_time and end_time
-      if (!shift.start_time || !shift.end_time) {
+      if (!existingAttendance.check_in_time) {
         throw new BadRequestException(
-          'Shift start time or end time is missing. Cannot calculate hours.',
+          'Check-in time is missing. Cannot calculate hours.',
         );
       }
 
-      // Calculate total hours worked based on shift schedule
+      // Calculate raw hours worked from actual check-in and check-out times
       const timeDifferenceMs =
-        shift.end_time.getTime() - shift.start_time.getTime();
+        checkOutTime.getTime() - existingAttendance.check_in_time.getTime();
+      const rawHours = timeDifferenceMs / (1000 * 60 * 60);
+
+      // Determine break deduction:
+      // >= 10 hours -> 1 hour (60 mins)
+      // >= 6 and < 10 hours -> 30 mins (0.5 hour)
+      // < 6 hours -> 15 mins (0.25 hour)
+      let breakHours = 0;
+      if (rawHours >= 10) {
+        breakHours = 1.0;
+      } else if (rawHours >= 6 && rawHours < 10) {
+        breakHours = 0.5;
+      } else {
+        breakHours = 0.25;
+      }
+
+      // Subtract break from raw hours, ensuring it doesn't go below 0
       const totalHours = parseFloat(
-        (timeDifferenceMs / (1000 * 60 * 60)).toFixed(2),
-      ); // Convert to hours with 2 decimal places
+        Math.max(0, rawHours - breakHours).toFixed(2),
+      );
 
       // Get hourly rate from shift
       const hourlyRate = shift.pay_rate_hourly;

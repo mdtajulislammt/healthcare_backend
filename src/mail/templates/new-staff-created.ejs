@@ -1,0 +1,18 @@
+<p>Hello Admin,</p>
+
+<p>A new staff account has been created on <%= appName %>.</p>
+
+<p>
+  <strong>Staff Details:</strong>
+</p>
+
+<p>
+  <strong>Name:</strong> <%= name %><br />
+  <strong>Email:</strong> <%= email %><br />
+  <strong>Roles:</strong> <%= roles.join(', ') || 'N/A' %>
+</p>
+
+<p>
+  Regards,<br />
+  <%= appName %> System
+</p>

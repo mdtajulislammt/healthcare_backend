@@ -1063,49 +1063,49 @@ export class AuthService {
   async registerEmail(userId: string, email: string) {
     try {
       // Check if email already exists
-      const existingUser = await UserRepository.exist({
-        field: 'email',
-        value: email,
-      });
+      // const existingUser = await UserRepository.exist({
+      //   field: 'email',
+      //   value: email,
+      // });
 
-      if (existingUser) {
-        return {
-          success: false,
-          message: 'Email already registered',
-        };
-      }
+      // if (existingUser) {
+      //   return {
+      //     success: false,
+      //     message: 'Email already registered',
+      //   };
+      // }
 
-      // Get user to verify onboarding step
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      // // Get user to verify onboarding step
+      // const user = await this.prisma.user.findUnique({
+      //   where: { id: userId },
+      // });
 
-      if (!user) {
-        return {
-          success: false,
-          message: 'User not found',
-        };
-      }
+      // if (!user) {
+      //   return {
+      //     success: false,
+      //     message: 'User not found',
+      //   };
+      // }
 
-      if (
-        user.onboarding_step !== 'email' &&
-        user.onboarding_step !== 'account_type'
-      ) {
-        return {
-          success: false,
-          message:
-            'Invalid onboarding step. Please start from account type selection',
-        };
-      }
+      // if (
+      //   user.onboarding_step !== 'email' &&
+      //   user.onboarding_step !== 'account_type'
+      // ) {
+      //   return {
+      //     success: false,
+      //     message:
+      //       'Invalid onboarding step. Please start from account type selection',
+      //   };
+      // }
 
-      // Update user email and onboarding step
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          email: email,
-          onboarding_step: 'email_verify',
-        },
-      });
+      // // Update user email and onboarding step
+      // await this.prisma.user.update({
+      //   where: { id: userId },
+      //   data: {
+      //     email: email,
+      //     onboarding_step: 'email_verify',
+      //   },
+      // });
 
       // Create verification OTP code
       const otpCode = await UcodeRepository.createRegistrationOtp({
@@ -1678,6 +1678,17 @@ export class AuthService {
         });
       }
 
+      // Send email notification to info@vitalhands.co.uk
+      try {
+        await this.mailService.sendNewStaffNotification({
+          staffName: `${profileData.first_name} ${profileData.last_name}`,
+          staffEmail: user.email,
+          roles: rolesNormalized,
+        });
+      } catch (mailError) {
+        console.error('Failed to send new staff email notification:', mailError);
+      }
+
       return {
         success: true,
         message: 'Staff profile created successfully',
@@ -2087,6 +2098,19 @@ export class AuthService {
           where: { id: userId },
           data: { billing_id: stripeCustomer.id },
         });
+      }
+
+      // Send email notification to info@vitalhands.co.uk
+      try {
+        await this.mailService.sendNewProviderNotification({
+          providerName: `${profileData.first_name} ${profileData.last_name}`,
+          organizationName: profileData.organization_name,
+          providerEmail: user.email,
+          cqcNumber: profileData.cqc_provider_number,
+          serviceType: profileData.main_service_type,
+        });
+      } catch (mailError) {
+        console.error('Failed to send new provider email notification:', mailError);
       }
 
       return {

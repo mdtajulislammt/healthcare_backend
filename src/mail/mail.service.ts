@@ -158,4 +158,94 @@ export class MailService {
       console.log(error);
     }
   }
+
+  async sendNewStaffNotification(params: {
+    staffName: string;
+    staffEmail: string;
+    roles?: string[];
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `New Staff Account Created - ${params.staffName}`;
+
+      await this.queue.add('sendNewStaffNotification', {
+        to: 'info@vitalhands.co.uk',
+        from,
+        subject,
+        template: 'new-staff-created',
+        context: {
+          name: params.staffName,
+          email: params.staffEmail,
+          roles: params.roles || [],
+          appName: appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async sendNewProviderNotification(params: {
+    providerName: string;
+    organizationName: string;
+    providerEmail: string;
+    cqcNumber: string;
+    serviceType: string;
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `New Service Provider Registered - ${params.organizationName}`;
+
+      await this.queue.add('sendNewProviderNotification', {
+        to: 'info@vitalhands.co.uk',
+        from,
+        subject,
+        template: 'new-provider-created',
+        context: {
+          name: params.providerName,
+          organizationName: params.organizationName,
+          email: params.providerEmail,
+          cqcNumber: params.cqcNumber,
+          serviceType: params.serviceType,
+          appName: appConfig().app.name,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async sendUserCredentials(params: {
+    email: string;
+    name: string;
+    password: string;
+    accountType: 'staff' | 'service provider';
+  }) {
+    try {
+      const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
+      const subject = `Welcome to ${appConfig().app.name} - Your Account Credentials`;
+
+      const loginUrl =
+        params.accountType === 'staff'
+          ? `${appConfig().app.client_app_url}/login`
+          : `${appConfig().app.dashboard_url || appConfig().app.client_app_url}/login`;
+
+      await this.queue.add('sendUserCredentials', {
+        to: params.email,
+        from: from,
+        subject: subject,
+        template: 'user-credentials',
+        context: {
+          name: params.name,
+          email: params.email,
+          password: params.password,
+          accountType: params.accountType,
+          appName: appConfig().app.name,
+          loginUrl: loginUrl,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }
