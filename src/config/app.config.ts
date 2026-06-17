@@ -4,6 +4,8 @@ export default () => ({
     key: process.env.APP_KEY,
     url: process.env.APP_URL,
     client_app_url: process.env.CLIENT_APP_URL,
+    dashboard_url: process.env.DASHBOARD_URL,
+    admin_url: process.env.ADMIN_URL,
     port: parseInt(process.env.PORT, 10) || 3000,
   },
 

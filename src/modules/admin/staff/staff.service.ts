@@ -18,10 +18,14 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   private async recalculateProfileCompletion(staff_id: string) {
     const staffProfileWithRelations = await this.prisma.staffProfile.findUnique(
@@ -439,6 +443,29 @@ export class StaffService {
             is_profile_complete: completionResult.is_profile_complete,
           },
         });
+      }
+
+      // Send email notification to info@vitalhands.co.uk
+      try {
+        await this.mailService.sendNewStaffNotification({
+          staffName: `${result.staffProfile.first_name} ${result.staffProfile.last_name}`,
+          staffEmail: result.user.email,
+          roles: result.staffProfile.roles,
+        });
+      } catch (mailError) {
+        console.error('Failed to send new staff email notification:', mailError);
+      }
+
+      // Send login credentials to the newly created staff member
+      try {
+        await this.mailService.sendUserCredentials({
+          email: result.user.email,
+          name: `${result.staffProfile.first_name} ${result.staffProfile.last_name}`,
+          password: password,
+          accountType: 'staff',
+        });
+      } catch (mailError) {
+        console.error('Failed to send staff credentials email:', mailError);
       }
 
       return {

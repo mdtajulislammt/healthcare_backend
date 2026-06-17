@@ -16,10 +16,14 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class ServiceProviderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   async create(
     createServiceProviderDto: CreateServiceProviderDto,
@@ -149,6 +153,31 @@ export class ServiceProviderService {
           'Failed to create Stripe customer for service provider:',
           (stripeError as any)?.message,
         );
+      }
+
+      // Send email notification to info@vitalhands.co.uk
+      try {
+        await this.mailService.sendNewProviderNotification({
+          providerName: `${createServiceProviderDto.first_name} ${createServiceProviderDto.last_name}`,
+          organizationName: createServiceProviderDto.organization_name,
+          providerEmail: email,
+          cqcNumber: createServiceProviderDto.cqc_provider_number,
+          serviceType: createServiceProviderDto.main_service_type,
+        });
+      } catch (mailError) {
+        console.error('Failed to send new provider email notification:', mailError);
+      }
+
+      // Send login credentials to the newly created service provider
+      try {
+        await this.mailService.sendUserCredentials({
+          email: result.user.email,
+          name: `${createServiceProviderDto.first_name} ${createServiceProviderDto.last_name}`,
+          password: password,
+          accountType: 'service provider',
+        });
+      } catch (mailError) {
+        console.error('Failed to send service provider credentials email:', mailError);
       }
 
       return {
