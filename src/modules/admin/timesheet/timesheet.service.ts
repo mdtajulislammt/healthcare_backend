@@ -127,6 +127,8 @@ export class TimesheetService {
             total_hours: true,
             hourly_rate: true,
             total_pay: true,
+            staff_hourly_rate: true,
+            staff_total_pay: true,
             notes: true,
             status: true,
             verification_method: true,
@@ -146,6 +148,7 @@ export class TimesheetService {
                 id: true,
                 posting_title: true,
                 pay_rate_hourly: true,
+                platform_margin: true,
                 service_provider_info: {
                   select: {
                     id: true,
@@ -181,7 +184,7 @@ export class TimesheetService {
       const items = itemsRaw.map((timesheet) => ({
         ...timesheet,
         client: timesheet.shift.service_provider_info.organization_name,
-        client_rate: timesheet.shift.pay_rate_hourly,
+        client_rate: timesheet.hourly_rate || timesheet.shift.pay_rate_hourly,
         shift_title: timesheet.shift.posting_title,
         hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
         hours: timesheet.total_hours || 0,
@@ -229,6 +232,8 @@ export class TimesheetService {
           total_hours: true,
           hourly_rate: true,
           total_pay: true,
+          staff_hourly_rate: true,
+          staff_total_pay: true,
           notes: true,
           status: true,
           verification_method: true,
@@ -248,6 +253,7 @@ export class TimesheetService {
               id: true,
               posting_title: true,
               pay_rate_hourly: true,
+              platform_margin: true,
               start_date: true,
               service_provider_info: {
                 select: {
@@ -284,7 +290,7 @@ export class TimesheetService {
       const data = {
         ...timesheet,
         client: timesheet.shift.service_provider_info.organization_name,
-        client_rate: timesheet.shift.pay_rate_hourly,
+        client_rate: timesheet.hourly_rate || timesheet.shift.pay_rate_hourly,
         shift_title: timesheet.shift.posting_title,
         hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
         hours: timesheet.total_hours || 0,
@@ -781,6 +787,8 @@ export class TimesheetService {
           total_hours: true,
           hourly_rate: true,
           total_pay: true,
+          staff_hourly_rate: true,
+          staff_total_pay: true,
           status: true,
           xero_status: true,
           staff_pay_status: true,
@@ -799,25 +807,35 @@ export class TimesheetService {
         },
       });
 
-      const totalHours = timesheets.reduce(
+      const mappedTimesheets = timesheets.map((t) => {
+        const staffHourlyRate = t.staff_hourly_rate ?? t.hourly_rate ?? 0;
+        const staffTotalPay = t.staff_total_pay ?? t.total_pay ?? 0;
+        return {
+          ...t,
+          hourly_rate: staffHourlyRate,
+          total_pay: staffTotalPay,
+        };
+      });
+
+      const totalHours = mappedTimesheets.reduce(
         (sum, t) => sum + (t.total_hours || 0),
         0,
       );
-      const totalPayable = timesheets.reduce(
+      const totalPayable = mappedTimesheets.reduce(
         (sum, t) => sum + (t.total_pay || 0),
         0,
       );
 
       // Calculate paid amount (where staff_pay_status = 'paid')
-      const totalPaid = timesheets
+      const totalPaid = mappedTimesheets
         .filter((t) => t.staff_pay_status === 'paid')
         .reduce((sum, t) => sum + (t.total_pay || 0), 0);
 
       const outstanding = totalPayable - totalPaid;
 
       // Group by status
-      const pending = timesheets.filter((t) => t.staff_pay_status !== 'paid');
-      const paid = timesheets.filter((t) => t.staff_pay_status === 'paid');
+      const pending = mappedTimesheets.filter((t) => t.staff_pay_status !== 'paid');
+      const paid = mappedTimesheets.filter((t) => t.staff_pay_status === 'paid');
 
       return {
         success: true,
@@ -825,16 +843,16 @@ export class TimesheetService {
         data: {
           summary: {
             total_hours: totalHours,
-            total_payable: totalPayable,
-            total_paid: totalPaid,
-            outstanding: outstanding,
+            total_payable: parseFloat(totalPayable.toFixed(2)),
+            total_paid: parseFloat(totalPaid.toFixed(2)),
+            outstanding: parseFloat(outstanding.toFixed(2)),
           },
           timesheets: {
             pending: pending.length,
             paid: paid.length,
-            total: timesheets.length,
+            total: mappedTimesheets.length,
           },
-          breakdown: timesheets,
+          breakdown: mappedTimesheets,
         },
       };
     } catch (error) {

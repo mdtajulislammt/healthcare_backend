@@ -77,12 +77,15 @@ export class ShiftService {
             profession_role: profession_role,
           },
         },
-        select: { pay_rate_hourly: true },
+        select: { pay_rate_hourly: true, platform_margin: true },
       });
 
       const providerPayRateHourly = rolePayRate
         ? Number(rolePayRate.pay_rate_hourly)
         : null;
+      const providerPlatformMargin = rolePayRate
+        ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+        : 0;
       if (
         providerPayRateHourly === null ||
         providerPayRateHourly === undefined ||
@@ -203,6 +206,7 @@ export class ShiftService {
         notes,
         status,
         requestingUserId,
+        platformMargin: providerPlatformMargin,
       });
 
       return {
@@ -911,12 +915,15 @@ export class ShiftService {
                 profession_role: professionRole,
               },
             },
-            select: { pay_rate_hourly: true },
+            select: { pay_rate_hourly: true, platform_margin: true },
           });
 
           const providerPayRateHourly = rolePayRate
             ? Number(rolePayRate.pay_rate_hourly)
             : null;
+          const providerPlatformMargin = rolePayRate
+            ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+            : 0;
           if (
             providerPayRateHourly === null ||
             providerPayRateHourly === undefined ||
@@ -980,6 +987,7 @@ export class ShiftService {
               existingShift?.status ??
               ShiftStatus.published,
             requestingUserId,
+            platformMargin: providerPlatformMargin,
           });
         }
       }
@@ -1099,6 +1107,7 @@ export class ShiftService {
           id: true,
           profession_role: true,
           pay_rate_hourly: true,
+          platform_margin: true,
           updated_at: true,
         },
         orderBy: { profession_role: 'asc' },

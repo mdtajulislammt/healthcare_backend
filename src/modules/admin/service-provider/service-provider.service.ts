@@ -714,6 +714,8 @@ export class ServiceProviderService {
         throw new BadRequestException('Pay rate hourly must be greater than 0');
       }
 
+      const platformMargin = dto.platform_margin !== undefined ? Number(dto.platform_margin) : undefined;
+
       const updated = await (this.prisma as any).providerPayRateByRole.upsert({
         where: {
           service_provider_id_profession_role: {
@@ -723,16 +725,19 @@ export class ServiceProviderService {
         },
         update: {
           pay_rate_hourly: payRate,
+          platform_margin: platformMargin,
         },
         create: {
           service_provider_id: id,
           profession_role: dto.profession_role,
           pay_rate_hourly: payRate,
+          platform_margin: platformMargin ?? 0,
         },
         select: {
           id: true,
           profession_role: true,
           pay_rate_hourly: true,
+          platform_margin: true,
           updated_at: true,
         },
       });
@@ -783,6 +788,8 @@ export class ServiceProviderService {
             );
           }
 
+          const platformMargin = item.platform_margin !== undefined ? Number(item.platform_margin) : undefined;
+
           return (this.prisma as any).providerPayRateByRole.upsert({
             where: {
               service_provider_id_profession_role: {
@@ -792,16 +799,19 @@ export class ServiceProviderService {
             },
             update: {
               pay_rate_hourly: payRate,
+              platform_margin: platformMargin,
             },
             create: {
               service_provider_id: id,
               profession_role: item.profession_role,
               pay_rate_hourly: payRate,
+              platform_margin: platformMargin ?? 0,
             },
             select: {
               id: true,
               profession_role: true,
               pay_rate_hourly: true,
+              platform_margin: true,
               updated_at: true,
             },
           });
@@ -860,6 +870,7 @@ export class ServiceProviderService {
           id: true,
           profession_role: true,
           pay_rate_hourly: true,
+          platform_margin: true,
           created_at: true,
           updated_at: true,
         },

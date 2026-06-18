@@ -395,6 +395,7 @@ export class ApplyShiftService {
             latitude: true,
             longitude: true,
             pay_rate_hourly: true,
+            platform_margin: true,
             signing_bonus: true,
             emergency_bonus: true,
             status: true,
@@ -420,6 +421,8 @@ export class ApplyShiftService {
                 status: true,
                 total_hours: true,
                 total_pay: true,
+                staff_total_pay: true,
+                staff_hourly_rate: true,
                 verification_method: true,
               },
             },
@@ -453,6 +456,14 @@ export class ApplyShiftService {
           const publishedAgo = rest.created_at
             ? DateHelper.getTimeAgo(new Date(rest.created_at))
             : null;
+
+          if (rest.timesheet) {
+            const staffTotalPay = rest.timesheet.staff_total_pay ?? rest.timesheet.total_pay ?? 0;
+            rest.timesheet = {
+              ...rest.timesheet,
+              total_pay: staffTotalPay,
+            };
+          }
 
           return {
             ...rest,

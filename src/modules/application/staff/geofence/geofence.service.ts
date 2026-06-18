@@ -563,7 +563,7 @@ export class GeofenceService {
 
       const staff_id = staffProfile.id;
 
-      // Get shift with assigned staff, pay rate, and time schedule
+      // Get shift with assigned staff, pay rate, platform margin, and time schedule
       const shift = await this.prisma.shift.findUnique({
         where: { id: shiftId },
         select: {
@@ -572,6 +572,7 @@ export class GeofenceService {
           posting_title: true,
           facility_name: true,
           pay_rate_hourly: true,
+          platform_margin: true,
           start_time: true,
           end_time: true,
         },
@@ -655,6 +656,11 @@ export class GeofenceService {
       // Calculate total pay
       const totalPay = parseFloat((totalHours * hourlyRate).toFixed(2));
 
+      // Calculate staff rates subtracting platform margin as flat fee from total pay
+      const platformMargin = shift.platform_margin ?? 0;
+      const staffTotalPay = parseFloat(Math.max(0, totalPay - platformMargin).toFixed(2));
+      const staffHourlyRate = totalHours > 0 ? parseFloat((staffTotalPay / totalHours).toFixed(2)) : hourlyRate;
+
       const attendance = await this.prisma.shiftAttendance.update({
         where: { shift_id: shiftId },
         data: {
@@ -675,6 +681,8 @@ export class GeofenceService {
           total_hours: totalHours,
           hourly_rate: hourlyRate,
           total_pay: totalPay,
+          staff_hourly_rate: staffHourlyRate,
+          staff_total_pay: staffTotalPay,
           submitted_at: new Date(),
         },
         update: {
@@ -682,6 +690,8 @@ export class GeofenceService {
           total_hours: totalHours,
           hourly_rate: hourlyRate,
           total_pay: totalPay,
+          staff_hourly_rate: staffHourlyRate,
+          staff_total_pay: staffTotalPay,
           status: TimesheetStatus.submitted,
           submitted_at: new Date(),
         },

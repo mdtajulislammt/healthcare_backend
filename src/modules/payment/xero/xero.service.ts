@@ -593,7 +593,8 @@ export class XeroService {
 
       // Build staff payment details for manual payment
       const bankDetails = timesheet.staff.bank_details;
-      let staffPaymentNotes = `Staff Payment Details:\nStaff Name: ${staffName}\nAmount Due to Staff: £${timesheet.total_pay?.toFixed(2) || '0.00'}`;
+      const staffPayAmount = timesheet.staff_total_pay || 0;
+      let staffPaymentNotes = `Staff Payment Details:\nStaff Name: ${staffName}\nAmount Due to Staff: £${staffPayAmount.toFixed(2)}`;
 
       if (bankDetails) {
         staffPaymentNotes += `\nAccount Holder: ${bankDetails.account_holder_name}`;
