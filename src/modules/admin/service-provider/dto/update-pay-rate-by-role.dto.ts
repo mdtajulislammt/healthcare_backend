@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, Min, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNumber, Min, IsNotEmpty, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ProfessionRole } from '@prisma/client';
@@ -23,4 +23,16 @@ export class UpdatePayRateByRoleDto {
   @Min(0.01, { message: 'Pay rate hourly must be at least 0.01' })
   @IsNotEmpty()
   pay_rate_hourly: number;
+
+  @ApiProperty({
+    description: 'Platform margin for the specified role (minimum 0.00)',
+    example: 2.0,
+    type: Number,
+    required: false,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0, { message: 'Platform margin must be at least 0.00' })
+  platform_margin?: number;
 }

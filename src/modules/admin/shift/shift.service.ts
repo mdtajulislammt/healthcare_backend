@@ -325,6 +325,7 @@ export class ShiftService {
           longitude: true,
           // pay
           pay_rate_hourly: true,
+          platform_margin: true,
           signing_bonus: true,
           internal_po_number: true,
           emergency_bonus: true,

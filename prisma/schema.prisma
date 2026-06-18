@@ -482,6 +482,7 @@ model ProviderPayRateByRole {
   service_provider_id String
   profession_role     ProfessionRole
   pay_rate_hourly     Float // Min 0.01
+  platform_margin     Float? // Min 0.01
   created_at          DateTime       @default(now())
   updated_at          DateTime       @updatedAt
 
@@ -798,6 +799,7 @@ model Shift {
   signing_bonus      Float?  @default(0)
   internal_po_number String?
   emergency_bonus    Float?  @default(0)
+  platform_margin    Float?  @default(0)
 
   // Notes
   notes String?
@@ -859,8 +861,14 @@ model ShiftTimesheet {
   staff_id String
 
   total_hours Float?
+  // client
   hourly_rate Float?
   total_pay   Float?
+  
+  // staff
+  staff_hourly_rate Float?
+  staff_total_pay   Float?
+
   notes       String?
 
   status              TimesheetStatus @default(pending_submission)

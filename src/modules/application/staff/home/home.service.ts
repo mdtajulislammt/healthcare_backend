@@ -129,6 +129,8 @@ export class HomeService {
             total_hours: true,
             hourly_rate: true,
             total_pay: true,
+            staff_hourly_rate: true,
+            staff_total_pay: true,
           },
         }),
       ]);
@@ -139,12 +141,12 @@ export class HomeService {
         0,
       );
       const totalIncome = timesheets.reduce(
-        (sum, t) => sum + (t.total_pay || 0),
+        (sum, t) => sum + (t.staff_total_pay ?? t.total_pay ?? 0),
         0,
       );
       const avgHourlyRate =
         timesheets.length > 0
-          ? timesheets.reduce((sum, t) => sum + (t.hourly_rate || 0), 0) /
+          ? timesheets.reduce((sum, t) => sum + (t.staff_hourly_rate ?? t.hourly_rate ?? 0), 0) /
             timesheets.length
           : 0;
 
