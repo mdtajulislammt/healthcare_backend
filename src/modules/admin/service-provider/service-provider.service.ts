@@ -165,7 +165,10 @@ export class ServiceProviderService {
           serviceType: createServiceProviderDto.main_service_type,
         });
       } catch (mailError) {
-        console.error('Failed to send new provider email notification:', mailError);
+        console.error(
+          'Failed to send new provider email notification:',
+          mailError,
+        );
       }
 
       // Send login credentials to the newly created service provider
@@ -177,7 +180,10 @@ export class ServiceProviderService {
           accountType: 'service provider',
         });
       } catch (mailError) {
-        console.error('Failed to send service provider credentials email:', mailError);
+        console.error(
+          'Failed to send service provider credentials email:',
+          mailError,
+        );
       }
 
       return {
@@ -714,7 +720,10 @@ export class ServiceProviderService {
         throw new BadRequestException('Pay rate hourly must be greater than 0');
       }
 
-      const platformMargin = dto.platform_margin !== undefined ? Number(dto.platform_margin) : undefined;
+      const platformMargin =
+        dto.platform_margin !== undefined
+          ? Number(dto.platform_margin)
+          : undefined;
 
       const updated = await (this.prisma as any).providerPayRateByRole.upsert({
         where: {
@@ -788,7 +797,10 @@ export class ServiceProviderService {
             );
           }
 
-          const platformMargin = item.platform_margin !== undefined ? Number(item.platform_margin) : undefined;
+          const platformMargin =
+            item.platform_margin !== undefined
+              ? Number(item.platform_margin)
+              : undefined;
 
           return (this.prisma as any).providerPayRateByRole.upsert({
             where: {

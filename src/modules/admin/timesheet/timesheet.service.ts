@@ -834,8 +834,12 @@ export class TimesheetService {
       const outstanding = totalPayable - totalPaid;
 
       // Group by status
-      const pending = mappedTimesheets.filter((t) => t.staff_pay_status !== 'paid');
-      const paid = mappedTimesheets.filter((t) => t.staff_pay_status === 'paid');
+      const pending = mappedTimesheets.filter(
+        (t) => t.staff_pay_status !== 'paid',
+      );
+      const paid = mappedTimesheets.filter(
+        (t) => t.staff_pay_status === 'paid',
+      );
 
       return {
         success: true,

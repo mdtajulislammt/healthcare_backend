@@ -84,7 +84,9 @@ export class ShiftService {
         ? Number(rolePayRate.pay_rate_hourly)
         : null;
       const providerPlatformMargin = rolePayRate
-        ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+        ? rolePayRate.platform_margin
+          ? Number(rolePayRate.platform_margin)
+          : 0
         : 0;
       if (
         providerPayRateHourly === null ||
@@ -922,7 +924,9 @@ export class ShiftService {
             ? Number(rolePayRate.pay_rate_hourly)
             : null;
           const providerPlatformMargin = rolePayRate
-            ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+            ? rolePayRate.platform_margin
+              ? Number(rolePayRate.platform_margin)
+              : 0
             : 0;
           if (
             providerPayRateHourly === null ||
