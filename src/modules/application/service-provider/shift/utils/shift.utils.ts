@@ -110,6 +110,7 @@ export async function createAndLogShifts(params: {
   status?: any;
   requestingUserId?: string;
   platformMargin?: number | null;
+  staffHourlyRate?: number | null;
 }) {
   const created = await params.prisma.$transaction(
     params.shiftDates.map((shiftDate) =>
@@ -135,6 +136,7 @@ export async function createAndLogShifts(params: {
           internal_po_number: params.internalPoNumber ?? null,
           emergency_bonus: params.emergencyBonus ?? 0,
           platform_margin: params.platformMargin ?? 0,
+          staff_hourly_rate: params.staffHourlyRate ?? 0,
           notes: params.notes ?? null,
           status: params.status ?? ShiftStatus.published,
         },

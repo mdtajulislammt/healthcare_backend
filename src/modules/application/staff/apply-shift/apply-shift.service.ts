@@ -396,6 +396,7 @@ export class ApplyShiftService {
             longitude: true,
             pay_rate_hourly: true,
             platform_margin: true,
+            staff_hourly_rate: true,
             signing_bonus: true,
             emergency_bonus: true,
             status: true,

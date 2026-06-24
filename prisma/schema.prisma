@@ -800,6 +800,7 @@ model Shift {
   internal_po_number String?
   emergency_bonus    Float?  @default(0)
   platform_margin    Float?  @default(0)
+  staff_hourly_rate  Float?  @default(0)
 
   // Notes
   notes String?
