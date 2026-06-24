@@ -658,8 +658,13 @@ export class GeofenceService {
 
       // Calculate staff rates subtracting platform margin as flat fee from total pay
       const platformMargin = shift.platform_margin ?? 0;
-      const staffTotalPay = parseFloat(Math.max(0, totalPay - platformMargin).toFixed(2));
-      const staffHourlyRate = totalHours > 0 ? parseFloat((staffTotalPay / totalHours).toFixed(2)) : hourlyRate;
+      const staffTotalPay = parseFloat(
+        Math.max(0, totalPay - platformMargin).toFixed(2),
+      );
+      const staffHourlyRate =
+        totalHours > 0
+          ? parseFloat((staffTotalPay / totalHours).toFixed(2))
+          : hourlyRate;
 
       const attendance = await this.prisma.shiftAttendance.update({
         where: { shift_id: shiftId },

@@ -453,7 +453,10 @@ export class StaffService {
           roles: result.staffProfile.roles,
         });
       } catch (mailError) {
-        console.error('Failed to send new staff email notification:', mailError);
+        console.error(
+          'Failed to send new staff email notification:',
+          mailError,
+        );
       }
 
       // Send login credentials to the newly created staff member

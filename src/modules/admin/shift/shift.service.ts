@@ -249,6 +249,8 @@ export class ShiftService {
             start_time: true,
             end_time: true,
             pay_rate_hourly: true,
+            platform_margin: true,
+            staff_hourly_rate: true,
             status: true,
             created_at: true,
             service_provider_info: {
@@ -326,6 +328,7 @@ export class ShiftService {
           // pay
           pay_rate_hourly: true,
           platform_margin: true,
+          staff_hourly_rate: true,
           signing_bonus: true,
           internal_po_number: true,
           emergency_bonus: true,
@@ -531,6 +534,8 @@ export class ShiftService {
           end_time: true,
           facility_name: true,
           pay_rate_hourly: true,
+          platform_margin: true,
+          staff_hourly_rate: true,
           status: true,
           created_at: true,
           service_provider_info: {
@@ -556,6 +561,8 @@ export class ShiftService {
         'End Date',
         'End Time',
         'Pay Rate Hourly',
+        'Platform Margin',
+        'Staff Hourly Rate',
         'Status',
         'Assigned Staff',
         'Created At',
@@ -593,6 +600,8 @@ export class ShiftService {
           ),
           escape(s.end_time?.toISOString?.() ?? (s.end_time as any)),
           escape(s.pay_rate_hourly),
+          escape(s.platform_margin),
+          escape(s.staff_hourly_rate),
           escape(s.status),
           escape(assignedName),
           escape(s.created_at?.toISOString?.() ?? (s.created_at as any)),

@@ -1686,7 +1686,10 @@ export class AuthService {
           roles: rolesNormalized,
         });
       } catch (mailError) {
-        console.error('Failed to send new staff email notification:', mailError);
+        console.error(
+          'Failed to send new staff email notification:',
+          mailError,
+        );
       }
 
       return {
@@ -2110,7 +2113,10 @@ export class AuthService {
           serviceType: profileData.main_service_type,
         });
       } catch (mailError) {
-        console.error('Failed to send new provider email notification:', mailError);
+        console.error(
+          'Failed to send new provider email notification:',
+          mailError,
+        );
       }
 
       return {

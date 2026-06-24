@@ -84,7 +84,9 @@ export class ShiftService {
         ? Number(rolePayRate.pay_rate_hourly)
         : null;
       const providerPlatformMargin = rolePayRate
-        ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+        ? rolePayRate.platform_margin
+          ? Number(rolePayRate.platform_margin)
+          : 0
         : 0;
       if (
         providerPayRateHourly === null ||
@@ -96,6 +98,11 @@ export class ShiftService {
           `Admin has not set pay rate for ${profession_role} role for this service provider`,
         );
       }
+
+      const providerStaffHourlyRate = Math.max(
+        0,
+        providerPayRateHourly - providerPlatformMargin,
+      );
 
       const bonusOptions = normalizeBonusOptions(
         serviceProvider.emergency_bonus_increments,
@@ -207,6 +214,7 @@ export class ShiftService {
         status,
         requestingUserId,
         platformMargin: providerPlatformMargin,
+        staffHourlyRate: providerStaffHourlyRate,
       });
 
       return {
@@ -328,6 +336,8 @@ export class ShiftService {
             facility_name: true,
             full_address: true,
             pay_rate_hourly: true,
+            platform_margin: true,
+            staff_hourly_rate: true,
             status: true,
             notes: true,
             created_at: true,
@@ -764,6 +774,45 @@ export class ShiftService {
 
       if (updateShiftDto.profession_role !== undefined) {
         updateData.profession_role = updateShiftDto.profession_role;
+
+        const rolePayRate = await (
+          this.prisma as any
+        ).providerPayRateByRole.findUnique({
+          where: {
+            service_provider_id_profession_role: {
+              service_provider_id: shift.service_provider_id,
+              profession_role: updateShiftDto.profession_role,
+            },
+          },
+          select: { pay_rate_hourly: true, platform_margin: true },
+        });
+
+        const providerPayRateHourly = rolePayRate
+          ? Number(rolePayRate.pay_rate_hourly)
+          : null;
+        const providerPlatformMargin = rolePayRate
+          ? rolePayRate.platform_margin
+            ? Number(rolePayRate.platform_margin)
+            : 0
+          : 0;
+
+        if (
+          providerPayRateHourly === null ||
+          providerPayRateHourly === undefined ||
+          Number.isNaN(providerPayRateHourly) ||
+          providerPayRateHourly <= 0
+        ) {
+          throw new BadRequestException(
+            `Admin has not set pay rate for ${updateShiftDto.profession_role} role for this service provider`,
+          );
+        }
+
+        updateData.pay_rate_hourly = providerPayRateHourly;
+        updateData.platform_margin = providerPlatformMargin;
+        updateData.staff_hourly_rate = Math.max(
+          0,
+          providerPayRateHourly - providerPlatformMargin,
+        );
       }
 
       if (updateShiftDto.is_urgent !== undefined) {
@@ -922,7 +971,9 @@ export class ShiftService {
             ? Number(rolePayRate.pay_rate_hourly)
             : null;
           const providerPlatformMargin = rolePayRate
-            ? (rolePayRate.platform_margin ? Number(rolePayRate.platform_margin) : 0)
+            ? rolePayRate.platform_margin
+              ? Number(rolePayRate.platform_margin)
+              : 0
             : 0;
           if (
             providerPayRateHourly === null ||
@@ -934,6 +985,11 @@ export class ShiftService {
               `Admin has not set pay rate for ${professionRole} role for this service provider`,
             );
           }
+
+          const providerStaffHourlyRate = Math.max(
+            0,
+            providerPayRateHourly - providerPlatformMargin,
+          );
 
           let latitude: number | null = null;
           let longitude: number | null = null;
@@ -988,6 +1044,7 @@ export class ShiftService {
               ShiftStatus.published,
             requestingUserId,
             platformMargin: providerPlatformMargin,
+            staffHourlyRate: providerStaffHourlyRate,
           });
         }
       }

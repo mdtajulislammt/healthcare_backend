@@ -396,6 +396,7 @@ export class ApplyShiftService {
             longitude: true,
             pay_rate_hourly: true,
             platform_margin: true,
+            staff_hourly_rate: true,
             signing_bonus: true,
             emergency_bonus: true,
             status: true,
@@ -458,7 +459,8 @@ export class ApplyShiftService {
             : null;
 
           if (rest.timesheet) {
-            const staffTotalPay = rest.timesheet.staff_total_pay ?? rest.timesheet.total_pay ?? 0;
+            const staffTotalPay =
+              rest.timesheet.staff_total_pay ?? rest.timesheet.total_pay ?? 0;
             rest.timesheet = {
               ...rest.timesheet,
               total_pay: staffTotalPay,

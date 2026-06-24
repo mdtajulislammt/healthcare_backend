@@ -146,8 +146,10 @@ export class HomeService {
       );
       const avgHourlyRate =
         timesheets.length > 0
-          ? timesheets.reduce((sum, t) => sum + (t.staff_hourly_rate ?? t.hourly_rate ?? 0), 0) /
-            timesheets.length
+          ? timesheets.reduce(
+              (sum, t) => sum + (t.staff_hourly_rate ?? t.hourly_rate ?? 0),
+              0,
+            ) / timesheets.length
           : 0;
 
       // Format next shift
