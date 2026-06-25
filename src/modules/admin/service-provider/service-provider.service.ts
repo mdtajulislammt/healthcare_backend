@@ -17,6 +17,7 @@ import { CreateServiceProviderDto } from './dto/create-service-provider.dto';
 import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
 import { MailService } from 'src/mail/mail.service';
+import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
 
 @Injectable()
 export class ServiceProviderService {
@@ -108,6 +109,25 @@ export class ServiceProviderService {
           });
         }
 
+        let latitude: number | null = null;
+        let longitude: number | null = null;
+        let postcode: string | null = null;
+
+        if (createServiceProviderDto.primary_address) {
+          try {
+            const geocodeResult = await GoogleMapsService.geocodeAddress(
+              createServiceProviderDto.primary_address,
+            );
+            if (geocodeResult) {
+              latitude = geocodeResult.latitude;
+              longitude = geocodeResult.longitude;
+              postcode = geocodeResult.postcode ?? null;
+            }
+          } catch (error) {
+            console.error('Failed to geocode provider primary address:', error);
+          }
+        }
+
         const provider = await tx.serviceProviderInfo.create({
           data: {
             user_id: user.id,
@@ -124,6 +144,9 @@ export class ServiceProviderService {
             cqc_provider_number: createServiceProviderDto.cqc_provider_number,
             vat_tax_id: createServiceProviderDto.vat_tax_id,
             primary_address: createServiceProviderDto.primary_address,
+            latitude,
+            longitude,
+            postcode,
             main_service_type:
               createServiceProviderDto.main_service_type as any,
             max_client_capacity: maxClientCapacity,
@@ -314,6 +337,9 @@ export class ServiceProviderService {
             vat_tax_id: true,
             website: true,
             primary_address: true,
+            latitude: true,
+            longitude: true,
+            postcode: true,
             max_client_capacity: true,
             support_documents_url: true,
             emergency_bonus_increments: true,
@@ -491,6 +517,29 @@ export class ServiceProviderService {
       if (updateServiceProviderDto.primary_address !== undefined) {
         updatePayload.primary_address =
           updateServiceProviderDto.primary_address;
+
+        if (updateServiceProviderDto.primary_address) {
+          try {
+            const geocodeResult = await GoogleMapsService.geocodeAddress(
+              updateServiceProviderDto.primary_address,
+            );
+            if (geocodeResult) {
+              updatePayload.latitude = geocodeResult.latitude;
+              updatePayload.longitude = geocodeResult.longitude;
+              updatePayload.postcode = geocodeResult.postcode ?? null;
+            } else {
+              updatePayload.latitude = null;
+              updatePayload.longitude = null;
+              updatePayload.postcode = null;
+            }
+          } catch (error) {
+            console.error('Failed to geocode provider primary address during update:', error);
+          }
+        } else {
+          updatePayload.latitude = null;
+          updatePayload.longitude = null;
+          updatePayload.postcode = null;
+        }
       }
       if (updateServiceProviderDto.main_service_type !== undefined) {
         updatePayload.main_service_type =
