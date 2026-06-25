@@ -13,6 +13,7 @@ import { DateHelper } from '../../common/helper/date.helper';
 import { StripePayment } from '../../common/lib/Payment/stripe/StripePayment';
 import { StringHelper } from '../../common/helper/string.helper';
 import { calculateStaffProfileCompletion } from '../../common/helper/profile-completion.helper';
+import { GoogleMapsService } from '../../common/lib/GoogleMaps/GoogleMapsService';
 import e from 'express';
 
 @Injectable()
@@ -2049,6 +2050,26 @@ export class AuthService {
             )
           : !!profileData.agreed_to_terms;
 
+      // Geocode address
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      let postcode: string | null = null;
+
+      if (profileData.primary_address) {
+        try {
+          const geocodeResult = await GoogleMapsService.geocodeAddress(
+            profileData.primary_address,
+          );
+          if (geocodeResult) {
+            latitude = geocodeResult.latitude;
+            longitude = geocodeResult.longitude;
+            postcode = geocodeResult.postcode ?? null;
+          }
+        } catch (error) {
+          console.error('Failed to geocode provider primary address:', error);
+        }
+      }
+
       // Create ServiceProviderInfo
       const serviceProviderInfo = await this.prisma.serviceProviderInfo.create({
         data: {
@@ -2063,6 +2084,9 @@ export class AuthService {
           cqc_provider_number: profileData.cqc_provider_number,
           vat_tax_id: profileData.vat_tax_id,
           primary_address: profileData.primary_address,
+          latitude,
+          longitude,
+          postcode,
           main_service_type: profileData.main_service_type,
           max_client_capacity: maxClientCapacity,
           agreed_to_terms: agreedToTerms,

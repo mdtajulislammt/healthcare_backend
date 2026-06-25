@@ -85,34 +85,14 @@ export class ApplyShiftService {
         throw new NotFoundException('Shift not found');
       }
 
-      // Validate roles
+      // Validate roles - staff roles must include the shift's profession role
       const staffRoles = staffProfile.roles || [];
       const shiftRole = shift.profession_role;
 
-      const hasNurseRole = staffRoles.includes('nurse');
-      const hasHcaCarerRole = staffRoles.some((r) =>
-        ['hca_carer', 'senior_hca', 'support_worker'].includes(r),
-      );
-
-      if (shiftRole === 'nurse') {
-        if (!hasNurseRole) {
-          throw new BadRequestException(
-            'HCA/Carer staff cannot apply to a Nurse shift.',
-          );
-        }
-      } else if (
-        ['hca_carer', 'senior_hca', 'support_worker'].includes(shiftRole)
-      ) {
-        if (hasNurseRole && !hasHcaCarerRole) {
-          throw new BadRequestException(
-            'Nurses cannot apply for HCA/Carer shifts.',
-          );
-        }
-        if (!hasHcaCarerRole) {
-          throw new BadRequestException(
-            'Only HCA/Carer staff can apply for HCA/Carer shifts.',
-          );
-        }
+      if (!staffRoles.includes(shiftRole as any)) {
+        throw new BadRequestException(
+          `Your profile roles do not include '${shiftRole}'. You can only apply to shifts that match your role.`,
+        );
       }
 
       // Validate shift status - only published shifts can be applied to

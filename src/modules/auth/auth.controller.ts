@@ -529,14 +529,14 @@ export class AuthController {
       }
       const result = await this.authService.registerEmail(userId, email);
       //! TODO: Remove this code from response after testing
-      if (result.success) {
-        const ucode =
-          await this.authService.getRegistrationOtpForTesting(email);
-        return {
-          ...result,
-          test_otp_code: ucode, // For testing purposes only
-        };
-      }
+      // if (result.success) {
+      //   const ucode =
+      //     await this.authService.getRegistrationOtpForTesting(email);
+      //   return {
+      //     ...result,
+      //     test_otp_code: ucode, // For testing purposes only
+      //   };
+      // }
       return result;
     } catch (error) {
       return {
@@ -559,15 +559,6 @@ export class AuthController {
         throw new HttpException('User ID not provided', HttpStatus.BAD_REQUEST);
       }
       const result = await this.authService.resendOtp(userId, email);
-      //! TODO: Remove this code from response after testing
-      if (result.success) {
-        const ucode =
-          await this.authService.getRegistrationOtpForTesting(email);
-        return {
-          ...result,
-          test_otp_code: ucode, // For testing purposes only
-        };
-      }
       return result;
     } catch (error) {
       return {

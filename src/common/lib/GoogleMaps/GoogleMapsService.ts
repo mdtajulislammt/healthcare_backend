@@ -4,6 +4,7 @@ interface GeocodeResult {
   latitude: number;
   longitude: number;
   formatted_address?: string;
+  postcode?: string | null;
 }
 
 interface DistanceResult {
@@ -39,10 +40,16 @@ export class GoogleMapsService {
         const result = data.results[0];
         const location = result.geometry.location;
 
+        const postcodeComponent = result.address_components?.find((c: any) =>
+          c.types.includes('postal_code'),
+        );
+        const postcode = postcodeComponent ? postcodeComponent.long_name : null;
+
         return {
           latitude: location.lat,
           longitude: location.lng,
           formatted_address: result.formatted_address,
+          postcode,
         };
       } else {
         console.warn(

@@ -24,14 +24,6 @@ enum ServiceType {
   other
 }
 
-enum StaffRole {
-  nurse
-  senior_hca
-  hca_carer
-  support_worker
-  other
-}
-
 enum ComplianceStatus {
   pending
   approved
@@ -108,6 +100,15 @@ enum ProfessionRole {
   support_worker
   other
 }
+
+enum StaffRole {
+  nurse
+  senior_hca
+  hca_carer
+  support_worker
+  other
+}
+
 
 enum ShiftApplicationStatus {
   pending
@@ -530,6 +531,9 @@ model ServiceProviderInfo {
   cqc_provider_number        String
   vat_tax_id                 String?
   primary_address            String
+  latitude                   Float?
+  longitude                  Float?
+  postcode                   String?
   main_service_type          ServiceType
   max_client_capacity        Int
   support_documents_url      String?

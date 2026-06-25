@@ -11,6 +11,7 @@ import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { SojebStorage } from '../../../../common/lib/Disk/SojebStorage';
 import appConfig from '../../../../config/app.config';
 import { StringHelper } from '../../../../common/helper/string.helper';
+import { GoogleMapsService } from '../../../../common/lib/GoogleMaps/GoogleMapsService';
 
 @Injectable()
 export class ProfileService {
@@ -251,6 +252,29 @@ export class ProfileService {
 
       if (updateData.primary_address !== undefined) {
         updatePayload.primary_address = updateData.primary_address;
+
+        if (updateData.primary_address) {
+          try {
+            const geocodeResult = await GoogleMapsService.geocodeAddress(
+              updateData.primary_address,
+            );
+            if (geocodeResult) {
+              updatePayload.latitude = geocodeResult.latitude;
+              updatePayload.longitude = geocodeResult.longitude;
+              updatePayload.postcode = geocodeResult.postcode ?? null;
+            } else {
+              updatePayload.latitude = null;
+              updatePayload.longitude = null;
+              updatePayload.postcode = null;
+            }
+          } catch (error) {
+            console.error('Failed to geocode provider primary address during self-update:', error);
+          }
+        } else {
+          updatePayload.latitude = null;
+          updatePayload.longitude = null;
+          updatePayload.postcode = null;
+        }
       }
 
       if (updateData.main_service_type !== undefined) {
@@ -277,6 +301,9 @@ export class ProfileService {
           cqc_provider_number: true,
           vat_tax_id: true,
           primary_address: true,
+          latitude: true,
+          longitude: true,
+          postcode: true,
           main_service_type: true,
           max_client_capacity: true,
           support_documents_url: true,
