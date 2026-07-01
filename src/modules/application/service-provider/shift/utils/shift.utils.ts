@@ -20,6 +20,11 @@ export function getShiftDates(startDateValue: string, endDateValue?: string) {
     );
   }
 
+  const originalHours = startDate.getUTCHours();
+  const originalMinutes = startDate.getUTCMinutes();
+  const originalSeconds = startDate.getUTCSeconds();
+  const originalMs = startDate.getUTCMilliseconds();
+
   const dates: Date[] = [];
   const currentDate = new Date(startDate);
   currentDate.setUTCHours(0, 0, 0, 0);
@@ -27,7 +32,9 @@ export function getShiftDates(startDateValue: string, endDateValue?: string) {
   finalDate.setUTCHours(0, 0, 0, 0);
 
   while (currentDate.getTime() <= finalDate.getTime()) {
-    dates.push(new Date(currentDate));
+    const d = new Date(currentDate);
+    d.setUTCHours(originalHours, originalMinutes, originalSeconds, originalMs);
+    dates.push(d);
     currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
