@@ -616,4 +616,53 @@ export class ShiftService {
       );
     }
   }
+
+  async remove(id: string, requestingUserId: string) {
+    try {
+      const shift = await this.prisma.shift.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          posting_title: true,
+          facility_name: true,
+        },
+      });
+
+      if (!shift) {
+        throw new NotFoundException('Shift not found');
+      }
+
+      // if (shift.status === ShiftStatus.completed) {
+      //   throw new BadRequestException('Completed shifts cannot be deleted');
+      // }
+
+      await this.prisma.shift.delete({
+        where: { id },
+      });
+
+      // Log activity
+      await this.activityLogService.logShiftDelete(
+        requestingUserId,
+        shift.id,
+        shift.posting_title,
+        shift.facility_name,
+      );
+
+      return {
+        success: true,
+        message: 'Shift deleted successfully',
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to delete shift',
+      );
+    }
+  }
 }

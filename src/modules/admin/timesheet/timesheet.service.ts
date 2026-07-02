@@ -995,4 +995,33 @@ export class TimesheetService {
       );
     }
   }
+
+  async remove(id: string) {
+    try {
+      const timesheet = await this.prisma.shiftTimesheet.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+
+      if (!timesheet) {
+        throw new NotFoundException('Timesheet not found');
+      }
+
+      await this.prisma.shiftTimesheet.delete({
+        where: { id },
+      });
+
+      return {
+        success: true,
+        message: 'Timesheet deleted successfully',
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to delete timesheet',
+      );
+    }
+  }
 }
