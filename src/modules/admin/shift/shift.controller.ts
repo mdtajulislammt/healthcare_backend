@@ -2,6 +2,7 @@ import {
   Body,
   BadRequestException,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -83,5 +84,14 @@ export class ShiftController {
     }
 
     return this.shiftService.assignStaff(id, assignStaffDto.staff_id, userId);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @Req() req: Request) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.remove(id, userId);
   }
 }

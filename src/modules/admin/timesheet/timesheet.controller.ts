@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Post,
   Body,
@@ -118,5 +119,11 @@ export class TimesheetController {
   @Post('invoices/bulk')
   createBulkInvoices(@Body() body: { timesheetIds: string[] }) {
     return this.timesheetService.createBulkInvoices(body.timesheetIds);
+  }
+
+  @ApiOperation({ summary: 'Delete a timesheet (admin action)' })
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.timesheetService.remove(id);
   }
 }

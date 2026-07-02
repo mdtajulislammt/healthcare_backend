@@ -328,4 +328,27 @@ export class ActivityLogService {
       userAgent,
     });
   }
+
+  async logShiftDelete(
+    userId: string,
+    shiftId: string,
+    postingTitle: string,
+    facilityName: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    await this.logActivity({
+      userId,
+      actionType: ActivityLogActionType.shift_delete,
+      description: `Deleted shift "${postingTitle}" at ${facilityName}`,
+      entityType: 'shift',
+      entityId: shiftId,
+      metadata: {
+        posting_title: postingTitle,
+        facility: facilityName,
+      },
+      ipAddress,
+      userAgent,
+    });
+  }
 }
