@@ -225,10 +225,16 @@ export class MailService {
       const from = `${process.env.APP_NAME} <${appConfig().mail.from}>`;
       const subject = `Welcome to ${appConfig().app.name} - Your Account Credentials`;
 
+      const formatLoginUrl = (url: string) => {
+        if (!url) return '';
+        const cleanUrl = url.replace(/\/+$/, '');
+        return cleanUrl.endsWith('/login') ? cleanUrl : `${cleanUrl}/login`;
+      };
+
       const loginUrl =
         params.accountType === 'staff'
-          ? `${appConfig().app.client_app_url}/login`
-          : `${appConfig().app.dashboard_url || appConfig().app.client_app_url}/login`;
+          ? formatLoginUrl(appConfig().app.client_app_url)
+          : formatLoginUrl(appConfig().app.dashboard_url || appConfig().app.client_app_url);
 
       await this.queue.add('sendUserCredentials', {
         to: params.email,
