@@ -234,7 +234,7 @@ export class MailService {
       const loginUrl =
         params.accountType === 'staff'
           ? formatLoginUrl(appConfig().app.client_app_url)
-          : formatLoginUrl(appConfig().app.dashboard_url || appConfig().app.client_app_url);
+          : 'https://dashboard.vitalhands.co.uk/login';
 
       await this.queue.add('sendUserCredentials', {
         to: params.email,
