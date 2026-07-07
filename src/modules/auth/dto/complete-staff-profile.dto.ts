@@ -14,51 +14,100 @@ import {
 export class RefereeInfoDto {
   @IsOptional()
   @IsString()
+  @ApiProperty({
+    description: 'Referee name',
+    example: 'Jane Smith',
+    required: false,
+  })
   name?: string;
 
   @IsOptional()
   @IsString()
+  @ApiProperty({
+    description: 'Referee mobile code',
+    example: '+44',
+    required: false,
+  })
   mobile_code?: string;
 
   @IsOptional()
   @IsString()
+  @ApiProperty({
+    description: 'Referee mobile number',
+    example: '1234567890',
+    required: false,
+  })
   mobile_number?: string;
 
   @IsOptional()
   @IsString()
+  @ApiProperty({
+    description: 'Referee email',
+    example: 'jane.smith@example.com',
+    required: false,
+  })
   email?: string;
 
   @IsOptional()
   @IsString()
+  @ApiProperty({
+    description: 'Referee role or relationship',
+    example: 'Supervisor',
+    required: false,
+  })
   role?: string;
 
   @IsOptional()
   @IsDateString()
+  @ApiProperty({
+    description: 'Employment start date',
+    example: '2020-01-01',
+    required: false,
+  })
   start_date?: string;
 
   @IsOptional()
   @IsDateString()
+  @ApiProperty({
+    description: 'Employment end date',
+    example: '2022-12-31',
+    required: false,
+  })
   end_date?: string;
 
   @IsOptional()
+  @ApiProperty({
+    description: 'Consent to contact referee',
+    example: true,
+    required: false,
+  })
   consent_to_contact?: boolean | string | number;
 }
 
 export class CompleteStaffProfileDto {
   @IsNotEmpty()
+  @ApiProperty({ description: 'First name', example: 'John' })
   first_name: string;
 
   @IsNotEmpty()
+  @ApiProperty({ description: 'Last name', example: 'Doe' })
   last_name: string;
 
   @IsOptional()
+  @ApiProperty({ description: 'Mobile code', example: '+44', required: false })
   mobile_code?: string;
 
   @IsOptional()
+  @ApiProperty({
+    description: 'Mobile number',
+    example: '1234567890',
+    required: false,
+  })
   mobile_number?: string;
 
   @IsNotEmpty()
   @IsDateString()
+  @ApiProperty({ description: 'Date of birth', example: '1995-05-15' })
   date_of_birth: string;
 
   @Transform(({ value }) => {
@@ -88,22 +137,46 @@ export class CompleteStaffProfileDto {
   })
   @IsOptional()
   @IsIn(['nurse', 'senior_hca', 'hca_carer', 'support_worker'], { each: true })
+  @ApiProperty({
+    description: 'Staff roles',
+    enum: ['nurse', 'senior_hca', 'hca_carer', 'support_worker'],
+    isArray: true,
+    required: false,
+    example: ['nurse'],
+  })
   roles?: ('nurse' | 'senior_hca' | 'hca_carer' | 'support_worker')[];
 
   @IsNotEmpty()
+  @ApiProperty({ description: 'Right to work status', example: 'UK Citizen' })
   right_to_work_status: string;
 
   @IsOptional()
+  @ApiProperty({ description: 'CV file URL', required: false })
   cv_url?: string;
 
   @IsNotEmpty()
   @MinLength(8, { message: 'Password should be minimum 8 characters' })
+  @ApiProperty({
+    description: 'User password',
+    minLength: 8,
+    example: 'password123',
+  })
   password: string;
 
   @IsOptional()
+  @ApiProperty({
+    description: 'Agreed to terms',
+    example: true,
+    required: false,
+  })
   agreed_to_terms?: boolean;
 
   @IsOptional()
+  @ApiProperty({
+    description: 'Work experience description',
+    example: '5 years in ICU',
+    required: false,
+  })
   experience?: string;
 
   @IsOptional()

@@ -11,6 +11,12 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { ShiftTimesheetService } from './shift-timesheet.service';
 import { CreateShiftTimesheetDto } from './dto/create-shift-timesheet.dto';
@@ -25,18 +31,42 @@ import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/em
 import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
 import { EmployeePermissionType } from '@prisma/client';
 
+@ApiTags('Service Provider - Shift Timesheet')
+@ApiBearerAuth()
 @Controller('application/service-provider/shift-timesheet')
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class ShiftTimesheetController {
   constructor(private readonly shiftTimesheetService: ShiftTimesheetService) {}
 
+  @ApiOperation({ summary: 'Create a shift timesheet' })
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   create(@Body() createShiftTimesheetDto: CreateShiftTimesheetDto) {
     return this.shiftTimesheetService.create(createShiftTimesheetDto);
   }
 
+  @ApiOperation({
+    summary: 'Get all shift timesheets for the service provider',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Results limit per page',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'status',
+    description: 'Timesheet status filter',
+    required: false,
+    type: String,
+  })
   @Get()
   @RequireEmployeePermission(
     EmployeePermissionType.approve_timesheets,
@@ -59,6 +89,7 @@ export class ShiftTimesheetController {
     });
   }
 
+  @ApiOperation({ summary: 'Find timesheets by shift ID' })
   @Get('shift/:shift_id')
   @RequireEmployeePermission(
     EmployeePermissionType.approve_timesheets,
@@ -72,6 +103,7 @@ export class ShiftTimesheetController {
     return this.shiftTimesheetService.findByShiftId(shiftId, user_id);
   }
 
+  @ApiOperation({ summary: 'Get details of a timesheet by ID' })
   @Get(':id')
   @RequireEmployeePermission(
     EmployeePermissionType.approve_timesheets,
@@ -81,6 +113,7 @@ export class ShiftTimesheetController {
     return this.shiftTimesheetService.findOne(id);
   }
 
+  @ApiOperation({ summary: 'Update a timesheet' })
   @Patch(':id')
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   update(
@@ -90,12 +123,14 @@ export class ShiftTimesheetController {
     return this.shiftTimesheetService.update(id, updateShiftTimesheetDto);
   }
 
+  @ApiOperation({ summary: 'Delete a timesheet' })
   @Delete(':id')
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   remove(@Param('id') id: string) {
     return this.shiftTimesheetService.remove(id);
   }
 
+  @ApiOperation({ summary: 'Approve a timesheet' })
   @Post(':id/approve')
   @RequireEmployeePermission(EmployeePermissionType.approve_timesheets)
   approveTimesheet(
@@ -114,6 +149,7 @@ export class ShiftTimesheetController {
     );
   }
 
+  @ApiOperation({ summary: 'Reject a timesheet' })
   @Post(':id/reject')
   @RequireEmployeePermission(
     EmployeePermissionType.approve_timesheets,

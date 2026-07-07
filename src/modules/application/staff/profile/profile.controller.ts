@@ -15,7 +15,12 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -33,9 +38,9 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
-import { Query } from '@nestjs/common';
 
 @ApiTags('Staff - Profile')
+@ApiBearerAuth()
 @Controller('application/staff/profile')
 export class ProfileController {
   constructor(
@@ -44,7 +49,7 @@ export class ProfileController {
   ) {}
 
   @ApiOperation({ summary: 'Update staff personal info and roles' })
-  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Patch('personal-info')
@@ -90,7 +95,6 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Create or update staff education' })
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Post('education')
@@ -111,7 +115,7 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Create or update staff certificate' })
-  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Post('certificate')
@@ -139,7 +143,6 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Update staff DBS info' })
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Patch('dbs-info')
@@ -157,7 +160,6 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Create or update staff referee info' })
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Patch('referee-info')
@@ -175,7 +177,6 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Get staff profile with all related data' })
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STAFF)
   @Get('me')
@@ -188,26 +189,31 @@ export class ProfileController {
     return this.profileService.getStaffProfile(user_id);
   }
 
+  @ApiOperation({ summary: 'Create placeholder profile' })
   @Post()
   create(@Body() createProfileDto: CreateProfileDto) {
     return this.profileService.create(createProfileDto);
   }
 
+  @ApiOperation({ summary: 'Get all placeholder profiles' })
   @Get()
   findAll() {
     return this.profileService.findAll();
   }
 
+  @ApiOperation({ summary: 'Get placeholder profile by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.profileService.findOne(+id);
   }
 
+  @ApiOperation({ summary: 'Update placeholder profile' })
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateProfileDto: UpdateProfileDto) {
     return this.profileService.update(+id, updateProfileDto);
   }
 
+  @ApiOperation({ summary: 'Remove placeholder profile' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.profileService.remove(+id);

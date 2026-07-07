@@ -268,7 +268,10 @@ export class ProfileService {
               updatePayload.postcode = null;
             }
           } catch (error) {
-            console.error('Failed to geocode provider primary address during self-update:', error);
+            console.error(
+              'Failed to geocode provider primary address during self-update:',
+              error,
+            );
           }
         } else {
           updatePayload.latitude = null;

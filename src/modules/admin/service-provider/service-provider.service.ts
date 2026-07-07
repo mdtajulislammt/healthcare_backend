@@ -533,7 +533,10 @@ export class ServiceProviderService {
               updatePayload.postcode = null;
             }
           } catch (error) {
-            console.error('Failed to geocode provider primary address during update:', error);
+            console.error(
+              'Failed to geocode provider primary address during update:',
+              error,
+            );
           }
         } else {
           updatePayload.latitude = null;

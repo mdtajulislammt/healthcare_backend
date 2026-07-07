@@ -1,5 +1,10 @@
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
@@ -31,6 +36,13 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get top 5 service providers and staff with filters',
   })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    enum: ['active', 'suspended', 'all'],
+  })
   @Get('top-providers-staff')
   getTopProvidersAndStaff(
     @Query('search') search?: string,
@@ -46,6 +58,17 @@ export class DashboardController {
     summary:
       'Get all dashboard data (metrics, monthly stats, top providers & staff) in one call',
   })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    enum: ['active', 'suspended', 'all'],
+  })
+  @ApiQuery({ name: 'lowStarPage', required: false, type: String })
+  @ApiQuery({ name: 'lowStarLimit', required: false, type: String })
+  @ApiQuery({ name: 'lowStarSearch', required: false, type: String })
+  @ApiQuery({ name: 'ratingBelow', required: false, type: String })
   @Get('all')
   getAllDashboardData(
     @Query('search') search?: string,
@@ -66,6 +89,10 @@ export class DashboardController {
   }
 
   @ApiOperation({ summary: 'Get staff reviews below a star threshold' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'ratingBelow', required: false, type: String })
   @Get('low-star-staff-reviews')
   getLowStarStaffReviews(
     @Query('page') page?: string,

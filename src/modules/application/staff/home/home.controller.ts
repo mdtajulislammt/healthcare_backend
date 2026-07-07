@@ -6,7 +6,12 @@ import {
   Query,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { HomeService } from './home.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -38,6 +43,9 @@ export class HomeController {
   @ApiOperation({
     summary: 'Get new shifts near you with distance calculation',
   })
+  @ApiQuery({ name: 'latitude', required: false, type: String })
+  @ApiQuery({ name: 'longitude', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
   @Get('new-shifts')
   getNewShiftsNearYou(
     @Req() req: Request,
@@ -70,6 +78,9 @@ export class HomeController {
   @ApiOperation({
     summary: 'Get all home data (dashboard and new shifts) in one API call',
   })
+  @ApiQuery({ name: 'latitude', required: false, type: String })
+  @ApiQuery({ name: 'longitude', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
   @Get('all')
   getAllHomeData(
     @Req() req: Request,

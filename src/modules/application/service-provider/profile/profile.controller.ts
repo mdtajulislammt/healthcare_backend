@@ -13,8 +13,15 @@ import {
   HttpStatus,
   UploadedFile,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -28,9 +35,9 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
-import { Query } from '@nestjs/common';
 
 @ApiTags('Service Provider - Profile')
+@ApiBearerAuth()
 @Controller('application/service-provider/profile')
 export class ProfileController {
   constructor(
@@ -38,18 +45,19 @@ export class ProfileController {
     private readonly activityLogService: ActivityLogService,
   ) {}
 
+  @ApiOperation({ summary: 'Create profile placeholder' })
   @Post()
   create(@Body() createProfileDto: CreateProfileDto) {
     return this.profileService.create(createProfileDto);
   }
 
+  @ApiOperation({ summary: 'Get all profile placeholders' })
   @Get()
   findAll() {
     return this.profileService.findAll();
   }
 
   @ApiOperation({ summary: 'Get service provider profile' })
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SERVICE_PROVIDER)
   @Get('me')
@@ -63,13 +71,14 @@ export class ProfileController {
     return this.profileService.getServiceProviderProfile(user_id);
   }
 
+  @ApiOperation({ summary: 'Get profile placeholder by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.profileService.findOne(+id);
   }
 
   @ApiOperation({ summary: 'Update service provider profile info' })
-  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SERVICE_PROVIDER)
   @Patch('info')
@@ -97,7 +106,7 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Update service provider business info' })
-  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SERVICE_PROVIDER)
   @Patch('business-info')
@@ -124,11 +133,13 @@ export class ProfileController {
     );
   }
 
+  @ApiOperation({ summary: 'Update profile placeholder' })
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateProfileDto: UpdateProfileDto) {
     return this.profileService.update(+id, updateProfileDto);
   }
 
+  @ApiOperation({ summary: 'Remove profile placeholder' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.profileService.remove(+id);
@@ -137,6 +148,9 @@ export class ProfileController {
   @ApiOperation({
     summary: 'Get recent activities for logged-in service provider',
   })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'action_type', required: false, type: String })
   @Get('activities')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SERVICE_PROVIDER)

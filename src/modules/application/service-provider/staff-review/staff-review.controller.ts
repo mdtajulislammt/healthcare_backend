@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { StaffReviewService } from './staff-review.service';
 import { CreateStaffReviewDto } from './dto/create-staff-review.dto';
@@ -18,12 +19,15 @@ import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/em
 import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
 import { EmployeePermissionType } from '@prisma/client';
 
+@ApiTags('Service Provider - Staff Review')
+@ApiBearerAuth()
 @Controller('application/service-provider/staff')
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
 export class StaffReviewController {
   constructor(private readonly staffReviewService: StaffReviewService) {}
 
+  @ApiOperation({ summary: 'Create a review for a staff member' })
   @Post(':staffId/reviews')
   @RequireEmployeePermission(EmployeePermissionType.manage_team_permissions)
   createReview(

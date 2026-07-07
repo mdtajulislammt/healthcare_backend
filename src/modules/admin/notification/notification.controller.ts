@@ -9,7 +9,7 @@ import {
   Body,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '../../../common/guard/role/role.enum';
 import { Roles } from '../../../common/guard/role/roles.decorator';
 import { RolesGuard } from '../../../common/guard/role/roles.guard';
@@ -80,6 +80,18 @@ export class NotificationController {
 
   @ApiOperation({
     summary: 'Send test notification to current admin (websocket + DB)',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'Test Notification' },
+        message: {
+          type: 'string',
+          example: 'This is a test admin notification',
+        },
+      },
+    },
   })
   @Post('test')
   async sendTest(

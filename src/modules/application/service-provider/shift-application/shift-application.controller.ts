@@ -11,7 +11,12 @@ import {
   BadRequestException,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { ShiftApplicationService } from './shift-application.service';
 import { CreateShiftApplicationDto } from './dto/create-shift-application.dto';
 import { UpdateShiftApplicationDto } from './dto/update-shift-application.dto';
@@ -35,12 +40,22 @@ export class ShiftApplicationController {
     private readonly shiftApplicationService: ShiftApplicationService,
   ) {}
 
+  @ApiOperation({ summary: 'Create a new shift application placeholder' })
   @Post()
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   create(@Body() createShiftApplicationDto: CreateShiftApplicationDto) {
     return this.shiftApplicationService.create(createShiftApplicationDto);
   }
 
+  @ApiOperation({
+    summary: 'Get all shift applications for the service provider',
+  })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'dateOrder', required: false, enum: ['asc', 'desc'] })
+  @ApiQuery({ name: 'shiftId', required: false, type: String })
   @Get()
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   findAll(
@@ -66,12 +81,16 @@ export class ShiftApplicationController {
     });
   }
 
+  @ApiOperation({ summary: 'Get details of a shift application by ID' })
   @Get(':id')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   findOne(@Param('id') id: string) {
     return this.shiftApplicationService.findOne(+id);
   }
 
+  @ApiOperation({
+    summary: 'View the profile of a shift applicant staff member',
+  })
   @Get(':id/profile')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   viewApplicantProfile(@Param('id') id: string, @Req() req: Request) {
@@ -82,6 +101,7 @@ export class ShiftApplicationController {
     return this.shiftApplicationService.viewApplicantProfile(id, user_id);
   }
 
+  @ApiOperation({ summary: 'Update a shift application details' })
   @Patch(':id')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   update(
@@ -91,18 +111,16 @@ export class ShiftApplicationController {
     return this.shiftApplicationService.update(+id, updateShiftApplicationDto);
   }
 
+  @ApiOperation({ summary: 'Remove a shift application' })
   @Delete(':id')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   remove(@Param('id') id: string) {
     return this.shiftApplicationService.remove(+id);
   }
 
-  /**
-   * Accept or reject a shift application
-   * @param id - Application ID
-   * @param acceptApplicationDto - DTO containing action and optional notes
-   * @param req - Request object to get user_id from JWT
-   */
+  @ApiOperation({
+    summary: 'Accept or reject a shift application',
+  })
   @Post(':id/accept')
   @RequireEmployeePermission(EmployeePermissionType.assign_shift_applicants)
   acceptApplication(

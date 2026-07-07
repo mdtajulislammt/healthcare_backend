@@ -10,7 +10,13 @@ import {
   Req,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiBody,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { TimesheetService } from './timesheet.service';
 import { ForceApproveTimesheetDto } from './dto/force-approve-timesheet.dto';
@@ -31,6 +37,31 @@ export class TimesheetController {
   @ApiOperation({
     summary:
       'Get all timesheets pending review (submitted, under_review, rejected, approved)',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number for pagination',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Limit number of results per page',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'search',
+    description: 'Search query for staff names or reference numbers',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'status',
+    description:
+      'Timesheet status filter (pending | disputed | approved | all)',
+    required: false,
+    type: String,
   })
   @Get()
   findAll(
@@ -116,6 +147,19 @@ export class TimesheetController {
   }
 
   @ApiOperation({ summary: 'Create invoices for multiple approved timesheets' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        timesheetIds: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['timesheet-id-1', 'timesheet-id-2'],
+        },
+      },
+      required: ['timesheetIds'],
+    },
+  })
   @Post('invoices/bulk')
   createBulkInvoices(@Body() body: { timesheetIds: string[] }) {
     return this.timesheetService.createBulkInvoices(body.timesheetIds);

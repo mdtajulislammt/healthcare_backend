@@ -12,6 +12,13 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -28,12 +35,16 @@ import {
 import { UpdateAdminNoteDto } from './dto/update-admin-note.dto';
 import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
 
+@ApiTags('Admin - Staff')
+@ApiBearerAuth()
 @Controller('admin/staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class StaffController {
   constructor(private readonly staffService: StaffService) {}
 
+  @ApiOperation({ summary: 'Create a new staff profile' })
+  @ApiConsumes('multipart/form-data')
   @Post()
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -76,6 +87,13 @@ export class StaffController {
     return this.staffService.create(createStaffDto, files);
   }
 
+  @ApiOperation({ summary: 'Get all staff profiles with filters' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'right_to_work_status', required: false, type: String })
+  @ApiQuery({ name: 'roles', required: false, type: String })
   @Get()
   async findAll(
     @Query('page') page?: string,
@@ -95,16 +113,20 @@ export class StaffController {
     });
   }
 
+  @ApiOperation({ summary: 'Get staff general stats' })
   @Get('stats')
   async getStats() {
     return this.staffService.getStats();
   }
 
+  @ApiOperation({ summary: 'Get a single staff profile by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.staffService.findOne(id);
   }
 
+  @ApiOperation({ summary: 'Update a staff profile' })
+  @ApiConsumes('multipart/form-data')
   @Patch(':id')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -132,11 +154,13 @@ export class StaffController {
     );
   }
 
+  @ApiOperation({ summary: 'Remove a staff profile by ID' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.staffService.remove(id);
   }
 
+  @ApiOperation({ summary: 'Update staff account status' })
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
@@ -145,6 +169,7 @@ export class StaffController {
     return this.staffService.updateStatus(id, dto.status);
   }
 
+  @ApiOperation({ summary: 'Update verification status of a certificate' })
   @Patch('certificates/:certificateId/status')
   async updateCertificateStatus(
     @Param('certificateId') certificateId: string,
@@ -156,6 +181,8 @@ export class StaffController {
     );
   }
 
+  @ApiOperation({ summary: 'Update specific staff certificate details' })
+  @ApiConsumes('multipart/form-data')
   @Patch('certificates/:certificateId')
   @UseInterceptors(FileInterceptor('file'))
   async updateCertificate(
@@ -166,11 +193,13 @@ export class StaffController {
     return this.staffService.updateCertificate(certificateId, dto, file);
   }
 
+  @ApiOperation({ summary: 'Delete a staff certificate' })
   @Delete('certificates/:certificateId')
   async deleteCertificate(@Param('certificateId') certificateId: string) {
     return this.staffService.deleteCertificate(certificateId);
   }
 
+  @ApiOperation({ summary: 'Update admin note on staff profile' })
   @Patch('admin-note/:staffId')
   async updateAdminNote(
     @Param('staffId') staffId: string,

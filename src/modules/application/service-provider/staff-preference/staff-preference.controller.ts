@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { StaffPreferenceService } from './staff-preference.service';
 import { FavoriteStaffDto } from './dto/favorite-staff.dto';
@@ -19,6 +20,8 @@ import { EmployeePermissionGuard } from 'src/common/guard/employee-permission/em
 import { RequireEmployeePermission } from 'src/common/guard/employee-permission/employee-permission.decorator';
 import { EmployeePermissionType } from '@prisma/client';
 
+@ApiTags('Service Provider - Staff Preference')
+@ApiBearerAuth()
 @Controller('application/service-provider/staff')
 @UseGuards(JwtAuthGuard, RolesGuard, EmployeePermissionGuard)
 @Roles(Role.SERVICE_PROVIDER, Role.EMPLOYEE)
@@ -27,6 +30,7 @@ export class StaffPreferenceController {
     private readonly staffPreferenceService: StaffPreferenceService,
   ) {}
 
+  @ApiOperation({ summary: 'Get favorite staff list' })
   @Get('favorites')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
   getFavorites(@Req() req: Request) {
@@ -37,6 +41,7 @@ export class StaffPreferenceController {
     return this.staffPreferenceService.getPreferences(user_id, 'favorite');
   }
 
+  @ApiOperation({ summary: 'Get blocked staff list' })
   @Get('blocked')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
   getBlocked(@Req() req: Request) {
@@ -47,6 +52,7 @@ export class StaffPreferenceController {
     return this.staffPreferenceService.getPreferences(user_id, 'blocked');
   }
 
+  @ApiOperation({ summary: 'Mark a staff member as favorite' })
   @Post(':staffId/favorite')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
   favoriteStaff(
@@ -67,6 +73,7 @@ export class StaffPreferenceController {
     );
   }
 
+  @ApiOperation({ summary: 'Block a staff member' })
   @Post(':staffId/block')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
   blockStaff(

@@ -14,7 +14,12 @@ import {
 import { ShiftService } from './shift.service';
 import { Response } from 'express';
 import { Request } from 'express';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
@@ -29,6 +34,11 @@ import { AssignStaffDto } from './dto/assign-staff.dto';
 export class ShiftController {
   constructor(private readonly shiftService: ShiftService) {}
 
+  @ApiOperation({ summary: 'Get all shifts' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
   @Get()
   findAll(
     @Query('page') page?: string,
@@ -45,6 +55,10 @@ export class ShiftController {
   }
 
   // Keep static route above dynamic ':id' to avoid misrouting
+  @ApiOperation({ summary: 'Export shifts to CSV format' })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'dateRange', required: false, type: String })
   @Get('export')
   async export(
     @Query('type') type: string,
@@ -66,6 +80,7 @@ export class ShiftController {
     res.send(csv);
   }
 
+  @ApiOperation({ summary: 'Get a single shift by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.shiftService.findOne(id);
@@ -86,6 +101,7 @@ export class ShiftController {
     return this.shiftService.assignStaff(id, assignStaffDto.staff_id, userId);
   }
 
+  @ApiOperation({ summary: 'Delete/remove a shift by ID' })
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: Request) {
     const userId = req.user?.userId;
