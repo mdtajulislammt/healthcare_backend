@@ -12,7 +12,12 @@ import {
 import { ContactService } from './contact.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Roles } from '../../../common/guard/role/roles.decorator';
 import { Role } from '../../../common/guard/role/role.enum';
@@ -41,6 +46,18 @@ export class ContactController {
   }
 
   @ApiOperation({ summary: 'Read all contacts' })
+  @ApiQuery({
+    name: 'q',
+    description: 'Search term for name, email, or message',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'status',
+    description: 'Filter by status (0 or 1)',
+    required: false,
+    type: Number,
+  })
   @Get()
   async findAll(@Query() query: { q?: string; status?: number }) {
     try {

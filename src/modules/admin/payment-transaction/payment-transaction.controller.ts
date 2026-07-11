@@ -55,6 +55,7 @@ export class PaymentTransactionController {
     }
   }
 
+  @ApiOperation({ summary: 'Delete a payment transaction by ID' })
   @Delete(':id')
   async remove(@Req() req: Request, @Param('id') id: string) {
     try {

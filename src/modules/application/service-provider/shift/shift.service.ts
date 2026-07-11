@@ -347,6 +347,11 @@ export class ShiftService {
                 first_name: true,
                 last_name: true,
                 photo_url: true,
+                user: {
+                  select: {
+                    deleted_at: true,
+                  },
+                },
                 reviews: {
                   where: { status: 'approved' },
                   select: { rating: true },
@@ -374,20 +379,22 @@ export class ShiftService {
         return {
           ...s,
           total_hours: totalHours,
-          assigned_staff: s.assigned_staff
-            ? {
-                id: s.assigned_staff.id,
-                first_name: s.assigned_staff.first_name,
-                last_name: s.assigned_staff.last_name,
-                avg_rating: avg_rating,
-                review_count: review_count,
-                photo_url: s.assigned_staff.photo_url
-                  ? SojebStorage.url(
-                      appConfig().storageUrl.staff + s.assigned_staff.photo_url,
-                    )
-                  : null,
-              }
-            : null,
+          assigned_staff:
+            s.assigned_staff && !s.assigned_staff.user?.deleted_at
+              ? {
+                  id: s.assigned_staff.id,
+                  first_name: s.assigned_staff.first_name,
+                  last_name: s.assigned_staff.last_name,
+                  avg_rating: avg_rating,
+                  review_count: review_count,
+                  photo_url: s.assigned_staff.photo_url
+                    ? SojebStorage.url(
+                        appConfig().storageUrl.staff +
+                          s.assigned_staff.photo_url,
+                      )
+                    : null,
+                }
+              : null,
           applications_count: s._count?.applications ?? 0,
           _count: undefined,
         };
@@ -467,7 +474,7 @@ export class ShiftService {
               photo_url: true,
               mobile_code: true,
               mobile_number: true,
-              user: { select: { email: true } },
+              user: { select: { email: true, deleted_at: true } },
               reviews: {
                 where: { status: 'approved' },
                 select: { rating: true, feedback: true, created_at: true },
@@ -491,7 +498,7 @@ export class ShiftService {
                   nmc_pin: true,
                   roles: true,
                   right_to_work_status: true,
-                  user: { select: { email: true } },
+                  user: { select: { email: true, deleted_at: true } },
                 },
               },
             },
@@ -531,6 +538,16 @@ export class ShiftService {
       });
 
       if (!shift) throw new NotFoundException('Shift not found');
+
+      // Filter out soft-deleted assigned staff
+      if (shift.assigned_staff && shift.assigned_staff.user?.deleted_at) {
+        shift.assigned_staff = null;
+      }
+
+      // Filter out soft-deleted applications
+      shift.applications = shift.applications.filter(
+        (app) => !app.staff.user?.deleted_at,
+      );
 
       // Get service provider preferences for all staff in applications
       const staffIds = shift.applications.map((app) => app.staff.id);

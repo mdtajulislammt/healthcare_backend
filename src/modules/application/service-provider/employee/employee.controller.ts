@@ -13,7 +13,13 @@ import {
   UploadedFile,
   Delete,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Request } from 'express';
@@ -35,6 +41,7 @@ export class EmployeeController {
   constructor(private readonly employeeService: EmployeeService) {}
 
   @ApiOperation({ summary: 'Create a new employee' })
+  @ApiConsumes('multipart/form-data')
   @Post()
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -55,6 +62,10 @@ export class EmployeeController {
   }
 
   @ApiOperation({ summary: 'Get all employees for service provider' })
+  @ApiQuery({ name: 'service_provider_id', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @Get()
   async findAll(
     @Req() req: Request,
@@ -88,6 +99,7 @@ export class EmployeeController {
   }
 
   @ApiOperation({ summary: 'Update employee information' })
+  @ApiConsumes('multipart/form-data')
   @Patch(':id')
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -133,6 +145,12 @@ export class EmployeeController {
   }
 
   @ApiOperation({ summary: 'Update employee status (activate/deactivate)' })
+  @ApiQuery({
+    name: 'is_active',
+    description: 'Activation status (true or false)',
+    required: true,
+    type: String,
+  })
   @Patch(':id/status')
   async updateStatus(
     @Req() req: Request,

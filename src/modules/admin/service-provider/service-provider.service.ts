@@ -46,11 +46,17 @@ export class ServiceProviderService {
 
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
-        select: { id: true },
+        select: { id: true, deleted_at: true },
       });
 
       if (existingUser) {
-        throw new BadRequestException('Email already exists');
+        if (existingUser.deleted_at !== null) {
+          await this.prisma.user.delete({
+            where: { id: existingUser.id },
+          });
+        } else {
+          throw new BadRequestException('Email already exists');
+        }
       }
 
       let brandLogoFileName: string | undefined = undefined;
@@ -533,7 +539,10 @@ export class ServiceProviderService {
               updatePayload.postcode = null;
             }
           } catch (error) {
-            console.error('Failed to geocode provider primary address during update:', error);
+            console.error(
+              'Failed to geocode provider primary address during update:',
+              error,
+            );
           }
         } else {
           updatePayload.latitude = null;

@@ -98,11 +98,17 @@ export class StaffService {
 
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
-        select: { id: true },
+        select: { id: true, deleted_at: true },
       });
 
       if (existingUser) {
-        throw new BadRequestException('Email already exists');
+        if (existingUser.deleted_at !== null) {
+          await this.prisma.user.delete({
+            where: { id: existingUser.id },
+          });
+        } else {
+          throw new BadRequestException('Email already exists');
+        }
       }
 
       const photo = files?.photo?.[0];

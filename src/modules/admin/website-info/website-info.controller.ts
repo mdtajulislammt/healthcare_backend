@@ -14,7 +14,7 @@ import { WebsiteInfoService } from './website-info.service';
 import { CreateWebsiteInfoDto } from './dto/create-website-info.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -30,6 +30,7 @@ export class WebsiteInfoController {
   constructor(private readonly websiteInfoService: WebsiteInfoService) {}
 
   @ApiOperation({ summary: 'Update website info' })
+  @ApiConsumes('multipart/form-data')
   @Post()
   @UseInterceptors(
     FileFieldsInterceptor(

@@ -6,7 +6,12 @@ import {
   BadRequestException,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { HomeService } from './home.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -33,6 +38,7 @@ export class HomeController {
   }
 
   @ApiOperation({ summary: 'Get recent shifts' })
+  @ApiQuery({ name: 'limit', required: false, type: String })
   @Get('recent-shifts')
   getRecentShifts(@Req() req: Request, @Query('limit') limit?: string) {
     const user_id = req.user?.userId;
@@ -49,6 +55,7 @@ export class HomeController {
   }
 
   @ApiOperation({ summary: 'Get recent activities' })
+  @ApiQuery({ name: 'limit', required: false, type: String })
   @Get('recent-activities')
   getRecentActivities(@Req() req: Request, @Query('limit') limit?: string) {
     const user_id = req.user?.userId;
@@ -67,6 +74,8 @@ export class HomeController {
   @ApiOperation({
     summary: 'Get all home data (metrics, recent shifts, recent activities)',
   })
+  @ApiQuery({ name: 'shifts_limit', required: false, type: String })
+  @ApiQuery({ name: 'activities_limit', required: false, type: String })
   @Get('all')
   getAllHomeData(
     @Req() req: Request,

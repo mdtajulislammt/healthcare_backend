@@ -7,7 +7,7 @@ import {
   Req,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GeofenceService } from './geofence.service';
 import { CheckGeofenceDto } from './dto/check-geofence.dto';
 import { CheckInDto } from './dto/check-in.dto';
@@ -25,6 +25,10 @@ import { Request } from 'express';
 export class GeofenceController {
   constructor(private readonly geofenceService: GeofenceService) {}
 
+  @ApiOperation({
+    summary:
+      'Check if staff member is within geofence range of the shift facility',
+  })
   @Post(':shiftId/check-geofence')
   checkGeofence(
     @Param('shiftId') shiftId: string,
@@ -44,6 +48,7 @@ export class GeofenceController {
     );
   }
 
+  @ApiOperation({ summary: 'Perform check-in/clock-in for a shift' })
   @Post(':shiftId/check-in')
   checkIn(
     @Param('shiftId') shiftId: string,
@@ -63,6 +68,7 @@ export class GeofenceController {
     );
   }
 
+  @ApiOperation({ summary: 'Perform check-out/clock-out for a shift' })
   @Post(':shiftId/check-out')
   checkOut(@Param('shiftId') shiftId: string, @Req() req: Request) {
     const user_id = req.user?.userId;

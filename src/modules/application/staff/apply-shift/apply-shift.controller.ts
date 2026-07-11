@@ -11,6 +11,12 @@ import {
   BadRequestException,
   Req,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ApplyShiftService } from './apply-shift.service';
 import { CreateApplyShiftDto } from './dto/create-apply-shift.dto';
 import { UpdateApplyShiftDto } from './dto/update-apply-shift.dto';
@@ -20,12 +26,15 @@ import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { Request } from 'express';
 
+@ApiTags('Staff - Apply Shifts')
+@ApiBearerAuth()
 @Controller('application/staff/shifts')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.STAFF)
 export class ApplyShiftController {
   constructor(private readonly applyShiftService: ApplyShiftService) {}
 
+  @ApiOperation({ summary: 'Apply for a shift' })
   @Post()
   create(
     @Body() createApplyShiftDto: CreateApplyShiftDto,
@@ -38,6 +47,17 @@ export class ApplyShiftController {
     return this.applyShiftService.create(createApplyShiftDto, user_id);
   }
 
+  @ApiOperation({
+    summary: 'Get all shifts (matching or applied) for the staff member',
+  })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'staff_latitude', required: false, type: String })
+  @ApiQuery({ name: 'staff_longitude', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'max_distance_miles', required: false, type: String })
+  @ApiQuery({ name: 'max_distance_km', required: false, type: String })
   @Get()
   async findAll(
     @Req() req: Request,
@@ -68,6 +88,11 @@ export class ApplyShiftController {
     });
   }
 
+  @ApiOperation({
+    summary: 'Get details of a single shift by ID with distance calculation',
+  })
+  @ApiQuery({ name: 'staff_latitude', required: false, type: String })
+  @ApiQuery({ name: 'staff_longitude', required: false, type: String })
   @Get(':id')
   async findOne(
     @Param('id') id: string,
@@ -88,6 +113,7 @@ export class ApplyShiftController {
     );
   }
 
+  @ApiOperation({ summary: 'Update a shift application' })
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -96,6 +122,7 @@ export class ApplyShiftController {
     return this.applyShiftService.update(id, updateApplyShiftDto);
   }
 
+  @ApiOperation({ summary: 'Remove/cancel a shift application' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.applyShiftService.remove(id);

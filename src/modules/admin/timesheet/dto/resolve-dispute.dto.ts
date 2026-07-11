@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { TimesheetStatus } from '@prisma/client';
@@ -6,6 +6,11 @@ import { TimesheetStatus } from '@prisma/client';
 export class ResolveDisputeDto {
   @IsNotEmpty()
   @IsEnum(TimesheetStatus)
+  @ApiProperty({
+    description: 'The resolved status of the timesheet',
+    enum: TimesheetStatus,
+    example: 'approved',
+  })
   status: TimesheetStatus;
 
   @ApiPropertyOptional({

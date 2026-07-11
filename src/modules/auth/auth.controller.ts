@@ -13,7 +13,13 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { memoryStorage } from 'multer';
 import {
@@ -149,6 +155,15 @@ export class AuthController {
   // --------------change password---------
 
   @ApiOperation({ summary: 'Forgot password' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
   @Post('forgot-password')
   async forgotPassword(@Body() data: { email: string }) {
     try {
@@ -166,6 +181,16 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Verify forgot password code' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+        token: { type: 'string', example: '123456' },
+      },
+      required: ['email', 'token'],
+    },
+  })
   @Post('verify-code')
   async verifyForgotPasswordCode(
     @Body() data: { email: string; token: string },
@@ -220,6 +245,15 @@ export class AuthController {
 
   // resend verification email to verify the email
   @ApiOperation({ summary: 'Resend verification email' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
   @Post('resend-verification-email')
   async resendVerificationEmail(@Body() data: { email: string }) {
     try {
@@ -238,6 +272,17 @@ export class AuthController {
 
   // reset password if user forget the password
   @ApiOperation({ summary: 'Reset password' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+        token: { type: 'string', example: '123456' },
+        password: { type: 'string', example: 'newPassword123' },
+      },
+      required: ['email', 'token', 'password'],
+    },
+  })
   @Post('reset-password')
   async resetPassword(
     @Body() data: { email: string; token: string; password: string },
@@ -275,6 +320,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Change password' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        old_password: { type: 'string', example: 'oldPassword123' },
+        new_password: { type: 'string', example: 'newPassword123' },
+      },
+      required: ['old_password', 'new_password'],
+    },
+  })
   @Post('change-password')
   async changePassword(
     @Req() req: Request,
@@ -317,12 +372,14 @@ export class AuthController {
 
   // --------------end change password---------
 
+  @ApiOperation({ summary: 'Google OAuth Login' })
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleLogin(): Promise<any> {
     return HttpStatus.OK;
   }
 
+  @ApiOperation({ summary: 'Google OAuth Redirect Callback' })
   @Get('google/redirect')
   @UseGuards(AuthGuard('google'))
   async googleLoginRedirect(@Req() req: Request): Promise<any> {
@@ -339,17 +396,6 @@ export class AuthController {
   @Patch('update')
   @UseInterceptors(
     FileInterceptor('image', {
-      // storage: diskStorage({
-      //   destination:
-      //     appConfig().storageUrl.rootUrl + appConfig().storageUrl.avatar,
-      //   filename: (req, file, cb) => {
-      //     const randomName = Array(32)
-      //       .fill(null)
-      //       .map(() => Math.round(Math.random() * 16).toString(16))
-      //       .join('');
-      //     return cb(null, `${randomName}${file.originalname}`);
-      //   },
-      // }),
       storage: memoryStorage(),
     }),
   )
@@ -374,6 +420,15 @@ export class AuthController {
   @ApiOperation({ summary: 'request email change' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'new-email@example.com' },
+      },
+      required: ['email'],
+    },
+  })
   @Post('request-email-change')
   async requestEmailChange(
     @Req() req: Request,
@@ -397,6 +452,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Change email address' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'new-email@example.com' },
+        token: { type: 'string', example: '123456' },
+      },
+      required: ['email', 'token'],
+    },
+  })
   @Post('change-email')
   async changeEmail(
     @Req() req: Request,
@@ -447,6 +512,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify 2FA' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', example: '123456' },
+      },
+      required: ['token'],
+    },
+  })
   @Post('verify-2fa')
   async verify2FA(@Req() req: Request, @Body() data: { token: string }) {
     try {
@@ -516,6 +590,16 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Step 2: Register email' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+        user_id: { type: 'string', example: 'uuid-of-user' },
+      },
+      required: ['email', 'user_id'],
+    },
+  })
   @Post('register-email')
   async registerEmail(@Body() data: RegisterEmailDto & { user_id: string }) {
     try {
@@ -594,6 +678,78 @@ export class AuthController {
 
   @ApiOperation({
     summary: 'Step 4A: Complete staff profile (with certificates and DBS info)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        user_id: { type: 'string', example: 'uuid-of-user' },
+        first_name: { type: 'string', example: 'John' },
+        last_name: { type: 'string', example: 'Doe' },
+        mobile_code: { type: 'string', example: '+44' },
+        mobile_number: { type: 'string', example: '1234567890' },
+        date_of_birth: {
+          type: 'string',
+          format: 'date',
+          example: '1995-05-15',
+        },
+        roles: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['nurse', 'senior_hca', 'hca_carer', 'support_worker'],
+          },
+          example: ['nurse'],
+        },
+        right_to_work_status: { type: 'string', example: 'UK Citizen' },
+        experience: { type: 'string', example: '5 years' },
+        nmc_pin: { type: 'string', example: '12A3456B' },
+        dbs_certificate_number: { type: 'string', example: '001234567890' },
+        dbs_surname_as_certificate: { type: 'string', example: 'Doe' },
+        dbs_date_of_birth_on_cert: {
+          type: 'string',
+          format: 'date',
+          example: '1995-05-15',
+        },
+        dbs_certificate_print_date: {
+          type: 'string',
+          format: 'date',
+          example: '2024-01-15',
+        },
+        dbs_is_registered_on_update: { type: 'boolean', example: false },
+        password: { type: 'string', example: 'password123' },
+        agreed_to_terms: { type: 'boolean', example: true },
+        referees: {
+          type: 'string',
+          description: 'JSON string of RefereeInfoDto[]',
+          example:
+            '[{"name":"Jane Smith","mobile_code":"+44","mobile_number":"1234567890","email":"jane@example.com","role":"Supervisor","start_date":"2020-01-01","end_date":"2022-12-31","consent_to_contact":true}]',
+        },
+        photo: { type: 'string', format: 'binary' },
+        cv: { type: 'string', format: 'binary' },
+        care_certificate: { type: 'string', format: 'binary' },
+        moving_handling: { type: 'string', format: 'binary' },
+        first_aid: { type: 'string', format: 'binary' },
+        basic_life_support: { type: 'string', format: 'binary' },
+        infection_control: { type: 'string', format: 'binary' },
+        safeguarding: { type: 'string', format: 'binary' },
+        health_safety: { type: 'string', format: 'binary' },
+        equality_diversity: { type: 'string', format: 'binary' },
+        coshh: { type: 'string', format: 'binary' },
+        medication_training: { type: 'string', format: 'binary' },
+        nvq_iii: { type: 'string', format: 'binary' },
+        additional_training: { type: 'string', format: 'binary' },
+      },
+      required: [
+        'user_id',
+        'first_name',
+        'last_name',
+        'date_of_birth',
+        'right_to_work_status',
+        'password',
+      ],
+    },
   })
   @Post('complete-staff-profile')
   @UseInterceptors(
@@ -702,6 +858,35 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Add a staff certificate (single)' })
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        user_id: { type: 'string', example: 'uuid-of-user' },
+        certificate_type: {
+          type: 'string',
+          enum: [
+            'care_certificate',
+            'moving_handling',
+            'first_aid',
+            'basic_life_support',
+            'infection_control',
+            'safeguarding',
+            'health_safety',
+            'equality_diversity',
+            'coshh',
+            'medication_training',
+            'nvq_iii',
+            'additional_training',
+          ],
+        },
+        expiry_date: { type: 'string', format: 'date', example: '2026-12-31' },
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['user_id', 'certificate_type'],
+    },
+  })
   @Post('staff/certificates')
   @UseInterceptors(FileInterceptor('file'))
   async addStaffCertificate(
@@ -720,6 +905,34 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Add staff certificates (bulk)' })
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        user_id: { type: 'string', example: 'uuid-of-user' },
+        expiries: {
+          type: 'string',
+          description:
+            'Optional JSON string mapping certificate types to expiry dates',
+          example: '{"first_aid":"2026-12-31","coshh":"2025-08-01"}',
+        },
+        care_certificate: { type: 'string', format: 'binary' },
+        moving_handling: { type: 'string', format: 'binary' },
+        first_aid: { type: 'string', format: 'binary' },
+        basic_life_support: { type: 'string', format: 'binary' },
+        infection_control: { type: 'string', format: 'binary' },
+        safeguarding: { type: 'string', format: 'binary' },
+        health_safety: { type: 'string', format: 'binary' },
+        equality_diversity: { type: 'string', format: 'binary' },
+        coshh: { type: 'string', format: 'binary' },
+        medication_training: { type: 'string', format: 'binary' },
+        nvq_iii: { type: 'string', format: 'binary' },
+        additional_training: { type: 'string', format: 'binary' },
+      },
+      required: ['user_id'],
+    },
+  })
   @Post('staff/certificates/bulk')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -780,6 +993,51 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Step 4B: Complete service provider profile' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        user_id: { type: 'string', example: 'uuid-of-user' },
+        first_name: { type: 'string', example: 'John' },
+        last_name: { type: 'string', example: 'Doe' },
+        mobile_code: { type: 'string', example: '+44' },
+        mobile_number: { type: 'string', example: '1234567890' },
+        organization_name: { type: 'string', example: 'Care Home Ltd' },
+        website: { type: 'string', example: 'https://carehome.com' },
+        cqc_provider_number: { type: 'string', example: 'CQC123456' },
+        vat_tax_id: { type: 'string', example: 'GB123456789' },
+        primary_address: { type: 'string', example: '123 Main St, London' },
+        main_service_type: {
+          type: 'string',
+          enum: [
+            'residential_care',
+            'domiciliary_care',
+            'nursing_care',
+            'supported_living',
+            'other',
+          ],
+          example: 'residential_care',
+        },
+        max_client_capacity: { type: 'number', example: 50 },
+        password: { type: 'string', example: 'password123' },
+        agreed_to_terms: { type: 'boolean', example: true },
+        brand_logo: { type: 'string', format: 'binary' },
+      },
+      required: [
+        'user_id',
+        'first_name',
+        'last_name',
+        'organization_name',
+        'cqc_provider_number',
+        'primary_address',
+        'main_service_type',
+        'max_client_capacity',
+        'password',
+        'agreed_to_terms',
+      ],
+    },
+  })
   @Post('complete-service-provider-profile')
   @UseInterceptors(FileInterceptor('brand_logo'))
   async completeServiceProviderProfile(
@@ -821,6 +1079,15 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Get registration status' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        user_id: { type: 'string', example: 'uuid-of-user' },
+      },
+      required: ['user_id'],
+    },
+  })
   @Post('registration-status')
   async getRegistrationStatus(@Body() data: { user_id: string }) {
     try {

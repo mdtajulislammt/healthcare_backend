@@ -1064,49 +1064,59 @@ export class AuthService {
   async registerEmail(userId: string, email: string) {
     try {
       // Check if email already exists
-      // const existingUser = await UserRepository.exist({
-      //   field: 'email',
-      //   value: email,
-      // });
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true, onboarding_step: true, deleted_at: true },
+      });
 
-      // if (existingUser) {
-      //   return {
-      //     success: false,
-      //     message: 'Email already registered',
-      //   };
-      // }
+      if (existingUser && existingUser.id !== userId) {
+        if (
+          existingUser.onboarding_step === 'completed' &&
+          existingUser.deleted_at === null
+        ) {
+          return {
+            success: false,
+            message: 'Email already registered',
+          };
+        } else {
+          // Delete the old incomplete registration or soft-deleted record
+          await this.prisma.user.delete({
+            where: { id: existingUser.id },
+          });
+        }
+      }
 
-      // // Get user to verify onboarding step
-      // const user = await this.prisma.user.findUnique({
-      //   where: { id: userId },
-      // });
+      // Get user to verify onboarding step
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
 
-      // if (!user) {
-      //   return {
-      //     success: false,
-      //     message: 'User not found',
-      //   };
-      // }
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
 
-      // if (
-      //   user.onboarding_step !== 'email' &&
-      //   user.onboarding_step !== 'account_type'
-      // ) {
-      //   return {
-      //     success: false,
-      //     message:
-      //       'Invalid onboarding step. Please start from account type selection',
-      //   };
-      // }
+      if (
+        user.onboarding_step !== 'email' &&
+        user.onboarding_step !== 'account_type'
+      ) {
+        return {
+          success: false,
+          message:
+            'Invalid onboarding step. Please start from account type selection',
+        };
+      }
 
-      // // Update user email and onboarding step
-      // await this.prisma.user.update({
-      //   where: { id: userId },
-      //   data: {
-      //     email: email,
-      //     onboarding_step: 'email_verify',
-      //   },
-      // });
+      // Update user email and onboarding step
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          email: email,
+          onboarding_step: 'email_verify',
+        },
+      });
 
       // Create verification OTP code
       const otpCode = await UcodeRepository.createRegistrationOtp({

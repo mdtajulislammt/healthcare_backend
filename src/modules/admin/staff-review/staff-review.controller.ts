@@ -8,7 +8,12 @@ import {
   Patch,
   Body,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { StaffReviewService } from './staff-review.service';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -25,6 +30,20 @@ export class StaffReviewController {
   constructor(private readonly staffReviewService: StaffReviewService) {}
 
   @ApiOperation({ summary: 'Get staff performance reviews' })
+  @ApiQuery({ name: 'page', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'staffId', required: false, type: String })
+  @ApiQuery({ name: 'providerId', required: false, type: String })
+  @ApiQuery({ name: 'shiftId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'ratingBelow', required: false, type: String })
+  @ApiQuery({
+    name: 'sortRating',
+    required: false,
+    type: String,
+    enum: ['asc', 'desc'],
+  })
   @Get()
   findAll(
     @Query('page') page?: string,

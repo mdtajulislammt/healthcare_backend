@@ -210,7 +210,13 @@ export class ShiftService {
       }
       const skip = (currentPage - 1) * pageSize;
 
-      const where: Prisma.ShiftWhereInput = {};
+      const where: Prisma.ShiftWhereInput = {
+        service_provider_info: {
+          user: {
+            deleted_at: null,
+          },
+        },
+      };
 
       if (options.status) {
         const normalizedStatus = options.status.trim().toLowerCase();
@@ -264,6 +270,11 @@ export class ShiftService {
                 id: true,
                 first_name: true,
                 last_name: true,
+                user: {
+                  select: {
+                    deleted_at: true,
+                  },
+                },
               },
             },
             _count: {
@@ -283,6 +294,14 @@ export class ShiftService {
 
       const items = itemsRaw.map((s) => ({
         ...s,
+        assigned_staff:
+          s.assigned_staff && !s.assigned_staff.user?.deleted_at
+            ? {
+                id: s.assigned_staff.id,
+                first_name: s.assigned_staff.first_name,
+                last_name: s.assigned_staff.last_name,
+              }
+            : null,
         applications_count: s._count?.applications ?? 0,
         _count: undefined,
       }));
@@ -341,6 +360,11 @@ export class ShiftService {
             select: {
               id: true,
               organization_name: true,
+              user: {
+                select: {
+                  deleted_at: true,
+                },
+              },
             },
           },
           assigned_staff: {
@@ -353,6 +377,7 @@ export class ShiftService {
               user: {
                 select: {
                   email: true,
+                  deleted_at: true,
                 },
               },
             },
@@ -365,8 +390,12 @@ export class ShiftService {
         },
       });
 
-      if (!shift) {
+      if (!shift || shift.service_provider_info?.user?.deleted_at) {
         throw new NotFoundException('Shift not found');
+      }
+
+      if (shift.assigned_staff && shift.assigned_staff.user?.deleted_at) {
+        shift.assigned_staff = null;
       }
 
       const startTime = new Date(shift.start_time);
@@ -464,7 +493,13 @@ export class ShiftService {
             ? 'cancelled'
             : normalizedType;
 
-      const where: Prisma.ShiftWhereInput = {};
+      const where: Prisma.ShiftWhereInput = {
+        service_provider_info: {
+          user: {
+            deleted_at: null,
+          },
+        },
+      };
       if (resolvedType === 'filled') {
         where.assigned_staff_id = { not: null };
       } else if (resolvedType === 'unfilled') {
@@ -542,7 +577,15 @@ export class ShiftService {
             select: { organization_name: true },
           },
           assigned_staff: {
-            select: { first_name: true, last_name: true },
+            select: {
+              first_name: true,
+              last_name: true,
+              user: {
+                select: {
+                  deleted_at: true,
+                },
+              },
+            },
           },
         },
         orderBy: { created_at: 'desc' },
@@ -579,9 +622,10 @@ export class ShiftService {
       };
 
       const rows = items.map((s) => {
-        const assignedName = s.assigned_staff
-          ? `${s.assigned_staff.first_name} ${s.assigned_staff.last_name}`
-          : '';
+        const assignedName =
+          s.assigned_staff && !s.assigned_staff.user?.deleted_at
+            ? `${s.assigned_staff.first_name} ${s.assigned_staff.last_name}`
+            : '';
         const providerName = s.service_provider_info?.organization_name ?? '';
         return [
           escape(s.id),

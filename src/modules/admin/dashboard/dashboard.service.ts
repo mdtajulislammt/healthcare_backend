@@ -294,7 +294,11 @@ export class DashboardService {
       const { search, status } = options;
 
       // Build service provider where clause
-      const providerWhere: Prisma.ServiceProviderInfoWhereInput = {};
+      const providerWhere: Prisma.ServiceProviderInfoWhereInput = {
+        user: {
+          deleted_at: null,
+        },
+      };
       if (search && search.trim()) {
         const term = search.trim();
         providerWhere.OR = [
@@ -309,13 +313,18 @@ export class DashboardService {
           status === 'active' ? 1 : status === 'suspended' ? 2 : undefined;
         if (statusValue !== undefined) {
           providerWhere.user = {
+            deleted_at: null,
             status: statusValue,
           };
         }
       }
 
       // Build staff where clause
-      const staffWhere: Prisma.StaffProfileWhereInput = {};
+      const staffWhere: Prisma.StaffProfileWhereInput = {
+        user: {
+          deleted_at: null,
+        },
+      };
       if (search && search.trim()) {
         const term = search.trim();
         staffWhere.OR = [
@@ -329,6 +338,7 @@ export class DashboardService {
           status === 'active' ? 1 : status === 'suspended' ? 2 : undefined;
         if (statusValue !== undefined) {
           staffWhere.user = {
+            deleted_at: null,
             status: statusValue,
           };
         }

@@ -11,7 +11,12 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -42,6 +47,7 @@ export class ProfileController {
   }
 
   @ApiOperation({ summary: 'Update admin profile with photo file' })
+  @ApiConsumes('multipart/form-data')
   @Patch()
   @UseInterceptors(
     FileInterceptor('photo', {

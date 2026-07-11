@@ -311,6 +311,13 @@ export class ApplyShiftService {
         {
           start_date: { gte: todayStart },
         },
+        {
+          service_provider_info: {
+            user: {
+              deleted_at: null,
+            },
+          },
+        },
       ];
 
       if (search) {
@@ -520,6 +527,11 @@ export class ApplyShiftService {
               mobile_number: true,
               brand_logo_url: true,
               website: true,
+              user: {
+                select: {
+                  deleted_at: true,
+                },
+              },
             },
           },
           applications: staff_id
@@ -545,7 +557,7 @@ export class ApplyShiftService {
         },
       });
 
-      if (!shift) {
+      if (!shift || shift.service_provider_info?.user?.deleted_at) {
         throw new NotFoundException('Shift not found');
       }
 
