@@ -70,13 +70,19 @@ export class EmployeeService {
       }
 
       // Check if email already exists in User table
-      const existingUser = await UserRepository.exist({
-        field: 'email',
-        value: createEmployeeDto.email,
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: createEmployeeDto.email },
+        select: { id: true, deleted_at: true },
       });
 
       if (existingUser) {
-        throw new BadRequestException('Email already exists');
+        if (existingUser.deleted_at !== null) {
+          await this.prisma.user.delete({
+            where: { id: existingUser.id },
+          });
+        } else {
+          throw new BadRequestException('Email already exists');
+        }
       }
 
       // Check if email already exists in Employee table
@@ -269,9 +275,28 @@ export class EmployeeService {
       const skip = (currentPage - 1) * pageSize;
       const trimmedSearch = search?.trim();
 
+      // Fetch all soft-deleted user IDs
+      const deletedUsers = await this.prisma.user.findMany({
+        where: {
+          deleted_at: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+      const deletedUserIds = deletedUsers.map((u) => u.id);
+
       const andConditions: any[] = [
         { service_provider_id: finalServiceProviderId },
       ];
+
+      if (deletedUserIds.length > 0) {
+        andConditions.push({
+          OR: [{ user_id: null }, { user_id: { notIn: deletedUserIds } }],
+        });
+      }
 
       if (trimmedSearch) {
         andConditions.push({
