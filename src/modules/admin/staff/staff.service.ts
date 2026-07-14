@@ -1675,10 +1675,37 @@ export class StaffService {
     try {
       const [total, pending, active, suspended] =
         await this.prisma.$transaction([
-          this.prisma.staffProfile.count(),
-          this.prisma.staffProfile.count({ where: { user: { status: 0 } } }),
-          this.prisma.staffProfile.count({ where: { user: { status: 1 } } }),
-          this.prisma.staffProfile.count({ where: { user: { status: 2 } } }),
+          this.prisma.staffProfile.count({
+            where: {
+              user: {
+                deleted_at: null,
+              },
+            },
+          }),
+          this.prisma.staffProfile.count({
+            where: {
+              user: {
+                status: 0,
+                deleted_at: null,
+              },
+            },
+          }),
+          this.prisma.staffProfile.count({
+            where: {
+              user: {
+                status: 1,
+                deleted_at: null,
+              },
+            },
+          }),
+          this.prisma.staffProfile.count({
+            where: {
+              user: {
+                status: 2,
+                deleted_at: null,
+              },
+            },
+          }),
         ]);
 
       return {
