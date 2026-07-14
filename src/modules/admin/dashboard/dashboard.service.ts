@@ -40,6 +40,7 @@ export class DashboardService {
           where: {
             user: {
               status: 1,
+              deleted_at: null,
             },
           },
         }),
@@ -54,6 +55,11 @@ export class DashboardService {
                 ShiftStatus.completed,
               ],
             },
+            service_provider_info: {
+              user: {
+                deleted_at: null,
+              },
+            },
           },
         }),
 
@@ -61,6 +67,11 @@ export class DashboardService {
         this.prisma.shift.count({
           where: {
             status: ShiftStatus.assigned,
+            service_provider_info: {
+              user: {
+                deleted_at: null,
+              },
+            },
           },
         }),
 
@@ -69,6 +80,13 @@ export class DashboardService {
           where: {
             status: {
               in: [TimesheetStatus.submitted, TimesheetStatus.under_review],
+            },
+            shift: {
+              service_provider_info: {
+                user: {
+                  deleted_at: null,
+                },
+              },
             },
           },
         }),
@@ -83,6 +101,13 @@ export class DashboardService {
             total_hours: {
               not: null,
             },
+            shift: {
+              service_provider_info: {
+                user: {
+                  deleted_at: null,
+                },
+              },
+            },
           },
           _sum: {
             total_hours: true,
@@ -90,13 +115,20 @@ export class DashboardService {
         }),
 
         // Care Provider (Service Provider) - Total
-        this.prisma.serviceProviderInfo.count(),
+        this.prisma.serviceProviderInfo.count({
+          where: {
+            user: {
+              deleted_at: null,
+            },
+          },
+        }),
 
         // Care Provider - Active (status = 1)
         this.prisma.serviceProviderInfo.count({
           where: {
             user: {
               status: 1,
+              deleted_at: null,
             },
           },
         }),
@@ -106,18 +138,26 @@ export class DashboardService {
           where: {
             user: {
               status: 2,
+              deleted_at: null,
             },
           },
         }),
 
         // Agency Staff (Worker) - Total
-        this.prisma.staffProfile.count(),
+        this.prisma.staffProfile.count({
+          where: {
+            user: {
+              deleted_at: null,
+            },
+          },
+        }),
 
         // Agency Staff - Active (status = 1)
         this.prisma.staffProfile.count({
           where: {
             user: {
               status: 1,
+              deleted_at: null,
             },
           },
         }),
@@ -127,6 +167,7 @@ export class DashboardService {
           where: {
             user: {
               status: 2,
+              deleted_at: null,
             },
           },
         }),
@@ -196,6 +237,9 @@ export class DashboardService {
               gte: startDate,
               lte: endDate,
             },
+            user: {
+              deleted_at: null,
+            },
           },
           select: {
             created_at: true,
@@ -206,6 +250,9 @@ export class DashboardService {
             created_at: {
               gte: startDate,
               lte: endDate,
+            },
+            user: {
+              deleted_at: null,
             },
           },
           select: {
@@ -460,6 +507,16 @@ export class DashboardService {
 
       const where: Prisma.StaffPerformanceReviewWhereInput = {
         rating: { lt: ratingBelow },
+        staff: {
+          user: {
+            deleted_at: null,
+          },
+        },
+        provider: {
+          user: {
+            deleted_at: null,
+          },
+        },
         ...(search
           ? {
               OR: [
