@@ -597,4 +597,126 @@ export class UserRepository {
     });
     return user;
   }
+
+  // Hard delete a user and all their relational records to prevent constraint failures
+  static async hardDeleteUser(userId: string, txClient?: any) {
+    const client = txClient || prisma;
+
+    // 1. Delete basic user relations
+    await client.ucode.deleteMany({ where: { user_id: userId } });
+    await client.userSetting.deleteMany({ where: { user_id: userId } });
+    await client.userDeviceToken.deleteMany({ where: { user_id: userId } });
+    await client.userPaymentMethod.deleteMany({ where: { user_id: userId } });
+    
+    await client.paymentTransaction.updateMany({
+      where: { user_id: userId },
+      data: { user_id: null },
+    });
+
+    await client.notification.deleteMany({
+      where: {
+        OR: [
+          { sender_id: userId },
+          { receiver_id: userId },
+        ],
+      },
+    });
+
+    await client.message.deleteMany({
+      where: {
+        OR: [
+          { sender_id: userId },
+          { receiver_id: userId },
+        ],
+      },
+    });
+
+    await client.conversation.deleteMany({
+      where: {
+        OR: [
+          { creator_id: userId },
+          { participant_id: userId },
+        ],
+      },
+    });
+
+    await client.employee.updateMany({
+      where: { user_id: userId },
+      data: { user_id: null },
+    });
+
+    await client.adminProfile.deleteMany({
+      where: { user_id: userId },
+    });
+
+    // 2. Handle StaffProfile and its cascade relations
+    const staff = await client.staffProfile.findUnique({
+      where: { user_id: userId },
+      select: { id: true },
+    });
+
+    if (staff) {
+      await client.shift.updateMany({
+        where: { assigned_staff_id: staff.id },
+        data: { assigned_staff_id: null },
+      });
+
+      await client.shiftApplication.deleteMany({ where: { staff_id: staff.id } });
+      await client.shiftAttendance.deleteMany({ where: { staff_id: staff.id } });
+      await client.shiftTimesheet.deleteMany({ where: { staff_id: staff.id } });
+      await client.providerStaffPreference.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffPerformanceReview.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffCertificate.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffDbsInfo.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffEmergencyContact.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffEducation.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffCurrentAddress.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffPreviousAddress.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffReferee.deleteMany({ where: { staff_id: staff.id } });
+      await client.staffBankDetails.deleteMany({ where: { staff_id: staff.id } });
+      
+      await client.staffProfile.delete({ where: { id: staff.id } });
+    }
+
+    // 3. Handle ServiceProviderInfo and its cascade relations
+    const provider = await client.serviceProviderInfo.findUnique({
+      where: { user_id: userId },
+      select: { id: true },
+    });
+
+    if (provider) {
+      await client.providerPayRateByRole.deleteMany({ where: { service_provider_id: provider.id } });
+
+      const shifts = await client.shift.findMany({
+        where: { service_provider_id: provider.id },
+        select: { id: true },
+      });
+      const shiftIds = shifts.map((s: any) => s.id);
+
+      await client.shiftApplication.deleteMany({ where: { shift_id: { in: shiftIds } } });
+      await client.shiftAttendance.deleteMany({ where: { shift_id: { in: shiftIds } } });
+      await client.shiftTimesheet.deleteMany({ where: { shift_id: { in: shiftIds } } });
+      await client.staffPerformanceReview.deleteMany({ where: { shift_id: { in: shiftIds } } });
+      await client.shift.deleteMany({ where: { service_provider_id: provider.id } });
+
+      await client.providerStaffPreference.deleteMany({ where: { provider_id: provider.id } });
+      await client.staffPerformanceReview.deleteMany({ where: { provider_id: provider.id } });
+
+      const employees = await client.employee.findMany({
+        where: { service_provider_id: provider.id },
+        select: { id: true },
+      });
+      const employeeIds = employees.map((e: any) => e.id);
+
+      await client.employeePermission.deleteMany({ where: { employee_id: { in: employeeIds } } });
+      await client.employee.deleteMany({ where: { service_provider_id: provider.id } });
+
+      await client.serviceProviderInfo.delete({ where: { id: provider.id } });
+    }
+
+    // 4. Delete ActivityLogs & RoleUsers & User itself
+    await client.activityLog.deleteMany({ where: { user_id: userId } });
+    await client.roleUser.deleteMany({ where: { user_id: userId } });
+    await client.user.delete({ where: { id: userId } });
+  }
 }
