@@ -19,6 +19,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
 import { MailService } from 'src/mail/mail.service';
+import { UserRepository } from '../../../common/repository/user/user.repository';
 
 @Injectable()
 export class StaffService {
@@ -1360,12 +1361,6 @@ export class StaffService {
         select: {
           id: true,
           user_id: true,
-          user: {
-            select: {
-              id: true,
-              deleted_at: true,
-            },
-          },
         },
       });
 
@@ -1373,43 +1368,16 @@ export class StaffService {
         throw new NotFoundException('Staff not found');
       }
 
-      if (staff.user?.deleted_at) {
-        return {
-          success: true,
-          message: 'Staff already deleted',
-          data: {
-            staff_id: staff.id,
-            user_id: staff.user_id,
-            soft_deleted: true,
-          },
-        };
-      }
-
-      const deletedAt = new Date();
-
-      const updatedUser = await this.prisma.user.update({
-        where: { id: staff.user_id },
-        data: {
-          deleted_at: deletedAt,
-          status: 3,
-          approved_at: null,
-        },
-        select: {
-          id: true,
-          status: true,
-          deleted_at: true,
-          updated_at: true,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await UserRepository.hardDeleteUser(staff.user_id, tx);
       });
 
       return {
         success: true,
-        message: 'Staff soft deleted successfully',
+        message: 'Staff deleted successfully',
         data: {
           staff_id: staff.id,
           user_id: staff.user_id,
-          user: updatedUser,
-          soft_deleted: true,
         },
       };
     } catch (error) {
@@ -1417,7 +1385,9 @@ export class StaffService {
         throw error;
       }
 
-      throw new InternalServerErrorException('Failed to delete staff');
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to delete staff',
+      );
     }
   }
 

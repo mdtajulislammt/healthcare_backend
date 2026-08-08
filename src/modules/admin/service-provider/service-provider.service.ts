@@ -18,6 +18,7 @@ import { UpdateEmergencyBonusDto } from './dto/update-emergency-bonus.dto';
 import { UpdateServiceProviderDto } from './dto/update-service-provider.dto';
 import { MailService } from 'src/mail/mail.service';
 import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
+import { UserRepository } from '../../../common/repository/user/user.repository';
 
 @Injectable()
 export class ServiceProviderService {
@@ -680,20 +681,8 @@ export class ServiceProviderService {
         throw new NotFoundException('Service provider not found');
       }
 
-      // Check if already deleted
-      const user = await this.prisma.user.findUnique({
-        where: { id: provider.user_id },
-        select: { deleted_at: true },
-      });
-
-      if (user?.deleted_at) {
-        throw new NotFoundException('Service provider not found');
-      }
-
-      // Soft-delete by setting deleted_at
-      await this.prisma.user.update({
-        where: { id: provider.user_id },
-        data: { deleted_at: new Date() },
+      await this.prisma.$transaction(async (tx) => {
+        await UserRepository.hardDeleteUser(provider.user_id, tx);
       });
 
       return {
@@ -709,7 +698,7 @@ export class ServiceProviderService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Failed to delete service provider',
+        error instanceof Error ? error.message : 'Failed to delete service provider',
       );
     }
   }
