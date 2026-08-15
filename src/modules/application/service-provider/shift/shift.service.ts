@@ -184,6 +184,8 @@ export class ShiftService {
         }
       }
 
+      console.log('DEBUG: RAW start_time from client:', start_time);
+      console.log('DEBUG: RAW end_time from client:', end_time);
       const startTimeValue = DateHelper.parseISOUTC(start_time);
       const endTimeValue = DateHelper.parseISOUTC(end_time);
       if (!startTimeValue || !endTimeValue) {
