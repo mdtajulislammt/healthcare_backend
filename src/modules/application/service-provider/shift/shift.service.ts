@@ -18,6 +18,9 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { GoogleMapsService } from 'src/common/lib/GoogleMaps/GoogleMapsService';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
+import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
+import { PushNotificationService } from 'src/common/service/push-notification.service';
+import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 import {
   calculateShiftHours,
   createAndLogShifts,
@@ -33,6 +36,8 @@ export class ShiftService {
     private readonly prisma: PrismaService,
     private readonly activityLogService: ActivityLogService,
     private readonly providerContextHelper: ServiceProviderContextHelper,
+    private readonly notificationGateway: NotificationGateway,
+    private readonly pushNotificationService: PushNotificationService,
   ) {}
 
   async create(createShiftDto: CreateShiftDto, requestingUserId: string) {
@@ -216,6 +221,9 @@ export class ShiftService {
         platformMargin: providerPlatformMargin,
         staffHourlyRate: providerStaffHourlyRate,
       });
+
+      // Trigger notifications to matching staff in the background
+      this.notifyStaffOfPublishedShifts(shifts);
 
       return {
         success: true,
@@ -1093,6 +1101,10 @@ export class ShiftService {
         },
       });
 
+      if (createdShifts && createdShifts.length) {
+        this.notifyStaffOfPublishedShifts(createdShifts);
+      }
+
       return {
         success: true,
         message: 'Shift updated successfully',
@@ -1235,6 +1247,59 @@ export class ShiftService {
       throw new InternalServerErrorException(
         'Failed to fetch emergency bonus options',
       );
+    }
+  }
+
+  private async notifyStaffOfPublishedShifts(shifts: any[]) {
+    try {
+      const publishedShifts = shifts.filter((s) => s.status === ShiftStatus.published);
+      if (!publishedShifts.length) return;
+
+      for (const shift of publishedShifts) {
+        // Find all active staff profiles with matching roles
+        const matchingStaff = await this.prisma.staffProfile.findMany({
+          where: {
+            roles: {
+              has: shift.profession_role as any,
+            },
+            user: {
+              deleted_at: null,
+              status: 1, // active staff only
+            },
+          },
+          select: {
+            user_id: true,
+          },
+        });
+
+        for (const staff of matchingStaff) {
+          // 1. Create DB notification
+          const notification = await NotificationRepository.createNotification({
+            receiver_id: staff.user_id,
+            text: `New shift published: ${shift.posting_title} at ${shift.facility_name}`,
+            type: 'shift_published',
+            entity_id: shift.id,
+          });
+
+          // 2. Real-time WebSocket notification
+          await this.notificationGateway.sendNotificationToUser({
+            userId: staff.user_id,
+            notificationId: notification.id,
+          });
+
+          // 3. Push notification
+          await this.pushNotificationService.sendToUser(staff.user_id, {
+            title: 'New Shift Available',
+            body: `${shift.posting_title} at ${shift.facility_name} is now available.`,
+            data: {
+              type: 'shift_detail',
+              shiftId: shift.id,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send published shift notifications:', error);
     }
   }
 }

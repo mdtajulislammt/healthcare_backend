@@ -20,6 +20,7 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 import { UpdateStaffCertificateDto } from './dto/update-staff-certificate.dto';
 import { MailService } from 'src/mail/mail.service';
 import { UserRepository } from '../../../common/repository/user/user.repository';
+import { DateHelper } from 'src/common/helper/date.helper';
 
 @Injectable()
 export class StaffService {
@@ -237,15 +238,24 @@ export class StaffService {
         createStaffDto.dbs_date_of_birth_on_cert &&
         createStaffDto.dbs_certificate_print_date
       ) {
+        const dobDate = DateHelper.parseFlexibleDate(
+          String(createStaffDto.dbs_date_of_birth_on_cert).trim(),
+        );
+        const printDate = DateHelper.parseFlexibleDate(
+          String(createStaffDto.dbs_certificate_print_date).trim(),
+        );
+
+        if (!dobDate || !printDate) {
+          throw new BadRequestException(
+            'Invalid DBS date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+          );
+        }
+
         dbsData = {
           certificate_number: createStaffDto.dbs_certificate_number,
           surname_as_certificate: createStaffDto.dbs_surname_as_certificate,
-          date_of_birth_on_cert: new Date(
-            String(createStaffDto.dbs_date_of_birth_on_cert).trim(),
-          ),
-          certificate_print_date: new Date(
-            String(createStaffDto.dbs_certificate_print_date).trim(),
-          ),
+          date_of_birth_on_cert: dobDate,
+          certificate_print_date: printDate,
           is_registered_on_update:
             typeof createStaffDto.dbs_is_registered_on_update === 'string'
               ? ['true', '1', 'yes'].includes(
@@ -255,13 +265,6 @@ export class StaffService {
                 )
               : !!createStaffDto.dbs_is_registered_on_update,
         };
-
-        if (
-          isNaN(dbsData.date_of_birth_on_cert.getTime()) ||
-          isNaN(dbsData.certificate_print_date.getTime())
-        ) {
-          throw new BadRequestException('Invalid DBS date value');
-        }
       }
 
       let refereesSource: any[] = [];
@@ -1147,19 +1150,19 @@ export class StaffService {
           }
 
           if (updateStaffDto.dbs_date_of_birth_on_cert !== undefined) {
-            const dobDate = new Date(updateStaffDto.dbs_date_of_birth_on_cert);
-            if (isNaN(dobDate.getTime())) {
-              throw new BadRequestException('Invalid DBS date value');
+            const dobDate = DateHelper.parseFlexibleDate(updateStaffDto.dbs_date_of_birth_on_cert);
+            if (!dobDate) {
+              throw new BadRequestException('Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.');
             }
             dbsUpdateData.date_of_birth_on_cert = dobDate;
           }
 
           if (updateStaffDto.dbs_certificate_print_date !== undefined) {
-            const printDate = new Date(
+            const printDate = DateHelper.parseFlexibleDate(
               updateStaffDto.dbs_certificate_print_date,
             );
-            if (isNaN(printDate.getTime())) {
-              throw new BadRequestException('Invalid DBS date value');
+            if (!printDate) {
+              throw new BadRequestException('Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.');
             }
             dbsUpdateData.certificate_print_date = printDate;
           }

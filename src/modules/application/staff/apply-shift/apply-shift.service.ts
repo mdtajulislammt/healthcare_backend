@@ -13,6 +13,7 @@ import { DistanceHelper } from '../../../../common/helper/distance.helper';
 import { ActivityLogService } from '../../../../common/service/activity-log.service';
 import { PushNotificationService } from '../../../../common/service/push-notification.service';
 import { NotificationRepository } from '../../../../common/repository/notification/notification.repository';
+import { NotificationGateway } from '../../notification/notification.gateway';
 
 @Injectable()
 export class ApplyShiftService {
@@ -20,6 +21,7 @@ export class ApplyShiftService {
     private readonly prisma: PrismaService,
     private readonly activityLogService: ActivityLogService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async create(createApplyShiftDto: CreateApplyShiftDto, user_id: string) {
@@ -210,11 +212,16 @@ export class ApplyShiftService {
         const staffName =
           application.staff.first_name + ' ' + application.staff.last_name;
 
-        await NotificationRepository.createNotification({
+        const notification = await NotificationRepository.createNotification({
           receiver_id: serviceProviderUserId,
           text: `${staffName} has applied for shift: ${shift.posting_title} at ${shift.facility_name}`,
           type: 'shift_application',
           entity_id: shift_id,
+        });
+
+        await this.notificationGateway.sendNotificationToUser({
+          userId: serviceProviderUserId,
+          notificationId: notification.id,
         });
 
         await this.pushNotificationService.sendToUser(serviceProviderUserId, {

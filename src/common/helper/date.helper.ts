@@ -136,4 +136,29 @@ export class DateHelper {
     const diffInYears = Math.floor(diffInDays / 365);
     return `${diffInYears} ${diffInYears === 1 ? 'year' : 'years'} ago`;
   }
+
+  static parseFlexibleDate(dateStr: string): Date | null {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+    
+    // Check if format is DD/MM/YYYY or DD-MM-YYYY
+    const match = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1; // months are 0-indexed
+      const year = parseInt(match[3], 10);
+      const date = new Date(Date.UTC(year, month, day));
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+
+    // Fallback to standard JS Date parsing
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+
+    return null;
+  }
 }

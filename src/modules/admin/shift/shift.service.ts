@@ -445,23 +445,23 @@ export class ShiftService {
     const endTime = new Date(endTimeValue);
 
     const start = new Date(startDate);
-    start.setHours(
-      startTime.getHours(),
-      startTime.getMinutes(),
-      startTime.getSeconds(),
-      startTime.getMilliseconds(),
+    start.setUTCHours(
+      startTime.getUTCHours(),
+      startTime.getUTCMinutes(),
+      startTime.getUTCSeconds(),
+      startTime.getUTCMilliseconds(),
     );
 
     const end = new Date(endDate);
-    end.setHours(
-      endTime.getHours(),
-      endTime.getMinutes(),
-      endTime.getSeconds(),
-      endTime.getMilliseconds(),
+    end.setUTCHours(
+      endTime.getUTCHours(),
+      endTime.getUTCMinutes(),
+      endTime.getUTCSeconds(),
+      endTime.getUTCMilliseconds(),
     );
 
     if (end.getTime() <= start.getTime()) {
-      end.setDate(end.getDate() + 1);
+      end.setUTCDate(end.getUTCDate() + 1);
     }
 
     return { start, end };

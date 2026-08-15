@@ -300,10 +300,10 @@ export class HomeService {
         if (shift.start_time && shift.end_time) {
           const startTime = new Date(shift.start_time);
           const endTime = new Date(shift.end_time);
-          const startHours = String(startTime.getHours()).padStart(2, '0');
-          const startMinutes = String(startTime.getMinutes()).padStart(2, '0');
-          const endHours = String(endTime.getHours()).padStart(2, '0');
-          const endMinutes = String(endTime.getMinutes()).padStart(2, '0');
+          const startHours = String(startTime.getUTCHours()).padStart(2, '0');
+          const startMinutes = String(startTime.getUTCMinutes()).padStart(2, '0');
+          const endHours = String(endTime.getUTCHours()).padStart(2, '0');
+          const endMinutes = String(endTime.getUTCMinutes()).padStart(2, '0');
           formattedTime = `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
         }
 
