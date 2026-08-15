@@ -1541,11 +1541,11 @@ export class AuthService {
         let refereeStartDate: Date | undefined;
         if (referee.start_date) {
           const startDateString = String(referee.start_date).trim();
-          const parsedStartDate = new Date(startDateString);
-          if (isNaN(parsedStartDate.getTime())) {
+          const parsedStartDate = DateHelper.parseFlexibleDate(startDateString);
+          if (!parsedStartDate) {
             return {
               success: false,
-              message: `Invalid date format for referee start_date: "${startDateString}". Please use YYYY-MM-DD format.`,
+              message: `Invalid date format for referee start_date: "${startDateString}". Please use YYYY-MM-DD or DD/MM/YYYY format.`,
             };
           }
           refereeStartDate = parsedStartDate;
@@ -1554,11 +1554,11 @@ export class AuthService {
         let refereeEndDate: Date | undefined;
         if (referee.end_date) {
           const endDateString = String(referee.end_date).trim();
-          const parsedEndDate = new Date(endDateString);
-          if (isNaN(parsedEndDate.getTime())) {
+          const parsedEndDate = DateHelper.parseFlexibleDate(endDateString);
+          if (!parsedEndDate) {
             return {
               success: false,
-              message: `Invalid date format for referee end_date: "${endDateString}". Please use YYYY-MM-DD format.`,
+              message: `Invalid date format for referee end_date: "${endDateString}". Please use YYYY-MM-DD or DD/MM/YYYY format.`,
             };
           }
           refereeEndDate = parsedEndDate;

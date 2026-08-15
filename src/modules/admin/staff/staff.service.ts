@@ -224,7 +224,9 @@ export class StaffService {
               .filter(Boolean)
           : undefined;
 
-      const mainDobDate = DateHelper.parseFlexibleDate(createStaffDto.date_of_birth);
+      const mainDobDate = DateHelper.parseFlexibleDate(
+        createStaffDto.date_of_birth,
+      );
       if (!mainDobDate) {
         throw new BadRequestException(
           'date_of_birth is required and must be a valid date in YYYY-MM-DD or DD/MM/YYYY format.',
@@ -314,17 +316,17 @@ export class StaffService {
         };
 
         if (referee.start_date) {
-          const startDate = new Date(String(referee.start_date).trim());
-          if (isNaN(startDate.getTime())) {
-            throw new BadRequestException('Invalid referee start_date value');
+          const startDate = DateHelper.parseFlexibleDate(String(referee.start_date).trim());
+          if (!startDate) {
+            throw new BadRequestException('Invalid referee start_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
           }
           refereeData.start_date = startDate;
         }
 
         if (referee.end_date) {
-          const endDate = new Date(String(referee.end_date).trim());
-          if (isNaN(endDate.getTime())) {
-            throw new BadRequestException('Invalid referee end_date value');
+          const endDate = DateHelper.parseFlexibleDate(String(referee.end_date).trim());
+          if (!endDate) {
+            throw new BadRequestException('Invalid referee end_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
           }
           refereeData.end_date = endDate;
         }
@@ -891,7 +893,9 @@ export class StaffService {
       }
 
       if (updateStaffDto.date_of_birth !== undefined) {
-        const dobDate = DateHelper.parseFlexibleDate(updateStaffDto.date_of_birth);
+        const dobDate = DateHelper.parseFlexibleDate(
+          updateStaffDto.date_of_birth,
+        );
         if (!dobDate) {
           throw new BadRequestException(
             'Invalid date_of_birth format. Please use YYYY-MM-DD or DD/MM/YYYY.',
@@ -1163,9 +1167,13 @@ export class StaffService {
           }
 
           if (updateStaffDto.dbs_date_of_birth_on_cert !== undefined) {
-            const dobDate = DateHelper.parseFlexibleDate(updateStaffDto.dbs_date_of_birth_on_cert);
+            const dobDate = DateHelper.parseFlexibleDate(
+              updateStaffDto.dbs_date_of_birth_on_cert,
+            );
             if (!dobDate) {
-              throw new BadRequestException('Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.');
+              throw new BadRequestException(
+                'Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.',
+              );
             }
             dbsUpdateData.date_of_birth_on_cert = dobDate;
           }
@@ -1175,7 +1183,9 @@ export class StaffService {
               updateStaffDto.dbs_certificate_print_date,
             );
             if (!printDate) {
-              throw new BadRequestException('Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.');
+              throw new BadRequestException(
+                'Invalid DBS date value. Please use YYYY-MM-DD or DD/MM/YYYY.',
+              );
             }
             dbsUpdateData.certificate_print_date = printDate;
           }

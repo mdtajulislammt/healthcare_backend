@@ -217,7 +217,9 @@ export class ProfileService {
       if (updateData.date_of_birth !== undefined) {
         const dobDate = DateHelper.parseFlexibleDate(updateData.date_of_birth);
         if (!dobDate) {
-          throw new BadRequestException('Invalid date_of_birth format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+          throw new BadRequestException(
+            'Invalid date_of_birth format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+          );
         }
         updatePayload.date_of_birth = dobDate;
       }
@@ -326,18 +328,32 @@ export class ProfileService {
             throw new BadRequestException('Current address is required');
           }
 
+          const currentFromDate = addressData.from_date
+            ? DateHelper.parseFlexibleDate(addressData.from_date)
+            : null;
+          const currentToDate = addressData.to_date
+            ? DateHelper.parseFlexibleDate(addressData.to_date)
+            : null;
+
+          if (addressData.from_date && !currentFromDate) {
+            throw new BadRequestException(
+              'Invalid Current Address from_date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+            );
+          }
+          if (addressData.to_date && !currentToDate) {
+            throw new BadRequestException(
+              'Invalid Current Address to_date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+            );
+          }
+
           const currentAddressUpdateData: any = {
             address: addressData.address,
             city: addressData.city ?? undefined,
             state: addressData.state ?? undefined,
             zip: addressData.zip ?? undefined,
             country: addressData.country ?? undefined,
-            from_date: addressData.from_date
-              ? new Date(addressData.from_date)
-              : undefined,
-            to_date: addressData.to_date
-              ? new Date(addressData.to_date)
-              : undefined,
+            from_date: currentFromDate ?? undefined,
+            to_date: currentToDate ?? undefined,
           };
 
           // Update evidence_file_url if new file uploaded
@@ -356,12 +372,8 @@ export class ProfileService {
               state: addressData.state ?? null,
               zip: addressData.zip ?? null,
               country: addressData.country ?? null,
-              from_date: addressData.from_date
-                ? new Date(addressData.from_date)
-                : null,
-              to_date: addressData.to_date
-                ? new Date(addressData.to_date)
-                : null,
+              from_date: currentFromDate,
+              to_date: currentToDate,
               evidence_file_url: currentAddressEvidenceFileName ?? null,
             },
           });
@@ -391,6 +403,24 @@ export class ProfileService {
             throw new BadRequestException('Previous address is required');
           }
 
+          const previousFromDate = addressData.from_date
+            ? DateHelper.parseFlexibleDate(addressData.from_date)
+            : null;
+          const previousToDate = addressData.to_date
+            ? DateHelper.parseFlexibleDate(addressData.to_date)
+            : null;
+
+          if (addressData.from_date && !previousFromDate) {
+            throw new BadRequestException(
+              'Invalid Previous Address from_date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+            );
+          }
+          if (addressData.to_date && !previousToDate) {
+            throw new BadRequestException(
+              'Invalid Previous Address to_date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+            );
+          }
+
           previousAddress = await tx.staffPreviousAddress.upsert({
             where: { staff_id },
             update: {
@@ -399,12 +429,8 @@ export class ProfileService {
               state: addressData.state ?? undefined,
               zip: addressData.zip ?? undefined,
               country: addressData.country ?? undefined,
-              from_date: addressData.from_date
-                ? new Date(addressData.from_date)
-                : undefined,
-              to_date: addressData.to_date
-                ? new Date(addressData.to_date)
-                : undefined,
+              from_date: previousFromDate ?? undefined,
+              to_date: previousToDate ?? undefined,
             },
             create: {
               staff_id,
@@ -413,12 +439,8 @@ export class ProfileService {
               state: addressData.state ?? null,
               zip: addressData.zip ?? null,
               country: addressData.country ?? null,
-              from_date: addressData.from_date
-                ? new Date(addressData.from_date)
-                : null,
-              to_date: addressData.to_date
-                ? new Date(addressData.to_date)
-                : null,
+              from_date: previousFromDate,
+              to_date: previousToDate,
             },
           });
         }
@@ -487,11 +509,23 @@ export class ProfileService {
           }
 
           if (refereeData.start_date !== undefined) {
-            updateRefereePayload.start_date = new Date(refereeData.start_date);
+            const startDate = refereeData.start_date
+              ? DateHelper.parseFlexibleDate(refereeData.start_date)
+              : null;
+            if (refereeData.start_date && !startDate) {
+              throw new BadRequestException('Invalid referee start_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+            }
+            updateRefereePayload.start_date = startDate;
           }
 
           if (refereeData.end_date !== undefined) {
-            updateRefereePayload.end_date = new Date(refereeData.end_date);
+            const endDate = refereeData.end_date
+              ? DateHelper.parseFlexibleDate(refereeData.end_date)
+              : null;
+            if (refereeData.end_date && !endDate) {
+              throw new BadRequestException('Invalid referee end_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+            }
+            updateRefereePayload.end_date = endDate;
           }
 
           if (Object.keys(updateRefereePayload).length === 0) {
@@ -639,18 +673,28 @@ export class ProfileService {
         );
       }
 
+      const eduStartDate = educationData.start_date
+        ? DateHelper.parseFlexibleDate(educationData.start_date)
+        : null;
+      const eduEndDate = educationData.end_date
+        ? DateHelper.parseFlexibleDate(educationData.end_date)
+        : null;
+
+      if (educationData.start_date && !eduStartDate) {
+        throw new BadRequestException('Invalid start_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+      }
+      if (educationData.end_date && !eduEndDate) {
+        throw new BadRequestException('Invalid end_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+      }
+
       // Prepare education data
       const educationPayload: any = {
         staff_id,
         institution_name: educationData.institution_name,
         degree: educationData.degree,
         field_of_study: educationData.field_of_study ?? null,
-        start_date: educationData.start_date
-          ? new Date(educationData.start_date)
-          : null,
-        end_date: educationData.end_date
-          ? new Date(educationData.end_date)
-          : null,
+        start_date: eduStartDate,
+        end_date: eduEndDate,
       };
 
       let education;
@@ -838,7 +882,11 @@ export class ProfileService {
       }
 
       if (certificateData.expiry_date) {
-        certificatePayload.expiry_date = new Date(certificateData.expiry_date);
+        const expiryDate = DateHelper.parseFlexibleDate(certificateData.expiry_date);
+        if (!expiryDate) {
+          throw new BadRequestException('Invalid expiry_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+        }
+        certificatePayload.expiry_date = expiryDate;
       }
 
       let certificate;
@@ -1094,11 +1142,23 @@ export class ProfileService {
       }
 
       if (refereeData.start_date !== undefined) {
-        updatePayload.start_date = new Date(refereeData.start_date);
+        const startDate = refereeData.start_date
+          ? DateHelper.parseFlexibleDate(refereeData.start_date)
+          : null;
+        if (refereeData.start_date && !startDate) {
+          throw new BadRequestException('Invalid referee start_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+        }
+        updatePayload.start_date = startDate;
       }
 
       if (refereeData.end_date !== undefined) {
-        updatePayload.end_date = new Date(refereeData.end_date);
+        const endDate = refereeData.end_date
+          ? DateHelper.parseFlexibleDate(refereeData.end_date)
+          : null;
+        if (refereeData.end_date && !endDate) {
+          throw new BadRequestException('Invalid referee end_date format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+        }
+        updatePayload.end_date = endDate;
       }
 
       if (refereeData.consent_to_contact !== undefined) {
