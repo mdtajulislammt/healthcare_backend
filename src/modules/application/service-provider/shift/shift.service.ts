@@ -20,7 +20,6 @@ import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
-import { DateHelper } from 'src/common/helper/date.helper';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 import {
   calculateShiftHours,
@@ -183,12 +182,13 @@ export class ShiftService {
           );
         }
       }
-
-      console.log('DEBUG: RAW start_time from client:', start_time);
-      console.log('DEBUG: RAW end_time from client:', end_time);
-      const startTimeValue = DateHelper.parseISOUTC(start_time);
-      const endTimeValue = DateHelper.parseISOUTC(end_time);
-      if (!startTimeValue || !endTimeValue) {
+      
+      const startTimeValue = new Date(start_time);
+      const endTimeValue = new Date(end_time);
+      if (
+        Number.isNaN(startTimeValue.getTime()) ||
+        Number.isNaN(endTimeValue.getTime())
+      ) {
         throw new BadRequestException('Invalid start_time or end_time value');
       }
 
@@ -205,8 +205,8 @@ export class ShiftService {
         professionRole: profession_role,
         isUrgent: is_urgent,
         shiftDates,
-        startTimeValue,
-        endTimeValue,
+        startTimeValue: start_time,
+        endTimeValue: end_time,
         facilityName: facility_name,
         fullAddress: full_address,
         latitude,
@@ -861,16 +861,16 @@ export class ShiftService {
       }
 
       if (updateShiftDto.start_time !== undefined) {
-        const startTime = DateHelper.parseISOUTC(updateShiftDto.start_time);
-        if (!startTime) {
+        const startTime = new Date(updateShiftDto.start_time);
+        if (Number.isNaN(startTime.getTime())) {
           throw new BadRequestException('Invalid start_time value');
         }
         updateData.start_time = startTime;
       }
 
       if (updateShiftDto.end_time !== undefined) {
-        const endTime = DateHelper.parseISOUTC(updateShiftDto.end_time);
-        if (!endTime) {
+        const endTime = new Date(updateShiftDto.end_time);
+        if (Number.isNaN(endTime.getTime())) {
           throw new BadRequestException('Invalid end_time value');
         }
         updateData.end_time = endTime;
@@ -945,12 +945,10 @@ export class ShiftService {
           const professionRole =
             updateShiftDto.profession_role ?? existingShift?.profession_role;
           const isUrgent = updateShiftDto.is_urgent ?? existingShift?.is_urgent;
-          const startTimeValue = updateShiftDto.start_time
-            ? DateHelper.parseISOUTC(updateShiftDto.start_time)
-            : existingShift?.start_time;
-          const endTimeValue = updateShiftDto.end_time
-            ? DateHelper.parseISOUTC(updateShiftDto.end_time)
-            : existingShift?.end_time;
+          const startTimeValue =
+            updateShiftDto.start_time ?? existingShift?.start_time;
+          const endTimeValue =
+            updateShiftDto.end_time ?? existingShift?.end_time;
           const facilityName =
             updateShiftDto.facility_name ?? existingShift?.facility_name;
           const fullAddress =
