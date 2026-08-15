@@ -15,6 +15,7 @@ import { SojebStorage } from '../../../../common/lib/Disk/SojebStorage';
 import appConfig from '../../../../config/app.config';
 import { StringHelper } from '../../../../common/helper/string.helper';
 import { calculateStaffProfileCompletion } from '../../../../common/helper/profile-completion.helper';
+import { DateHelper } from '../../../../common/helper/date.helper';
 
 @Injectable()
 export class ProfileService {
@@ -214,7 +215,11 @@ export class ProfileService {
       }
 
       if (updateData.date_of_birth !== undefined) {
-        updatePayload.date_of_birth = new Date(updateData.date_of_birth);
+        const dobDate = DateHelper.parseFlexibleDate(updateData.date_of_birth);
+        if (!dobDate) {
+          throw new BadRequestException('Invalid date_of_birth format. Please use YYYY-MM-DD or DD/MM/YYYY.');
+        }
+        updatePayload.date_of_birth = dobDate;
       }
 
       if (updateData.experience !== undefined) {
@@ -948,13 +953,13 @@ export class ProfileService {
         const dobString = String(dbsData.date_of_birth_on_cert).trim();
         if (!dobString || dobString === 'undefined' || dobString === 'null') {
           throw new BadRequestException(
-            'date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD format.',
+            'date_of_birth_on_cert is required and must be a valid date in YYYY-MM-DD or DD/MM/YYYY format.',
           );
         }
-        const dobDate = new Date(dobString);
-        if (isNaN(dobDate.getTime())) {
+        const dobDate = DateHelper.parseFlexibleDate(dobString);
+        if (!dobDate) {
           throw new BadRequestException(
-            `Invalid date format for date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format (e.g., 1990-01-01).`,
+            `Invalid date format for date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD or DD/MM/YYYY format (e.g., 1990-01-01 or 01/01/1990).`,
           );
         }
         updatePayload.date_of_birth_on_cert = dobDate;
@@ -968,13 +973,13 @@ export class ProfileService {
           printString === 'null'
         ) {
           throw new BadRequestException(
-            'certificate_print_date is required and must be a valid date in YYYY-MM-DD format.',
+            'certificate_print_date is required and must be a valid date in YYYY-MM-DD or DD/MM/YYYY format.',
           );
         }
-        const printDate = new Date(printString);
-        if (isNaN(printDate.getTime())) {
+        const printDate = DateHelper.parseFlexibleDate(printString);
+        if (!printDate) {
           throw new BadRequestException(
-            `Invalid date format for certificate_print_date: "${printString}". Please use YYYY-MM-DD format (e.g., 2024-01-15).`,
+            `Invalid date format for certificate_print_date: "${printString}". Please use YYYY-MM-DD or DD/MM/YYYY format (e.g., 2024-01-15 or 15/01/2024).`,
           );
         }
         updatePayload.certificate_print_date = printDate;
