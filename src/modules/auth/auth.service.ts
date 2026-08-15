@@ -1458,20 +1458,20 @@ export class AuthService {
           };
         }
 
-        const dobDate = new Date(dobString);
-        const printDate = new Date(printString);
+        const dobDate = DateHelper.parseFlexibleDate(dobString);
+        const printDate = DateHelper.parseFlexibleDate(printString);
 
-        if (isNaN(dobDate.getTime())) {
+        if (!dobDate) {
           return {
             success: false,
-            message: `Invalid date format for dbs_date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD format.`,
+            message: `Invalid date format for dbs_date_of_birth_on_cert: "${dobString}". Please use YYYY-MM-DD or DD/MM/YYYY format.`,
           };
         }
 
-        if (isNaN(printDate.getTime())) {
+        if (!printDate) {
           return {
             success: false,
-            message: `Invalid date format for dbs_certificate_print_date: "${printString}". Please use YYYY-MM-DD format.`,
+            message: `Invalid date format for dbs_certificate_print_date: "${printString}". Please use YYYY-MM-DD or DD/MM/YYYY format.`,
           };
         }
 

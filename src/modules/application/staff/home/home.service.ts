@@ -163,7 +163,7 @@ export class HomeService {
           id: nextShift.id,
           date: startDate.toISOString().split('T')[0],
           facility: nextShift.facility_name,
-          time: `${startTime.toTimeString().slice(0, 5)} - ${endTime.toTimeString().slice(0, 5)}`,
+          time: `${String(startTime.getUTCHours()).padStart(2, '0')}:${String(startTime.getUTCMinutes()).padStart(2, '0')} - ${String(endTime.getUTCHours()).padStart(2, '0')}:${String(endTime.getUTCMinutes()).padStart(2, '0')}`,
           role: nextShift.profession_role,
         };
       }
@@ -180,7 +180,7 @@ export class HomeService {
           facility: immediateCheckInShift.facility_name,
           role: immediateCheckInShift.profession_role,
           date: startDate.toISOString().split('T')[0],
-          time: `${startTime.toTimeString().slice(0, 5)} - ${endTime.toTimeString().slice(0, 5)}`,
+          time: `${String(startTime.getUTCHours()).padStart(2, '0')}:${String(startTime.getUTCMinutes()).padStart(2, '0')} - ${String(endTime.getUTCHours()).padStart(2, '0')}:${String(endTime.getUTCMinutes()).padStart(2, '0')}`,
           canCheckIn:
             immediateCheckInShift.attendance?.status ===
             ShiftAttendanceStatus.not_checked_in,
@@ -317,7 +317,7 @@ export class HomeService {
             facilityName: shift.facility_name,
             postedAgo: publishedAgo,
             date: startDate.toISOString().split('T')[0],
-            time: `${startTime.toTimeString().slice(0, 5)} - ${endTime.toTimeString().slice(0, 5)}`,
+            time: `${String(startTime.getUTCHours()).padStart(2, '0')}:${String(startTime.getUTCMinutes()).padStart(2, '0')} - ${String(endTime.getUTCHours()).padStart(2, '0')}:${String(endTime.getUTCMinutes()).padStart(2, '0')}`,
             distance: distanceMiles
               ? `${Math.round(distanceMiles * 10) / 10} miles`
               : null,

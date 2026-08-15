@@ -12,6 +12,7 @@ export type NotificationType =
   | 'blog'
   | 'shift_application'
   | 'shift_assigned'
+  | 'shift_published'
   | 'shift_rejected'
   | 'shift_checkin'
   | 'shift_checkout'
