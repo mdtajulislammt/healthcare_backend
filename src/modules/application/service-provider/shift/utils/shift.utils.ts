@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma, ShiftStatus } from '@prisma/client';
 import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DateHelper } from 'src/common/helper/date.helper';
 
 export function getShiftDates(startDateValue: string, endDateValue?: string) {
   const startDate = new Date(startDateValue);
@@ -132,8 +133,12 @@ export async function createAndLogShifts(params: {
           is_urgent: params.isUrgent ?? false,
           start_date: shiftDate,
           end_date: shiftDate,
-          start_time: new Date(params.startTimeValue),
-          end_time: new Date(params.endTimeValue),
+          start_time: typeof params.startTimeValue === 'string'
+            ? DateHelper.parseISOUTC(params.startTimeValue)
+            : params.startTimeValue,
+          end_time: typeof params.endTimeValue === 'string'
+            ? DateHelper.parseISOUTC(params.endTimeValue)
+            : params.endTimeValue,
           facility_name: params.facilityName,
           full_address: params.fullAddress ?? null,
           latitude: params.latitude ?? null,

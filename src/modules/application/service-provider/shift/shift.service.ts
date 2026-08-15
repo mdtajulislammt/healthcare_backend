@@ -203,8 +203,8 @@ export class ShiftService {
         professionRole: profession_role,
         isUrgent: is_urgent,
         shiftDates,
-        startTimeValue: start_time,
-        endTimeValue: end_time,
+        startTimeValue,
+        endTimeValue,
         facilityName: facility_name,
         fullAddress: full_address,
         latitude,
@@ -943,10 +943,12 @@ export class ShiftService {
           const professionRole =
             updateShiftDto.profession_role ?? existingShift?.profession_role;
           const isUrgent = updateShiftDto.is_urgent ?? existingShift?.is_urgent;
-          const startTimeValue =
-            updateShiftDto.start_time ?? existingShift?.start_time;
-          const endTimeValue =
-            updateShiftDto.end_time ?? existingShift?.end_time;
+          const startTimeValue = updateShiftDto.start_time
+            ? DateHelper.parseISOUTC(updateShiftDto.start_time)
+            : existingShift?.start_time;
+          const endTimeValue = updateShiftDto.end_time
+            ? DateHelper.parseISOUTC(updateShiftDto.end_time)
+            : existingShift?.end_time;
           const facilityName =
             updateShiftDto.facility_name ?? existingShift?.facility_name;
           const fullAddress =
