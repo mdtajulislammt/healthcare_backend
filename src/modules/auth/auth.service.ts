@@ -1413,6 +1413,14 @@ export class AuthService {
             )
           : !!profileData.agreed_to_terms;
 
+      const mainDobDate = DateHelper.parseFlexibleDate(profileData.date_of_birth);
+      if (!mainDobDate) {
+        return {
+          success: false,
+          message: 'date_of_birth is required and must be a valid date in YYYY-MM-DD or DD/MM/YYYY format.',
+        };
+      }
+
       // ─── 8. Parse DBS info ────────────────────────────────────────────────────
       let dbsData = null;
       if (
@@ -1582,7 +1590,7 @@ export class AuthService {
             last_name: profileData.last_name,
             mobile_code: profileData.mobile_code,
             mobile_number: profileData.mobile_number,
-            date_of_birth: new Date(profileData.date_of_birth),
+            date_of_birth: mainDobDate,
             roles:
               rolesNormalized && rolesNormalized.length > 0
                 ? (rolesNormalized as any)
@@ -1953,12 +1961,22 @@ export class AuthService {
         isRegistered = ['true', '1', 'yes'].includes(value);
       }
 
+      const dobDate = DateHelper.parseFlexibleDate(payload.date_of_birth_on_cert);
+      const printDate = DateHelper.parseFlexibleDate(payload.certificate_print_date);
+
+      if (!dobDate || !printDate) {
+        return {
+          success: false,
+          message: 'Invalid DBS date format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+        };
+      }
+
       const dbsData = {
         staff_id: staff.id,
         certificate_number: payload.certificate_number,
         surname_as_certificate: payload.surname_as_certificate,
-        date_of_birth_on_cert: new Date(payload.date_of_birth_on_cert),
-        certificate_print_date: new Date(payload.certificate_print_date),
+        date_of_birth_on_cert: dobDate,
+        certificate_print_date: printDate,
         is_registered_on_update: isRegistered,
       };
 

@@ -224,6 +224,13 @@ export class StaffService {
               .filter(Boolean)
           : undefined;
 
+      const mainDobDate = DateHelper.parseFlexibleDate(createStaffDto.date_of_birth);
+      if (!mainDobDate) {
+        throw new BadRequestException(
+          'date_of_birth is required and must be a valid date in YYYY-MM-DD or DD/MM/YYYY format.',
+        );
+      }
+
       const agreedStaff =
         typeof createStaffDto.agreed_to_terms === 'string'
           ? ['true', '1', 'yes'].includes(
@@ -363,7 +370,7 @@ export class StaffService {
             last_name: createStaffDto.last_name,
             mobile_code: createStaffDto.mobile_code,
             mobile_number: createStaffDto.mobile_number,
-            date_of_birth: new Date(createStaffDto.date_of_birth),
+            date_of_birth: mainDobDate,
             roles:
               rolesNormalized && rolesNormalized.length > 0
                 ? (rolesNormalized as any)
@@ -884,7 +891,13 @@ export class StaffService {
       }
 
       if (updateStaffDto.date_of_birth !== undefined) {
-        updatePayload.date_of_birth = new Date(updateStaffDto.date_of_birth);
+        const dobDate = DateHelper.parseFlexibleDate(updateStaffDto.date_of_birth);
+        if (!dobDate) {
+          throw new BadRequestException(
+            'Invalid date_of_birth format. Please use YYYY-MM-DD or DD/MM/YYYY.',
+          );
+        }
+        updatePayload.date_of_birth = dobDate;
       }
 
       if (updateStaffDto.experience !== undefined) {
