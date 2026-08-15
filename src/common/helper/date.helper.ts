@@ -140,7 +140,7 @@ export class DateHelper {
   static parseFlexibleDate(dateStr: string): Date | null {
     if (!dateStr) return null;
     const trimmed = dateStr.trim();
-    
+
     // Check if format is DD/MM/YYYY or DD-MM-YYYY
     const match = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (match) {
@@ -159,6 +159,26 @@ export class DateHelper {
       return date;
     }
 
+    return null;
+  }
+
+  static parseISOUTC(dateStr: string): Date | null {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+    
+    // Check if it already has a timezone offset/indicator
+    if (!trimmed.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+      // Append 'Z' to parse as UTC instead of system local time
+      const date = new Date(`${trimmed}Z`);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
     return null;
   }
 }

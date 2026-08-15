@@ -20,6 +20,7 @@ import { ActivityLogService } from 'src/common/service/activity-log.service';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
 import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
+import { DateHelper } from 'src/common/helper/date.helper';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 import {
   calculateShiftHours,
@@ -183,12 +184,9 @@ export class ShiftService {
         }
       }
 
-      const startTimeValue = new Date(start_time);
-      const endTimeValue = new Date(end_time);
-      if (
-        Number.isNaN(startTimeValue.getTime()) ||
-        Number.isNaN(endTimeValue.getTime())
-      ) {
+      const startTimeValue = DateHelper.parseISOUTC(start_time);
+      const endTimeValue = DateHelper.parseISOUTC(end_time);
+      if (!startTimeValue || !endTimeValue) {
         throw new BadRequestException('Invalid start_time or end_time value');
       }
 
@@ -861,16 +859,16 @@ export class ShiftService {
       }
 
       if (updateShiftDto.start_time !== undefined) {
-        const startTime = new Date(updateShiftDto.start_time);
-        if (Number.isNaN(startTime.getTime())) {
+        const startTime = DateHelper.parseISOUTC(updateShiftDto.start_time);
+        if (!startTime) {
           throw new BadRequestException('Invalid start_time value');
         }
         updateData.start_time = startTime;
       }
 
       if (updateShiftDto.end_time !== undefined) {
-        const endTime = new Date(updateShiftDto.end_time);
-        if (Number.isNaN(endTime.getTime())) {
+        const endTime = DateHelper.parseISOUTC(updateShiftDto.end_time);
+        if (!endTime) {
           throw new BadRequestException('Invalid end_time value');
         }
         updateData.end_time = endTime;
@@ -1252,7 +1250,9 @@ export class ShiftService {
 
   private async notifyStaffOfPublishedShifts(shifts: any[]) {
     try {
-      const publishedShifts = shifts.filter((s) => s.status === ShiftStatus.published);
+      const publishedShifts = shifts.filter(
+        (s) => s.status === ShiftStatus.published,
+      );
       if (!publishedShifts.length) return;
 
       for (const shift of publishedShifts) {
