@@ -61,6 +61,10 @@ export class NotificationGateway
         try {
           const data = JSON.parse(message);
           this.server.emit('receiveNotification', data);
+          const targetUserId = data.userId || data.receiver_id;
+          if (targetUserId) {
+            this.server.to(`user_${targetUserId}`).emit('receiveNotification', data);
+          }
         } catch (error) {
           console.error('Failed to parse notification data:', error);
         }
@@ -85,7 +89,8 @@ export class NotificationGateway
     const userId = client.handshake.query.userId as string; // User ID passed as query parameter
     if (userId) {
       this.clients.set(userId, client.id);
-      console.log(`User ${userId} connected with socket ${client.id}`);
+      client.join(`user_${userId}`);
+      console.log(`User ${userId} connected with socket ${client.id} in room user_${userId}`);
     }
   }
 
@@ -144,12 +149,33 @@ export class NotificationGateway
               select: {
                 id: true,
                 email: true,
+                staff_profile: {
+                  select: {
+                    first_name: true,
+                    last_name: true,
+                    photo_url: true,
+                  },
+                },
+                service_provider_info: {
+                  select: {
+                    first_name: true,
+                    last_name: true,
+                    organization_name: true,
+                    brand_logo_url: true,
+                  },
+                },
               },
             },
           },
         });
 
-        notificationData = notification;
+        notificationData = {
+          ...notification,
+          userId: payload.userId,
+          title: payload.title || notification?.notification_event?.type || 'Notification',
+          body: payload.body || notification?.notification_event?.text || '',
+          data: payload.data || {},
+        };
       } else {
         // Fallback to simple notification object
         notificationData = {

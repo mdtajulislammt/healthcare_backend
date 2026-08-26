@@ -213,6 +213,7 @@ export class ApplyShiftService {
           application.staff.first_name + ' ' + application.staff.last_name;
 
         const notification = await NotificationRepository.createNotification({
+          sender_id: user_id,
           receiver_id: serviceProviderUserId,
           text: `${staffName} has applied for shift: ${shift.posting_title} at ${shift.facility_name}`,
           type: 'shift_application',

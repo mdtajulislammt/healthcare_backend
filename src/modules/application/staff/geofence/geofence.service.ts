@@ -11,6 +11,7 @@ import { NotificationRepository } from '../../../../common/repository/notificati
 import { TimesheetStatus, ShiftAttendanceStatus } from '@prisma/client';
 import { ActivityLogService } from '../../../../common/service/activity-log.service';
 import { PushNotificationService } from '../../../../common/service/push-notification.service';
+import { NotificationGateway } from 'src/modules/application/notification/notification.gateway';
 
 @Injectable()
 export class GeofenceService {
@@ -20,6 +21,7 @@ export class GeofenceService {
     private readonly prisma: PrismaService,
     private readonly activityLogService: ActivityLogService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async checkGeofence(
@@ -238,7 +240,12 @@ export class GeofenceService {
       // Get staff profile from user_id
       const staffProfile = await this.prisma.staffProfile.findUnique({
         where: { user_id: staffUserId },
-        select: { id: true, user_id: true },
+        select: {
+          id: true,
+          user_id: true,
+          first_name: true,
+          last_name: true,
+        },
       });
 
       if (!staffProfile) {
@@ -496,25 +503,34 @@ export class GeofenceService {
       });
 
       // Send notification to service provider
-      if (shiftWithProvider?.service_provider_info?.user_id) {
-        await NotificationRepository.createNotification({
-          receiver_id: shiftWithProvider.service_provider_info.user_id,
-          text: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+      const serviceProviderUserId =
+        shiftWithProvider?.service_provider_info?.user_id;
+      if (serviceProviderUserId) {
+        const staffName =
+          `${staffProfile.first_name || ''} ${staffProfile.last_name || ''}`.trim() ||
+          'Staff';
+
+        const notification = await NotificationRepository.createNotification({
+          sender_id: staffUserId,
+          receiver_id: serviceProviderUserId,
+          text: `${staffName} has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
           type: 'shift_checkin',
           entity_id: shiftId,
         });
 
-        await this.pushNotificationService.sendToUser(
-          shiftWithProvider.service_provider_info.user_id,
-          {
-            title: 'Staff Checked In',
-            body: `Staff has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
-            data: {
-              type: 'shift_checkin',
-              shiftId: shiftId,
-            },
+        await this.notificationGateway.sendNotificationToUser({
+          userId: serviceProviderUserId,
+          notificationId: notification.id,
+        });
+
+        await this.pushNotificationService.sendToUser(serviceProviderUserId, {
+          title: 'Staff Checked In',
+          body: `${staffName} has checked in to shift: ${shift.posting_title} at ${shift.facility_name}`,
+          data: {
+            type: 'shift_checkin',
+            shiftId: shiftId,
           },
-        );
+        });
       }
 
       return {
@@ -552,7 +568,12 @@ export class GeofenceService {
       // Get staff profile from user_id
       const staffProfile = await this.prisma.staffProfile.findUnique({
         where: { user_id: staffUserId },
-        select: { id: true, user_id: true },
+        select: {
+          id: true,
+          user_id: true,
+          first_name: true,
+          last_name: true,
+        },
       });
 
       if (!staffProfile) {
@@ -738,19 +759,31 @@ export class GeofenceService {
       });
 
       // Send notification to service provider
-      if (shiftWithProvider?.service_provider_info?.user_id) {
-        await NotificationRepository.createNotification({
-          receiver_id: shiftWithProvider.service_provider_info.user_id,
-          text: `Staff has checked out from shift: ${shift.posting_title} at ${shift.facility_name}. Total hours: ${totalHours}`,
+      const serviceProviderUserId =
+        shiftWithProvider?.service_provider_info?.user_id;
+      if (serviceProviderUserId) {
+        const staffName =
+          `${staffProfile.first_name || ''} ${staffProfile.last_name || ''}`.trim() ||
+          'Staff';
+
+        const notification = await NotificationRepository.createNotification({
+          sender_id: staffUserId,
+          receiver_id: serviceProviderUserId,
+          text: `${staffName} has checked out from shift: ${shift.posting_title} at ${shift.facility_name}. Total hours: ${totalHours}`,
           type: 'shift_checkout',
           entity_id: shiftId,
         });
 
+        await this.notificationGateway.sendNotificationToUser({
+          userId: serviceProviderUserId,
+          notificationId: notification.id,
+        });
+
         await this.pushNotificationService.sendToUser(
-          shiftWithProvider.service_provider_info.user_id,
+          serviceProviderUserId,
           {
             title: 'Staff Checked Out',
-            body: `Staff has checked out from shift: ${shift.posting_title}. Total hours: ${totalHours}`,
+            body: `${staffName} has checked out from shift: ${shift.posting_title}. Total hours: ${totalHours}`,
             data: {
               type: 'shift_checkout',
               shiftId: shiftId,
