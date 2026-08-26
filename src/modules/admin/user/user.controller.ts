@@ -184,11 +184,26 @@ export class UserController {
     }
   }
 
-  @ApiOperation({ summary: 'Delete user account' })
+  @ApiOperation({ summary: 'Delete user account (permanent hard delete or soft delete)' })
+  @ApiQuery({
+    name: 'permanent',
+    required: false,
+    type: Boolean,
+    description: 'Set to true for permanent hard delete (default: true), or false for soft delete',
+  })
+  @ApiResponse({ description: 'Delete user account result' })
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(
+    @Param('id') id: string,
+    @Query('permanent') permanent?: string,
+  ) {
     try {
-      const user = await this.userService.remove(id);
+      const isPermanent =
+        permanent === undefined || permanent === null || permanent === ''
+          ? true
+          : permanent === 'true' || permanent === '1';
+
+      const user = await this.userService.remove(id, isPermanent);
       return user;
     } catch (error) {
       return {

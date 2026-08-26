@@ -901,10 +901,43 @@ export class UserService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, permanent: boolean = true) {
     try {
-      const user = await UserRepository.deleteUser(id);
-      return user;
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { id: true, email: true },
+      });
+
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      if (permanent) {
+        await this.prisma.$transaction(async (tx) => {
+          await UserRepository.hardDeleteUser(id, tx);
+        });
+
+        return {
+          success: true,
+          message: `User (${user.email}) permanently deleted successfully`,
+        };
+      } else {
+        await this.prisma.user.update({
+          where: { id },
+          data: {
+            deleted_at: DateHelper.now(),
+            status: 0,
+          },
+        });
+
+        return {
+          success: true,
+          message: `User (${user.email}) soft-deleted successfully`,
+        };
+      }
     } catch (error) {
       return {
         success: false,

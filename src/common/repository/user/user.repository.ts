@@ -401,7 +401,6 @@ export class UserRepository {
    */
   static async deleteUser(user_id: string) {
     try {
-      // check if user exist
       const existUser = await prisma.user.findFirst({
         where: {
           id: user_id,
@@ -414,14 +413,13 @@ export class UserRepository {
         };
       }
 
-      await prisma.user.delete({
-        where: {
-          id: user_id,
-        },
+      await prisma.$transaction(async (tx) => {
+        await this.hardDeleteUser(user_id, tx);
       });
+
       return {
         success: true,
-        message: 'User deleted successfully',
+        message: 'User permanently deleted successfully',
       };
     } catch (error) {
       return {
@@ -603,6 +601,7 @@ export class UserRepository {
     const client = txClient || prisma;
 
     // 1. Delete basic user relations
+    await client.account.deleteMany({ where: { user_id: userId } });
     await client.ucode.deleteMany({ where: { user_id: userId } });
     await client.userSetting.deleteMany({ where: { user_id: userId } });
     await client.userDeviceToken.deleteMany({ where: { user_id: userId } });
