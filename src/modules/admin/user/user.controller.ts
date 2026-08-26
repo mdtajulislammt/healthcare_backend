@@ -13,6 +13,7 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { FindUsersDto } from './dto/find-users.dto';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -93,36 +94,24 @@ export class UserController {
     }
   }
 
-  @ApiOperation({ summary: 'Get all users with optional filtering' })
-  @ApiQuery({
-    name: 'q',
-    description: 'Search term (name or email)',
-    required: false,
-    type: String,
-  })
-  @ApiQuery({
-    name: 'type',
-    description: 'User type filter',
-    required: false,
-    type: String,
-  })
-  @ApiQuery({
-    name: 'approved',
-    description: 'Approval status filter',
-    required: false,
-    type: String,
-  })
-  @ApiResponse({ description: 'Get all users' })
+  @ApiOperation({ summary: 'Get all users with search, filtering, and pagination' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 10)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search term across email, name, organization, phone number, CQC' })
+  @ApiQuery({ name: 'q', required: false, type: String, description: 'Alias for search' })
+  @ApiQuery({ name: 'type', required: false, type: String, description: 'User type filter (staff, service_provider, admin, user, all)' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: 'Status filter (0/pending, 1/active, 2/suspended, all)' })
+  @ApiQuery({ name: 'approved', required: false, type: String, description: 'Approval status filter (approved, pending, all)' })
+  @ApiQuery({ name: 'is_verified', required: false, type: String, description: 'Email verification filter (true, false, verified, unverified, all)' })
+  @ApiQuery({ name: 'from_date', required: false, type: String, description: 'Created on/after date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'to_date', required: false, type: String, description: 'Created on/before date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'sort_by', required: false, type: String, description: 'Field to sort by (created_at, updated_at, email, type, status, approved_at)' })
+  @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'], description: 'Sort order (asc, desc)' })
+  @ApiResponse({ description: 'List of users with pagination and applied filters' })
   @Get()
-  async findAll(
-    @Query() query: { q?: string; type?: string; approved?: string },
-  ) {
+  async findAll(@Query() query: FindUsersDto) {
     try {
-      const q = query.q;
-      const type = query.type;
-      const approved = query.approved;
-
-      const users = await this.userService.findAll({ q, type, approved });
+      const users = await this.userService.findAll(query);
       return users;
     } catch (error) {
       return {
