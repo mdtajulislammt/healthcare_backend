@@ -5,10 +5,11 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { StaffPreferenceService } from './staff-preference.service';
 import { FavoriteStaffDto } from './dto/favorite-staff.dto';
@@ -31,25 +32,49 @@ export class StaffPreferenceController {
   ) {}
 
   @ApiOperation({ summary: 'Get favorite staff list' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @Get('favorites')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-  getFavorites(@Req() req: Request) {
+  getFavorites(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.staffPreferenceService.getPreferences(user_id, 'favorite');
+    return this.staffPreferenceService.getPreferences(user_id, 'favorite', {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+    });
   }
 
   @ApiOperation({ summary: 'Get blocked staff list' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @Get('blocked')
   @RequireEmployeePermission(EmployeePermissionType.favorite_block_workers)
-  getBlocked(@Req() req: Request) {
+  getBlocked(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
     const user_id = req.user?.userId;
     if (!user_id) {
       throw new BadRequestException('User not authenticated');
     }
-    return this.staffPreferenceService.getPreferences(user_id, 'blocked');
+    return this.staffPreferenceService.getPreferences(user_id, 'blocked', {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+    });
   }
 
   @ApiOperation({ summary: 'Mark a staff member as favorite' })

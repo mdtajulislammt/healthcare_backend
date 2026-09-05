@@ -6,8 +6,10 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { StaffPreferenceType } from '@prisma/client';
+import { Prisma, StaffPreferenceType } from '@prisma/client';
 import { ServiceProviderContextHelper } from 'src/common/helper/service-provider-context.helper';
+import appConfig from 'src/config/app.config';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class StaffPreferenceService {
@@ -26,8 +28,13 @@ export class StaffPreferenceService {
       const { serviceProviderId } =
         await this.providerContextHelper.resolveFromUser(user_id);
 
-      const staff = await this.prisma.staffProfile.findUnique({
-        where: { id: staffId },
+      const staff = await this.prisma.staffProfile.findFirst({
+        where: {
+          id: staffId,
+          user: {
+            deleted_at: null,
+          },
+        },
         select: { id: true, first_name: true, last_name: true },
       });
 
@@ -137,45 +144,88 @@ export class StaffPreferenceService {
     }
   }
 
-  async getPreferences(user_id: string, preferenceType: StaffPreferenceType) {
+  async getPreferences(
+    user_id: string,
+    preferenceType: StaffPreferenceType,
+    options?: { page?: number; limit?: number; search?: string },
+  ) {
     try {
       const { serviceProviderId } =
         await this.providerContextHelper.resolveFromUser(user_id);
 
-      const preferences = await this.prisma.providerStaffPreference.findMany({
-        where: {
-          provider_id: serviceProviderId,
-          preference_type: preferenceType,
+      const currentPage = Math.max(Number(options?.page) || 1, 1);
+      const pageSize = Math.min(Math.max(Number(options?.limit) || 10, 1), 100);
+      const skip = (currentPage - 1) * pageSize;
+
+      const staffWhere: Prisma.StaffProfileWhereInput = {
+        user: {
+          deleted_at: null,
         },
-        orderBy: { created_at: 'desc' },
-        include: {
-          staff: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              photo_url: true,
-              roles: true,
-              reviews: {
-                select: { rating: true },
+      };
+
+      if (options?.search?.trim()) {
+        const searchTerm = options.search.trim();
+        staffWhere.OR = [
+          {
+            first_name: {
+              contains: searchTerm,
+              mode: 'insensitive' as Prisma.QueryMode,
+            },
+          },
+          {
+            last_name: {
+              contains: searchTerm,
+              mode: 'insensitive' as Prisma.QueryMode,
+            },
+          },
+        ];
+      }
+
+      const where: Prisma.ProviderStaffPreferenceWhereInput = {
+        provider_id: serviceProviderId,
+        preference_type: preferenceType,
+        staff: staffWhere,
+      };
+
+      const [total, preferences] = await this.prisma.$transaction([
+        this.prisma.providerStaffPreference.count({ where }),
+        this.prisma.providerStaffPreference.findMany({
+          where,
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: pageSize,
+          include: {
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                photo_url: true,
+                roles: true,
+                reviews: {
+                  where: { status: 'approved' },
+                  select: { rating: true },
+                },
+              },
+            },
+            set_by_employee: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
               },
             },
           },
-          set_by_employee: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-            },
-          },
-        },
-      });
+        }),
+      ]);
+
+      const storage = appConfig().storageUrl.staff;
 
       // Calculate average rating for each staff
       const formattedPreferences = preferences.map((pref) => {
-        const avgRating = pref.staff.reviews?.length
-          ? pref.staff.reviews.reduce((sum, r) => sum + r.rating, 0) /
-            pref.staff.reviews.length
+        const reviews = pref.staff.reviews || [];
+        const avgRating = reviews.length
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
           : null;
 
         return {
@@ -184,9 +234,12 @@ export class StaffPreferenceService {
             id: pref.staff.id,
             first_name: pref.staff.first_name,
             last_name: pref.staff.last_name,
-            photo_url: pref.staff.photo_url,
+            photo_url: pref.staff.photo_url
+              ? SojebStorage.url(storage + pref.staff.photo_url)
+              : null,
             roles: pref.staff.roles,
             avg_rating: avgRating ? Number(avgRating.toFixed(1)) : null,
+            review_count: reviews.length,
           },
         };
       });
@@ -198,6 +251,12 @@ export class StaffPreferenceService {
             ? 'Favorite staff fetched successfully'
             : 'Blocked staff fetched successfully',
         data: formattedPreferences,
+        meta: {
+          total,
+          page: currentPage,
+          limit: pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
       };
     } catch (error) {
       if (error instanceof ForbiddenException) {
