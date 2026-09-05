@@ -36,6 +36,14 @@ export class CompleteServiceProviderProfileDto {
 
   @IsOptional()
   @ApiProperty({
+    description: 'Facility name',
+    example: 'Sunrise Care Home',
+    required: false,
+  })
+  facility_name?: string;
+
+  @IsOptional()
+  @ApiProperty({
     description: 'Website',
     example: 'https://carehome.com',
     required: false,

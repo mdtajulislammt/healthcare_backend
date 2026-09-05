@@ -147,6 +147,7 @@ export class ServiceProviderService {
             register_manager_name:
               createServiceProviderDto.register_manager_name,
             organization_name: createServiceProviderDto.organization_name,
+            facility_name: createServiceProviderDto.facility_name ?? null,
             website: createServiceProviderDto.website,
             cqc_provider_number: createServiceProviderDto.cqc_provider_number,
             vat_tax_id: createServiceProviderDto.vat_tax_id,
@@ -274,6 +275,12 @@ export class ServiceProviderService {
               },
             },
             {
+              facility_name: {
+                contains: search,
+                mode: 'insensitive' as Prisma.QueryMode,
+              },
+            },
+            {
               first_name: {
                 contains: search,
                 mode: 'insensitive' as Prisma.QueryMode,
@@ -336,6 +343,7 @@ export class ServiceProviderService {
             first_name: true,
             last_name: true,
             organization_name: true,
+            facility_name: true,
             main_service_type: true,
             brand_logo_url: true,
             mobile_code: true,
@@ -510,6 +518,9 @@ export class ServiceProviderService {
       if (updateServiceProviderDto.organization_name !== undefined) {
         updatePayload.organization_name =
           updateServiceProviderDto.organization_name;
+      }
+      if (updateServiceProviderDto.facility_name !== undefined) {
+        updatePayload.facility_name = updateServiceProviderDto.facility_name;
       }
       if (updateServiceProviderDto.website !== undefined) {
         updatePayload.website = updateServiceProviderDto.website;
