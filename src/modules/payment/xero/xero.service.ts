@@ -688,6 +688,134 @@ export class XeroService {
   }
 
   /**
+   * Create Xero consolidated weekly invoice for multiple approved timesheets belonging to a service provider
+   */
+  async createConsolidatedWeeklyInvoice(
+    serviceProviderId: string,
+    timesheets: Array<{
+      id: string;
+      total_hours: number | null;
+      hourly_rate: number | null;
+      total_pay: number | null;
+      shift: {
+        posting_title: string;
+        facility_name?: string | null;
+        start_date?: Date | null;
+      };
+      staff: {
+        first_name: string;
+        last_name: string;
+      };
+    }>,
+    options?: {
+      invoiceDate?: Date;
+      dueDate?: Date;
+      reference?: string;
+    },
+  ): Promise<{
+    invoiceId: string;
+    invoiceNumber: string;
+  }> {
+    try {
+      if (!timesheets || timesheets.length === 0) {
+        throw new BadRequestException(
+          'No timesheets provided for consolidated invoice',
+        );
+      }
+
+      const serviceProvider = await this.prisma.serviceProviderInfo.findUnique({
+        where: { id: serviceProviderId },
+      });
+
+      if (!serviceProvider) {
+        throw new BadRequestException('Service provider not found');
+      }
+
+      // Ensure Xero contact exists
+      const xeroContactId =
+        await this.syncContactForServiceProvider(serviceProviderId);
+
+      const accessToken = await this.getValidAccessToken();
+      this.xeroClient.setTokenSet({ access_token: accessToken });
+
+      const tenantId = (
+        await this.prisma.xeroAuth.findFirst({
+          orderBy: { updated_at: 'desc' },
+        })
+      )?.tenant_id;
+
+      if (!tenantId) {
+        throw new BadRequestException('Xero tenant not found');
+      }
+
+      const invoiceDate = options?.invoiceDate || new Date();
+      const dueDate =
+        options?.dueDate ||
+        new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const lineItems = timesheets.map((ts) => {
+        const staffName = `${ts.staff.first_name} ${ts.staff.last_name}`;
+        const shiftTitle = ts.shift.posting_title;
+        const facility = ts.shift.facility_name
+          ? ` (${ts.shift.facility_name})`
+          : '';
+        const hours = ts.total_hours || 0;
+        const rate = ts.hourly_rate || 0;
+
+        return {
+          description: `${shiftTitle}${facility} - ${staffName} (${hours}h @ £${rate}/hr)`,
+          quantity: hours,
+          unitAmount: rate,
+          accountCode: '200',
+          taxType: 'NONE',
+        };
+      });
+
+      const reference =
+        options?.reference || `INV-W-${Date.now().toString().slice(-6)}`;
+
+      const invoiceResponse =
+        await this.xeroClient.accountingApi.createInvoices(tenantId, {
+          invoices: [
+            {
+              type: 'ACCREC' as any,
+              contact: {
+                contactID: xeroContactId,
+              },
+              date: invoiceDate.toISOString().split('T')[0],
+              dueDate: dueDate.toISOString().split('T')[0],
+              lineItems,
+              reference,
+              status: 'AUTHORISED' as any,
+            } as any,
+          ],
+        });
+
+      const invoice = invoiceResponse.body.invoices?.[0];
+      if (!invoice || !invoice.invoiceID) {
+        throw new InternalServerErrorException(
+          'Failed to create consolidated Xero invoice',
+        );
+      }
+
+      return {
+        invoiceId: invoice.invoiceID,
+        invoiceNumber: invoice.invoiceNumber || reference,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create consolidated Xero invoice', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create consolidated Xero invoice',
+      );
+    }
+  }
+
+  /**
    * Update invoice status from Xero
    */
   async updateInvoiceStatusFromXero(invoiceId: string): Promise<void> {

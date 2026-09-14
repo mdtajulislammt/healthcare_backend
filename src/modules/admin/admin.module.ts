@@ -12,6 +12,8 @@ import { TimesheetModule } from './timesheet/timesheet.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
 import { StaffReviewModule } from './staff-review/staff-review.module';
+import { PayrollModule } from './payroll/payroll.module';
+import { InvoiceModule } from './invoice/invoice.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { StaffReviewModule } from './staff-review/staff-review.module';
     DashboardModule,
     ProfileModule,
     StaffReviewModule,
+    PayrollModule,
+    InvoiceModule,
   ],
 })
 export class AdminModule {}

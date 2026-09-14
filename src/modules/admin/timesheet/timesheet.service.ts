@@ -16,7 +16,9 @@ interface FindAllOptions {
   page?: number;
   limit?: number;
   search?: string;
-  status?: string; // 'pending' | 'disputed' | 'approved' | 'all'
+  status?: string; // 'pending' | 'disputed' | 'approved' | 'invoiced' | 'paid' | 'all'
+  urgency?: string; // 'critical' | 'warning' | 'normal'
+  care_home_id?: string;
 }
 
 @Injectable()
@@ -59,9 +61,13 @@ export class TimesheetService {
           // Show paid timesheets
           statusFilter = TimesheetStatus.paid;
         }
+      } else if (!options.status && options.urgency) {
+        // If urgency filter is specified without explicit status, target pending
+        statusFilter = {
+          in: [TimesheetStatus.submitted, TimesheetStatus.under_review],
+        };
       } else {
         // Default: show all timesheets that need review or are processed
-        // Include: pending_submission, submitted, under_review, rejected, approved, invoiced, paid
         statusFilter = {
           in: [
             TimesheetStatus.pending_submission,
@@ -88,6 +94,11 @@ export class TimesheetService {
             },
             {
               shift: {
+                facility_name: { contains: term, mode: 'insensitive' },
+              },
+            },
+            {
+              shift: {
                 service_provider_info: {
                   organization_name: { contains: term, mode: 'insensitive' },
                 },
@@ -103,21 +114,66 @@ export class TimesheetService {
                 last_name: { contains: term, mode: 'insensitive' },
               },
             },
+            {
+              staff: {
+                user: {
+                  email: { contains: term, mode: 'insensitive' },
+                },
+              },
+            },
           ],
         };
       }
 
-      // Combine status and search filters
-      const where: Prisma.ShiftTimesheetWhereInput = {};
-      if (statusFilter && searchFilter) {
-        where.AND = [{ status: statusFilter }, searchFilter];
-      } else if (statusFilter) {
-        where.status = statusFilter;
-      } else if (searchFilter) {
-        Object.assign(where, searchFilter);
+      // Combine conditions safely
+      const whereConditions: Prisma.ShiftTimesheetWhereInput[] = [
+        {
+          staff: {
+            user: {
+              deleted_at: null,
+            },
+          },
+        },
+      ];
+
+      if (statusFilter) {
+        whereConditions.push({ status: statusFilter });
       }
 
-      const [itemsRaw, total] = await this.prisma.$transaction([
+      if (options.urgency) {
+        const urgencyVal = options.urgency.trim().toLowerCase();
+        const now = new Date();
+        const hours24Ago = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const hours48Ago = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+        if (urgencyVal === 'critical') {
+          whereConditions.push({ submitted_at: { lte: hours48Ago } });
+        } else if (urgencyVal === 'warning') {
+          whereConditions.push({
+            submitted_at: { gt: hours48Ago, lte: hours24Ago },
+          });
+        } else if (urgencyVal === 'normal') {
+          whereConditions.push({ submitted_at: { gt: hours24Ago } });
+        }
+      }
+
+      if (options.care_home_id && options.care_home_id.trim()) {
+        whereConditions.push({
+          shift: {
+            service_provider_id: options.care_home_id.trim(),
+          },
+        });
+      }
+
+      if (searchFilter) {
+        whereConditions.push(searchFilter);
+      }
+
+      const where: Prisma.ShiftTimesheetWhereInput = {
+        AND: whereConditions,
+      };
+
+      const [itemsRaw, total, allPending] = await this.prisma.$transaction([
         this.prisma.shiftTimesheet.findMany({
           where,
           select: {
@@ -143,12 +199,19 @@ export class TimesheetService {
             xero_invoice_id: true,
             xero_invoice_number: true,
             xero_status: true,
+            staff_pay_status: true,
+            staff_paid_at: true,
             shift: {
               select: {
                 id: true,
                 posting_title: true,
+                facility_name: true,
+                full_address: true,
                 pay_rate_hourly: true,
+                staff_hourly_rate: true,
                 platform_margin: true,
+                start_date: true,
+                end_date: true,
                 service_provider_info: {
                   select: {
                     id: true,
@@ -163,6 +226,14 @@ export class TimesheetService {
                 first_name: true,
                 last_name: true,
                 photo_url: true,
+                mobile_code: true,
+                mobile_number: true,
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
@@ -178,32 +249,138 @@ export class TimesheetService {
           ],
         }),
         this.prisma.shiftTimesheet.count({ where }),
+        this.prisma.shiftTimesheet.findMany({
+          where: {
+            status: {
+              in: [TimesheetStatus.submitted, TimesheetStatus.under_review],
+            },
+            staff: {
+              user: {
+                deleted_at: null,
+              },
+            },
+          },
+          select: {
+            id: true,
+            total_hours: true,
+            total_pay: true,
+            staff_total_pay: true,
+            submitted_at: true,
+            created_at: true,
+            shift: {
+              select: {
+                service_provider_id: true,
+              },
+            },
+          },
+        }),
       ]);
 
-      // Map items to include formatted data
-      const items = itemsRaw.map((timesheet) => ({
-        ...timesheet,
-        client: timesheet.shift.service_provider_info.organization_name,
-        client_rate: timesheet.hourly_rate || timesheet.shift.pay_rate_hourly,
-        shift_title: timesheet.shift.posting_title,
-        hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
-        hours: timesheet.total_hours || 0,
-      }));
+      const now = Date.now();
 
-      // Count pending timesheets
-      const pendingCount = await this.prisma.shiftTimesheet.count({
-        where: {
-          status: {
-            in: [TimesheetStatus.submitted, TimesheetStatus.under_review],
-          },
-        },
+      // Map items to include formatted data & ageing/urgency
+      const items = itemsRaw.map((timesheet) => {
+        const refDate = timesheet.submitted_at || timesheet.created_at;
+        const isPending =
+          timesheet.status === TimesheetStatus.submitted ||
+          timesheet.status === TimesheetStatus.under_review;
+
+        const hoursPending = isPending
+          ? Number(
+              Math.max(
+                0,
+                (now - new Date(refDate).getTime()) / (1000 * 60 * 60),
+              ).toFixed(1),
+            )
+          : null;
+
+        const daysPending =
+          hoursPending !== null ? Number((hoursPending / 24).toFixed(1)) : null;
+
+        let urgency: 'critical' | 'warning' | 'normal' | null = null;
+        if (isPending && hoursPending !== null) {
+          if (hoursPending >= 48) {
+            urgency = 'critical';
+          } else if (hoursPending >= 24) {
+            urgency = 'warning';
+          } else {
+            urgency = 'normal';
+          }
+        }
+
+        const staffMobile = [
+          timesheet.staff?.mobile_code,
+          timesheet.staff?.mobile_number,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+
+        return {
+          ...timesheet,
+          client: timesheet.shift.service_provider_info.organization_name,
+          facility_name:
+            timesheet.shift.facility_name ||
+            timesheet.shift.service_provider_info.organization_name,
+          client_rate: timesheet.hourly_rate || timesheet.shift.pay_rate_hourly,
+          shift_title: timesheet.shift.posting_title,
+          hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
+          staff_email: timesheet.staff?.user?.email || null,
+          staff_mobile: staffMobile || null,
+          hours: timesheet.total_hours || 0,
+          hours_pending: hoursPending,
+          days_pending: daysPending,
+          urgency,
+        };
       });
+
+      // Calculate KPI pending summary across all pending timesheets
+      let totalPendingHours = 0;
+      let totalPendingClientValue = 0;
+      let totalPendingStaffValue = 0;
+      let criticalOverdueCount = 0;
+      let warningCount = 0;
+      let normalCount = 0;
+      const careHomeIds = new Set<string>();
+
+      for (const pendingItem of allPending) {
+        totalPendingHours += pendingItem.total_hours || 0;
+        totalPendingClientValue += pendingItem.total_pay || 0;
+        totalPendingStaffValue += pendingItem.staff_total_pay || 0;
+        if (pendingItem.shift?.service_provider_id) {
+          careHomeIds.add(pendingItem.shift.service_provider_id);
+        }
+
+        const refDate = pendingItem.submitted_at || pendingItem.created_at;
+        const pendingHours =
+          (now - new Date(refDate).getTime()) / (1000 * 60 * 60);
+
+        if (pendingHours >= 48) {
+          criticalOverdueCount++;
+        } else if (pendingHours >= 24) {
+          warningCount++;
+        } else {
+          normalCount++;
+        }
+      }
+
+      const pending_summary = {
+        total_pending_count: allPending.length,
+        total_pending_hours: Number(totalPendingHours.toFixed(2)),
+        total_pending_client_value: Number(totalPendingClientValue.toFixed(2)),
+        total_pending_staff_value: Number(totalPendingStaffValue.toFixed(2)),
+        critical_overdue_count: criticalOverdueCount,
+        warning_count: warningCount,
+        normal_count: normalCount,
+        affected_care_homes_count: careHomeIds.size,
+      };
 
       return {
         success: true,
         message: 'Timesheets fetched successfully',
         data: items,
-        pending_count: pendingCount,
+        pending_count: pending_summary.total_pending_count,
+        pending_summary,
         meta: {
           total,
           page: currentPage,
@@ -248,13 +425,19 @@ export class TimesheetService {
           xero_invoice_id: true,
           xero_invoice_number: true,
           xero_status: true,
+          staff_pay_status: true,
+          staff_paid_at: true,
           shift: {
             select: {
               id: true,
               posting_title: true,
+              facility_name: true,
+              full_address: true,
               pay_rate_hourly: true,
+              staff_hourly_rate: true,
               platform_margin: true,
               start_date: true,
+              end_date: true,
               service_provider_info: {
                 select: {
                   id: true,
@@ -269,6 +452,14 @@ export class TimesheetService {
               first_name: true,
               last_name: true,
               photo_url: true,
+              mobile_code: true,
+              mobile_number: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
               bank_details: {
                 select: {
                   account_holder_name: true,
@@ -287,13 +478,57 @@ export class TimesheetService {
         throw new NotFoundException('Timesheet not found');
       }
 
+      const refDate = timesheet.submitted_at || timesheet.created_at;
+      const isPending =
+        timesheet.status === TimesheetStatus.submitted ||
+        timesheet.status === TimesheetStatus.under_review;
+
+      const hoursPending = isPending
+        ? Number(
+            Math.max(
+              0,
+              (Date.now() - new Date(refDate).getTime()) / (1000 * 60 * 60),
+            ).toFixed(1),
+          )
+        : null;
+
+      const daysPending =
+        hoursPending !== null ? Number((hoursPending / 24).toFixed(1)) : null;
+
+      let urgency: 'critical' | 'warning' | 'normal' | null = null;
+      if (isPending && hoursPending !== null) {
+        if (hoursPending >= 48) {
+          urgency = 'critical';
+        } else if (hoursPending >= 24) {
+          urgency = 'warning';
+        } else {
+          urgency = 'normal';
+        }
+      }
+
+      const staffMobile = [
+        timesheet.staff?.mobile_code,
+        timesheet.staff?.mobile_number,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
       const data = {
         ...timesheet,
         client: timesheet.shift.service_provider_info.organization_name,
+        facility_name:
+          timesheet.shift.facility_name ||
+          timesheet.shift.service_provider_info.organization_name,
         client_rate: timesheet.hourly_rate || timesheet.shift.pay_rate_hourly,
         shift_title: timesheet.shift.posting_title,
         hcp_name: `${timesheet.staff.first_name} ${timesheet.staff.last_name}`,
+        staff_email: timesheet.staff?.user?.email || null,
+        staff_mobile: staffMobile || null,
         hours: timesheet.total_hours || 0,
+        hours_pending: hoursPending,
+        days_pending: daysPending,
+        urgency,
       };
 
       return {

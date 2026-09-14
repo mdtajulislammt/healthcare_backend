@@ -59,7 +59,19 @@ export class TimesheetController {
   @ApiQuery({
     name: 'status',
     description:
-      'Timesheet status filter (pending | disputed | approved | all)',
+      'Timesheet status filter (pending | disputed | approved | invoiced | paid | all)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'urgency',
+    description: 'Filter pending timesheets by urgency (critical | warning | normal)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'care_home_id',
+    description: 'Filter timesheets by Care Home / Service Provider ID',
     required: false,
     type: String,
   })
@@ -68,13 +80,17 @@ export class TimesheetController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('status') status?: string, // 'pending' | 'disputed' | 'approved' | 'all'
+    @Query('status') status?: string, // 'pending' | 'disputed' | 'approved' | 'invoiced' | 'paid' | 'all'
+    @Query('urgency') urgency?: string, // 'critical' | 'warning' | 'normal'
+    @Query('care_home_id') care_home_id?: string,
   ) {
     return this.timesheetService.findAll({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
       status,
+      urgency,
+      care_home_id,
     });
   }
 
