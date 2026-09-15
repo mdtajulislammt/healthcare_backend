@@ -25,6 +25,7 @@ import {
   calculateShiftHours,
   createAndLogShifts,
   formatDateKey,
+  generateShiftConfigs,
   getShiftDates,
   normalizeBonusOptions,
 } from './utils/shift.utils';
@@ -182,17 +183,14 @@ export class ShiftService {
           );
         }
       }
-      
-      const startTimeValue = new Date(start_time);
-      const endTimeValue = new Date(end_time);
-      if (
-        Number.isNaN(startTimeValue.getTime()) ||
-        Number.isNaN(endTimeValue.getTime())
-      ) {
-        throw new BadRequestException('Invalid start_time or end_time value');
-      }
 
-      const shiftDates = getShiftDates(start_date, end_date);
+      const shiftConfigs = generateShiftConfigs({
+        startDateValue: start_date,
+        endDateValue: end_date,
+        startTimeValue: start_time,
+        endTimeValue: end_time,
+        shiftType: shift_type,
+      });
 
       const shifts = await createAndLogShifts({
         prisma: this.prisma,
@@ -204,9 +202,7 @@ export class ShiftService {
         shiftType: shift_type,
         professionRole: profession_role,
         isUrgent: is_urgent,
-        shiftDates,
-        startTimeValue: start_time,
-        endTimeValue: end_time,
+        shiftConfigs,
         facilityName: facility_name,
         fullAddress: full_address,
         latitude,
@@ -925,51 +921,62 @@ export class ShiftService {
         updateData.status = updateShiftDto.status;
       }
       // If a date range is supplied, create new shifts for dates that do not match the current shift date
+      // If a date range is supplied, create new shifts for dates that do not match the current shift date
       let createdShifts: any[] = [];
       if (isDateRangeUpdate) {
-        const shiftDates = getShiftDates(
-          updateShiftDto.start_date,
-          updateShiftDto.end_date,
-        );
+        const postingTitle =
+          updateShiftDto.posting_title ?? existingShift?.posting_title ?? '';
+        const shiftType =
+          updateShiftDto.shift_type ?? existingShift?.shift_type;
+        const professionRole =
+          updateShiftDto.profession_role ?? existingShift?.profession_role;
+        const isUrgent =
+          updateShiftDto.is_urgent ?? existingShift?.is_urgent ?? false;
+        const startTimeValue =
+          updateShiftDto.start_time ?? existingShift?.start_time;
+        const endTimeValue =
+          updateShiftDto.end_time ?? existingShift?.end_time;
+        const facilityName =
+          updateShiftDto.facility_name ?? existingShift?.facility_name;
+        const fullAddress =
+          updateShiftDto.full_address !== undefined
+            ? updateShiftDto.full_address
+            : existingShift?.full_address;
+        const signingBonus =
+          updateShiftDto.signing_bonus ?? existingShift?.signing_bonus;
+        const internalPoNumber =
+          updateShiftDto.internal_po_number ??
+          existingShift?.internal_po_number;
+        const emergencyBonus =
+          updateShiftDto.emergency_bonus ??
+          existingShift?.emergency_bonus ??
+          0;
+        const notes = updateShiftDto.notes ?? existingShift?.notes;
+        const assignedStaffId =
+          updateShiftDto.assigned_staff_id ??
+          existingShift?.assigned_staff_id ??
+          null;
 
-        const currentDateKey = formatDateKey(existingShift?.start_date);
-        const shiftDatesToCreate = shiftDates.filter(
-          (shiftDate) => formatDateKey(shiftDate) !== currentDateKey,
-        );
+        const shiftConfigs = generateShiftConfigs({
+          startDateValue: updateShiftDto.start_date!,
+          endDateValue: updateShiftDto.end_date!,
+          startTimeValue: startTimeValue!,
+          endTimeValue: endTimeValue!,
+          shiftType,
+        });
 
-        if (shiftDatesToCreate.length) {
-          const postingTitle =
-            updateShiftDto.posting_title ?? existingShift?.posting_title;
-          const shiftType =
-            updateShiftDto.shift_type ?? existingShift?.shift_type;
-          const professionRole =
-            updateShiftDto.profession_role ?? existingShift?.profession_role;
-          const isUrgent = updateShiftDto.is_urgent ?? existingShift?.is_urgent;
-          const startTimeValue =
-            updateShiftDto.start_time ?? existingShift?.start_time;
-          const endTimeValue =
-            updateShiftDto.end_time ?? existingShift?.end_time;
-          const facilityName =
-            updateShiftDto.facility_name ?? existingShift?.facility_name;
-          const fullAddress =
-            updateShiftDto.full_address !== undefined
-              ? updateShiftDto.full_address
-              : existingShift?.full_address;
-          const signingBonus =
-            updateShiftDto.signing_bonus ?? existingShift?.signing_bonus;
-          const internalPoNumber =
-            updateShiftDto.internal_po_number ??
-            existingShift?.internal_po_number;
-          const emergencyBonus =
-            updateShiftDto.emergency_bonus ??
-            existingShift?.emergency_bonus ??
-            0;
-          const notes = updateShiftDto.notes ?? existingShift?.notes;
-          const assignedStaffId =
-            updateShiftDto.assigned_staff_id ??
-            existingShift?.assigned_staff_id ??
-            null;
+        // The first config updates the current existing shift
+        if (shiftConfigs.length > 0) {
+          updateData.start_date = shiftConfigs[0].startDate;
+          updateData.end_date = shiftConfigs[0].endDate;
+          updateData.start_time = shiftConfigs[0].startTime;
+          updateData.end_time = shiftConfigs[0].endTime;
+        }
 
+        // Additional configs (if multi-shift range) are created as new shifts
+        const remainingConfigs = shiftConfigs.slice(1);
+
+        if (remainingConfigs.length) {
           if (assignedStaffId) {
             const staff = await this.prisma.staffProfile.findUnique({
               where: { id: assignedStaffId },
@@ -1051,9 +1058,7 @@ export class ShiftService {
             shiftType,
             professionRole,
             isUrgent,
-            shiftDates: shiftDatesToCreate,
-            startTimeValue,
-            endTimeValue,
+            shiftConfigs: remainingConfigs,
             facilityName,
             fullAddress,
             latitude,
@@ -1124,13 +1129,22 @@ export class ShiftService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, requestingUserId?: string) {
     try {
       const shift = await this.prisma.shift.findUnique({
         where: { id },
         select: {
           id: true,
           status: true,
+          posting_title: true,
+          facility_name: true,
+          service_provider_id: true,
+          assigned_staff_id: true,
+          assigned_staff: {
+            select: {
+              user_id: true,
+            },
+          },
         },
       });
 
@@ -1138,19 +1152,68 @@ export class ShiftService {
         throw new NotFoundException('Shift not found');
       }
 
-      if (shift.status !== ShiftStatus.published) {
-        throw new BadRequestException('Only published shifts can be deleted');
+      if (requestingUserId) {
+        const { serviceProviderId } =
+          await this.providerContextHelper.resolveFromUser(requestingUserId);
+        if (shift.service_provider_id !== serviceProviderId) {
+          throw new BadRequestException(
+            'You are not authorized to delete this shift',
+          );
+        }
+      }
+
+      // Block only completed shifts
+      if (shift.status === ShiftStatus.completed) {
+        throw new BadRequestException(
+          'Cannot delete a shift that is already completed',
+        );
       }
 
       await this.prisma.$transaction(async (tx) => {
         await tx.shiftApplication.deleteMany({
           where: { shift_id: id },
         });
-
+        await tx.shiftAttendance.deleteMany({
+          where: { shift_id: id },
+        });
+        await tx.shiftTimesheet.deleteMany({
+          where: { shift_id: id },
+        });
+        await tx.staffPerformanceReview.deleteMany({
+          where: { shift_id: id },
+        });
         await tx.shift.delete({
           where: { id },
         });
       });
+
+      if (requestingUserId) {
+        await this.activityLogService.logShiftDelete(
+          requestingUserId,
+          shift.id,
+          shift.posting_title,
+          shift.facility_name,
+        );
+      }
+
+      // Notify assigned staff if shift had an assigned worker
+      if (shift.assigned_staff?.user_id) {
+        await NotificationRepository.createNotification({
+          receiver_id: shift.assigned_staff.user_id,
+          text: `The shift "${shift.posting_title}" at ${shift.facility_name} has been deleted/cancelled by the care home.`,
+          type: 'booking',
+          entity_id: shift.id,
+        });
+
+        await this.pushNotificationService.sendToUser(
+          shift.assigned_staff.user_id,
+          {
+            title: 'Shift Cancelled',
+            body: `The shift "${shift.posting_title}" at ${shift.facility_name} has been cancelled.`,
+            data: { shiftId: shift.id },
+          },
+        );
+      }
 
       return {
         success: true,
@@ -1163,7 +1226,9 @@ export class ShiftService {
       ) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to delete shift');
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Failed to delete shift',
+      );
     }
   }
 
