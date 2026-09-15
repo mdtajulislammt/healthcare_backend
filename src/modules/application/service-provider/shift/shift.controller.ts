@@ -162,7 +162,11 @@ export class ShiftController {
   @ApiOperation({ summary: 'Delete/remove a shift by ID' })
   @Delete(':id')
   @RequireEmployeePermission(EmployeePermissionType.post_new_shifts)
-  remove(@Param('id') id: string) {
-    return this.shiftService.remove(id);
+  remove(@Req() req: Request, @Param('id') id: string) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.shiftService.remove(id, userId);
   }
 }

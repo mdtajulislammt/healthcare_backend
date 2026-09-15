@@ -12,6 +12,7 @@ import appConfig from './config/app.config';
 import { CustomExceptionFilter } from './common/exception/custom-exception.filter';
 import { SojebStorage } from './common/lib/Disk/SojebStorage';
 import { AdminHelper } from './common/helper/admin.helper';
+import { TestDataHelper } from './common/helper/test-data.helper';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -91,8 +92,13 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
   // end swagger
 
-  // Initialize admin user if not exists
+  // Initialize admin user if not exists (runs on all environments)
   await AdminHelper.initializeAdminUser();
+
+  // Initialize test dataset only in local/development environment (disabled in production)
+  if (process.env.NODE_ENV !== 'production') {
+    await TestDataHelper.initializeTestData();
+  }
 
   await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
 }
