@@ -3,6 +3,7 @@ import {
   Delete,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -21,6 +22,7 @@ import { Request } from 'express';
 import { TimesheetService } from './timesheet.service';
 import { ForceApproveTimesheetDto } from './dto/force-approve-timesheet.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { UpdateTimesheetAttendanceDto } from './dto/update-timesheet-attendance.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
@@ -98,6 +100,23 @@ export class TimesheetController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.timesheetService.findOne(id);
+  }
+
+  @ApiOperation({
+    summary:
+      'Update check-in and check-out attendance times for a pending timesheet (admin action with auto-recalculation of hours and pay)',
+  })
+  @Patch(':id/attendance')
+  updateAttendance(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateTimesheetAttendanceDto,
+    @Req() req: Request,
+  ) {
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      throw new BadRequestException('User not authenticated');
+    }
+    return this.timesheetService.updateAttendance(id, user_id, updateDto);
   }
 
   @ApiOperation({ summary: 'Force approve a timesheet (admin action)' })

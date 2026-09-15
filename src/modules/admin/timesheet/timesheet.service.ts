@@ -4,10 +4,11 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { Prisma, TimesheetStatus } from '@prisma/client';
+import { Prisma, ShiftAttendanceStatus, TimesheetStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ForceApproveTimesheetDto } from './dto/force-approve-timesheet.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { UpdateTimesheetAttendanceDto } from './dto/update-timesheet-attendance.dto';
 import { PushNotificationService } from 'src/common/service/push-notification.service';
 import { NotificationRepository } from 'src/common/repository/notification/notification.repository';
 import { XeroService } from 'src/modules/payment/xero/xero.service';
@@ -212,6 +213,15 @@ export class TimesheetService {
                 platform_margin: true,
                 start_date: true,
                 end_date: true,
+                attendance: {
+                  select: {
+                    id: true,
+                    status: true,
+                    check_in_time: true,
+                    check_out_time: true,
+                    location_check: true,
+                  },
+                },
                 service_provider_info: {
                   select: {
                     id: true,
@@ -328,6 +338,10 @@ export class TimesheetService {
           staff_email: timesheet.staff?.user?.email || null,
           staff_mobile: staffMobile || null,
           hours: timesheet.total_hours || 0,
+          check_in_time: timesheet.shift.attendance?.check_in_time || null,
+          check_out_time: timesheet.shift.attendance?.check_out_time || null,
+          attendance_status: timesheet.shift.attendance?.status || null,
+          location_check: timesheet.shift.attendance?.location_check || null,
           hours_pending: hoursPending,
           days_pending: daysPending,
           urgency,
@@ -438,6 +452,15 @@ export class TimesheetService {
               platform_margin: true,
               start_date: true,
               end_date: true,
+              attendance: {
+                select: {
+                  id: true,
+                  status: true,
+                  check_in_time: true,
+                  check_out_time: true,
+                  location_check: true,
+                },
+              },
               service_provider_info: {
                 select: {
                   id: true,
@@ -526,6 +549,10 @@ export class TimesheetService {
         staff_email: timesheet.staff?.user?.email || null,
         staff_mobile: staffMobile || null,
         hours: timesheet.total_hours || 0,
+        check_in_time: timesheet.shift.attendance?.check_in_time || null,
+        check_out_time: timesheet.shift.attendance?.check_out_time || null,
+        attendance_status: timesheet.shift.attendance?.status || null,
+        location_check: timesheet.shift.attendance?.location_check || null,
         hours_pending: hoursPending,
         days_pending: daysPending,
         urgency,
@@ -542,6 +569,215 @@ export class TimesheetService {
       }
       throw new InternalServerErrorException(
         error instanceof Error ? error.message : 'Failed to fetch timesheet',
+      );
+    }
+  }
+
+  /**
+   * Update timesheet attendance (check-in and check-out) by Admin.
+   * Automatically calculates total_hours = (check_out - check_in) - break_minutes,
+   * total_pay = total_hours * hourly_rate, and staff_total_pay = total_hours * staff_hourly_rate.
+   */
+  async updateAttendance(
+    id: string,
+    adminUserId: string,
+    dto: UpdateTimesheetAttendanceDto,
+  ) {
+    try {
+      const timesheet = await this.prisma.shiftTimesheet.findUnique({
+        where: { id },
+        include: {
+          shift: {
+            include: {
+              attendance: true,
+              service_provider_info: {
+                select: {
+                  id: true,
+                  organization_name: true,
+                },
+              },
+            },
+          },
+          staff: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!timesheet) {
+        throw new NotFoundException('Timesheet not found');
+      }
+
+      // Check if timesheet is already locked (invoiced or paid)
+      if (
+        timesheet.status === TimesheetStatus.invoiced ||
+        timesheet.status === TimesheetStatus.paid
+      ) {
+        throw new BadRequestException(
+          `Cannot edit attendance for a timesheet that is already ${timesheet.status}.`,
+        );
+      }
+
+      // Validate check-in and check-out dates
+      const checkIn = new Date(dto.check_in_time);
+      const checkOut = new Date(dto.check_out_time);
+
+      if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+        throw new BadRequestException('Invalid check-in or check-out date format.');
+      }
+
+      if (checkOut.getTime() <= checkIn.getTime()) {
+        throw new BadRequestException('Check-out time must be later than check-in time.');
+      }
+
+      // Backend duration & pay calculation
+      const breakMins = Math.max(0, Number(dto.break_minutes) || 0);
+      const diffMs = checkOut.getTime() - checkIn.getTime();
+      const breakMs = breakMins * 60 * 1000;
+
+      if (breakMs >= diffMs) {
+        throw new BadRequestException(
+          'Break time cannot be greater than or equal to total worked duration.',
+        );
+      }
+
+      const workedMs = diffMs - breakMs;
+      const calculatedHours = Number((workedMs / (1000 * 60 * 60)).toFixed(2));
+
+      // Hourly rates (from timesheet, or fallback to shift rates)
+      const hourlyRate = timesheet.hourly_rate ?? timesheet.shift.pay_rate_hourly ?? 0;
+      const staffHourlyRate =
+        timesheet.staff_hourly_rate ?? timesheet.shift.staff_hourly_rate ?? 0;
+
+      const totalPay = Number((calculatedHours * hourlyRate).toFixed(2));
+      const staffTotalPay = Number((calculatedHours * staffHourlyRate).toFixed(2));
+
+      const updated = await this.prisma.$transaction(async (tx) => {
+        // 1. Upsert attendance record
+        const attendance = await tx.shiftAttendance.upsert({
+          where: { shift_id: timesheet.shift_id },
+          create: {
+            shift_id: timesheet.shift_id,
+            staff_id: timesheet.staff_id,
+            status: ShiftAttendanceStatus.checked_out,
+            check_in_time: checkIn,
+            check_out_time: checkOut,
+            location_check: 'Admin Adjusted',
+          },
+          update: {
+            status: ShiftAttendanceStatus.checked_out,
+            check_in_time: checkIn,
+            check_out_time: checkOut,
+            location_check: 'Admin Adjusted',
+          },
+        });
+
+        // 2. Build notes
+        let updatedNotes = timesheet.notes || '';
+        if (dto.reason && dto.reason.trim()) {
+          const reasonText = dto.reason.trim();
+          updatedNotes = updatedNotes
+            ? `${updatedNotes} | Admin Note: ${reasonText}`
+            : `Admin Note: ${reasonText}`;
+        }
+
+        // 3. Update ShiftTimesheet with backend calculated hours and pays
+        const updatedTimesheet = await tx.shiftTimesheet.update({
+          where: { id },
+          data: {
+            total_hours: calculatedHours,
+            total_pay: totalPay,
+            staff_total_pay: staffTotalPay,
+            hourly_rate: hourlyRate,
+            staff_hourly_rate: staffHourlyRate,
+            clock_in_verified: true,
+            clock_out_verified: true,
+            verification_method: 'Admin Adjusted',
+            notes: updatedNotes || null,
+          },
+          include: {
+            shift: {
+              select: {
+                id: true,
+                posting_title: true,
+                facility_name: true,
+                service_provider_info: {
+                  select: {
+                    id: true,
+                    organization_name: true,
+                  },
+                },
+              },
+            },
+            staff: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // 4. Create ActivityLog audit trail
+        await tx.activityLog.create({
+          data: {
+            user_id: adminUserId,
+            action_type: 'timesheet_submit',
+            entity_type: 'timesheet',
+            entity_id: id,
+            description: `Admin updated check-in (${checkIn.toISOString()}) and check-out (${checkOut.toISOString()}) for timesheet #${id}. Total hours recalculated to ${calculatedHours} hrs (Total Pay: £${totalPay}, Staff Pay: £${staffTotalPay}).`,
+            metadata: {
+              timesheet_id: id,
+              shift_id: timesheet.shift_id,
+              staff_id: timesheet.staff_id,
+              previous_hours: timesheet.total_hours,
+              new_hours: calculatedHours,
+              break_minutes: breakMins,
+              reason: dto.reason || null,
+            },
+          },
+        });
+
+        return {
+          ...updatedTimesheet,
+          attendance,
+          check_in_time: attendance.check_in_time,
+          check_out_time: attendance.check_out_time,
+          break_minutes: breakMins,
+        };
+      });
+
+      return {
+        success: true,
+        message:
+          'Timesheet check-in, check-out and total hours updated successfully',
+        data: updated,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update timesheet attendance',
       );
     }
   }
